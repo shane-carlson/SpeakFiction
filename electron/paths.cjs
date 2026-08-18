@@ -1,0 +1,120 @@
+// Resolves on-disk locations for the packaged .app vs a git checkout.
+// ExtraResources (whisper binaries, logo) live next to the asar; GGML weights
+// are downloaded into userData because they are too large to ship in the DMG.
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+function electronApp() {
+  try {
+    const electron = require('electron');
+    if (electron && typeof electron === 'object' && electron.app) return electron.app;
+  } catch {
+    /* loaded outside Electron (tests, scripts) */
+  }
+  return null;
+}
+
+function isPackaged() {
+  return Boolean(electronApp()?.isPackaged);
+}
+
+function repoRoot() {
+  return path.join(__dirname, '..');
+}
+
+function cliName() {
+  return process.platform === 'win32' ? 'whisper-cli.exe' : 'whisper-cli';
+}
+
+function serverName() {
+  return process.platform === 'win32' ? 'whisper-server.exe' : 'whisper-server';
+}
+
+/** whisper-cli, whisper-server, and their dylibs / DLLs */
+function binDir() {
+  if (isPackaged()) return path.join(process.resourcesPath, 'whisper');
+  if (process.platform === 'win32') {
+    const win = path.join(repoRoot(), 'models', 'bin-win-x64');
+    if (fs.existsSync(path.join(win, cliName()))) return win;
+  }
+  return path.join(repoRoot(), 'models', 'bin');
+}
+
+function cliPath() {
+  return path.join(binDir(), cliName());
+}
+
+function serverPath() {
+  return path.join(binDir(), serverName());
+}
+
+/** Writable cache for GGML weights and the WASM fallback */
+function modelsDir() {
+  const app = electronApp();
+  if (app?.isPackaged) return path.join(app.getPath('userData'), 'models');
+  return path.join(repoRoot(), 'models');
+}
+
+function bundledModelPath(filename) {
+  if (!isPackaged()) return null;
+  return path.join(process.resourcesPath, 'models', filename);
+}
+
+function isUsableModelFile(file) {
+  try {
+    return fs.statSync(file).size > 10_000_000;
+  } catch {
+    return false;
+  }
+}
+
+function modelSearchDirs() {
+  const dirs = [];
+  const seen = new Set();
+  const add = (dir) => {
+    if (!dir || seen.has(dir)) return;
+    seen.add(dir);
+    dirs.push(dir);
+  };
+  add(modelsDir());
+  add(path.join(repoRoot(), 'models'));
+  try {
+    add(path.join(os.homedir(), 'SpeakFiction', 'models'));
+  } catch {
+    /* ignore */
+  }
+  return dirs;
+}
+
+/** Prefer a user-downloaded weight; fall back to a model shipped in extraResources. */
+function modelPath(filename) {
+  for (const dir of modelSearchDirs()) {
+    const file = path.join(dir, filename);
+    if (isUsableModelFile(file)) return file;
+  }
+  const bundled = bundledModelPath(filename);
+  if (bundled && isUsableModelFile(bundled)) return bundled;
+  return path.join(modelsDir(), filename);
+}
+
+function logoPath() {
+  if (isPackaged()) return path.join(process.resourcesPath, 'speakfiction-logo.png');
+  return path.join(repoRoot(), 'public', 'speakfiction-logo.png');
+}
+
+module.exports = {
+  electronApp,
+  isPackaged,
+  repoRoot,
+  binDir,
+  cliName,
+  serverName,
+  cliPath,
+  serverPath,
+  modelsDir,
+  bundledModelPath,
+  modelPath,
+  isUsableModelFile,
+  logoPath,
+};
