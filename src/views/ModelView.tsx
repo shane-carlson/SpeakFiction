@@ -1,9 +1,13 @@
 import type { Book } from '../core/types';
 import { learningProgress, suggestCanonical } from '../core/adaptiveModel';
 import { getGenre } from '../core/genres';
+import { getTense } from '../core/tense';
+import { getPerspective } from '../core/perspective';
 
 export function ModelView({ book }: { book: Book }) {
   const genre = getGenre(book.genreId);
+  const tense = getTense(book.tenseId);
+  const perspective = getPerspective(book.perspectiveId);
   const progress = learningProgress(book.adaptive);
   const corrections = Object.entries(book.adaptive.corrections);
   const topVocab = Object.entries(book.adaptive.vocabulary)
@@ -19,14 +23,14 @@ export function ModelView({ book }: { book: Book }) {
         <div>
           <h2>On-Device Model</h2>
           <p>
-            A private model that adapts to <b>your</b> voice, vocabulary, and genre — trained on this
-            device from your corrections. No prose ever leaves your Mac.
+            A private model that adapts to <b>your</b> voice, vocabulary, genre, tense, and
+            perspective — trained on this device from your corrections. No prose ever leaves your Mac.
           </p>
         </div>
         <div className="book-pill">
           <span>🧠</span>
           <b>{book.title}</b>
-          <span>· {genre.name} base</span>
+          <span>· {genre.name} · {tense.name} · {perspective.name}</span>
         </div>
       </div>
 

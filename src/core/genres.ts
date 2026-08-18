@@ -21,6 +21,16 @@ export const GENRES: Record<GenreId, GenreProfile> = {
     useEllipsisGlyph: true,
     sceneBreakGlyph: '❖',
   },
+  litrpg: {
+    id: 'litrpg',
+    name: 'LitRPG',
+    description: 'Game systems, skill names, and stat ranges. En-dashes, curly quotes.',
+    quoteStyle: 'curly',
+    dashStyle: 'en',
+    oxfordComma: true,
+    useEllipsisGlyph: true,
+    sceneBreakGlyph: '◆ ◆ ◆',
+  },
   'sci-fi': {
     id: 'sci-fi',
     name: 'Science Fiction',
@@ -60,6 +70,16 @@ export const GENRES: Record<GenreId, GenreProfile> = {
     oxfordComma: true,
     useEllipsisGlyph: true,
     sceneBreakGlyph: '♥',
+  },
+  romantasy: {
+    id: 'romantasy',
+    name: 'Romantasy',
+    description: 'Lush romantic fantasy. Em-dashes, curly quotes, ellipses.',
+    quoteStyle: 'curly',
+    dashStyle: 'em',
+    oxfordComma: true,
+    useEllipsisGlyph: true,
+    sceneBreakGlyph: '❦',
   },
   horror: {
     id: 'horror',

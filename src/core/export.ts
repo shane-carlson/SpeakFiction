@@ -6,6 +6,12 @@ export interface ExportContext {
   genre: GenreProfile;
 }
 
+/**
+ * Line-only separator for Scrivener 3 File → Import → Import and Split…
+ * A paragraph that contains only this string is removed and starts a new binder document.
+ */
+export const SCRIVENER_SPLIT_SEPARATOR = '#';
+
 function chapterHeading(block: Block, index: number): string {
   return block.title?.trim() || `Chapter ${index}`;
 }
@@ -74,32 +80,46 @@ function rtfEscape(text: string): string {
   return out;
 }
 
+function rtfSplitDelimiter(): string {
+  return `\\pard ${rtfEscape(SCRIVENER_SPLIT_SEPARATOR)}\\par`;
+}
+
 /**
- * RTF export. Word and Scrivener both import RTF natively, so this is the
- * shared format for the guided desktop integrations.
+ * RTF export. Scrivener 3 Import and Split uses a line that is only `#`
+ * (see SCRIVENER_SPLIT_SEPARATOR). Chapter titles follow on the next line
+ * so they become binder document names. Scenes stay inside the chapter.
+ * Pass `{ chapterSplit: false }` for live paste into an open document.
  */
-export function toRtf(m: Manuscript, ctx: ExportContext): string {
+export function toRtf(
+  m: Manuscript,
+  ctx: ExportContext,
+  opts: { chapterSplit?: boolean } = {},
+): string {
+  const chapterSplit = opts.chapterSplit !== false;
   const parts: string[] = [
     '{\\rtf1\\ansi\\ansicpg1252\\deff0',
     '{\\fonttbl{\\f0 Times New Roman;}}',
-    `\\f0\\fs24 {\\b\\fs40 ${rtfEscape(ctx.title)}\\par}`,
+    '\\f0\\fs24',
   ];
-  if (ctx.author) parts.push(`{\\i by ${rtfEscape(ctx.author)}\\par}`);
-  parts.push('\\par');
 
   let chapterNo = 0;
   for (const b of m.blocks) {
     switch (b.type) {
       case 'chapter':
         chapterNo++;
-        parts.push(`\\page{\\b\\fs32 ${rtfEscape(chapterHeading(b, chapterNo))}\\par}\\par`);
+        if (chapterSplit) parts.push(rtfSplitDelimiter());
+        parts.push(`\\pard{\\b\\fs32 ${rtfEscape(chapterHeading(b, chapterNo))}\\par}\\pard\\par`);
         break;
       case 'section':
-        parts.push(`{\\b\\fs28 ${rtfEscape(b.title?.trim() || 'Section')}\\par}\\par`);
+        parts.push(`\\pard{\\b\\fs28 ${rtfEscape(b.title?.trim() || 'Section')}\\par}\\pard\\par`);
         break;
-      case 'scene':
-        parts.push(`\\qc ${rtfEscape(b.title?.trim() || ctx.genre.sceneBreakGlyph)}\\par\\ql\\par`);
+      case 'scene': {
+        const label = b.title?.trim()
+          ? `${ctx.genre.sceneBreakGlyph}  ${b.title.trim()}`
+          : ctx.genre.sceneBreakGlyph;
+        parts.push(`\\pard\\qc ${rtfEscape(label)}\\par\\pard\\ql\\par`);
         break;
+      }
       case 'paragraph':
         if ((b.text ?? '').trim()) parts.push(`\\fi720 ${rtfEscape(b.text!.trim())}\\par`);
         break;

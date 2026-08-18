@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPunctuation } from '../punctuation';
+import { applyPunctuation, capitalizeSentences } from '../punctuation';
 import { getGenre } from '../genres';
 
 const literary = getGenre('literary');
@@ -26,6 +26,10 @@ describe('applyPunctuation', () => {
   it('applies straight quotes for generic genre', () => {
     const out = applyPunctuation('open quote hello close quote', generic);
     expect(out).toBe('"Hello"');
+  });
+
+  it('does not treat a closing straight quote as a new sentence', () => {
+    expect(capitalizeSentences('"Hello," he said.')).toBe('"Hello," he said.');
   });
 
   it('renders dash per genre', () => {

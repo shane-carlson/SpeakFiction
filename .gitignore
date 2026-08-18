@@ -1,8 +1,17 @@
+.env
+.env.*
+!.env.example
 node_modules/
 dist/
 dist-electron/
 release/
+build/icon.icns
+build/icon.ico
+build/icon.iconset/
+build/.ico-tmp/
 *.log
 .DS_Store
 .vite/
 coverage/
+models/
+vendor/

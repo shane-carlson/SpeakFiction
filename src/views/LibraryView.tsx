@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { CATEGORY_LABELS, useStore } from '../store';
 import { GENRE_LIST } from '../core/genres';
-import type { GenreId, NameCategory } from '../core/types';
+import { TENSE_LIST, getTense } from '../core/tense';
+import { PERSPECTIVE_LIST, getPerspective } from '../core/perspective';
+import type { GenreId, NameCategory, PerspectiveId, TenseId } from '../core/types';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
@@ -11,6 +13,8 @@ export function LibraryView() {
   const setActiveBook = useStore((s) => s.setActiveBook);
   const createBook = useStore((s) => s.createBook);
   const setGenre = useStore((s) => s.setGenre);
+  const setTense = useStore((s) => s.setTense);
+  const setPerspective = useStore((s) => s.setPerspective);
   const addNameEntry = useStore((s) => s.addNameEntry);
   const removeNameEntry = useStore((s) => s.removeNameEntry);
 
@@ -44,7 +48,7 @@ export function LibraryView() {
           <h2>Library</h2>
           <p>
             Each book (or series) has its own trained vocabulary of characters, places, and items,
-            plus a genre profile that shapes punctuation and structure.
+            plus genre punctuation, narrative tense, and the perspective you write in.
           </p>
         </div>
       </div>
@@ -69,7 +73,8 @@ export function LibraryView() {
               <div className="grow">
                 <div className="name">{b.title}</div>
                 <div className="aliases">
-                  {GENRE_LIST.find((g) => g.id === b.genreId)?.name} · {b.nameLibrary.length} names ·{' '}
+                  {GENRE_LIST.find((g) => g.id === b.genreId)?.name} · {getTense(b.tenseId).name} ·{' '}
+                  {getPerspective(b.perspectiveId).name} · {b.nameLibrary.length} names ·{' '}
                   {b.manuscript.blocks.length} blocks
                 </div>
               </div>
@@ -80,7 +85,7 @@ export function LibraryView() {
           <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
             <div className="field">
               <label>New book title</label>
-              <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. The Ember King" />
+              <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Winter of Glass" />
             </div>
             <div className="row">
               <select value={newGenre} onChange={(e) => setNewGenre(e.target.value as GenreId)}>
@@ -106,19 +111,28 @@ export function LibraryView() {
         </div>
 
         <div className="card">
-          <h3>Genre profile</h3>
-          <p className="sub">Controls quotes, dashes, the serial comma, and scene-break glyphs.</p>
+          <h3>Genre, tense & perspective</h3>
+          <p className="sub">
+            Genre shapes quotes and dashes. Tense and perspective shape narration and spoken-tag cleanup.
+          </p>
           {book && (
             <>
-              <select value={book.genreId} onChange={(e) => setGenre(book.id, e.target.value as GenreId)}>
-                {GENRE_LIST.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
+              <div className="field">
+                <label htmlFor="book-genre">Genre profile</label>
+                <select
+                  id="book-genre"
+                  value={book.genreId}
+                  onChange={(e) => setGenre(book.id, e.target.value as GenreId)}
+                >
+                  {GENRE_LIST.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {GENRE_LIST.filter((g) => g.id === book.genreId).map((g) => (
-                <div key={g.id} style={{ marginTop: 14 }} className="hint">
+                <div key={g.id} className="hint" style={{ marginBottom: 16 }}>
                   <p style={{ marginTop: 0 }}>{g.description}</p>
                   <div className="row wrap" style={{ gap: 8 }}>
                     <span className="badge">{g.quoteStyle === 'curly' ? '“curly” quotes' : '"straight" quotes'}</span>
@@ -128,6 +142,42 @@ export function LibraryView() {
                   </div>
                 </div>
               ))}
+              <div className="field">
+                <label htmlFor="book-tense">Tense</label>
+                <select
+                  id="book-tense"
+                  value={book.tenseId ?? 'past'}
+                  onChange={(e) => setTense(book.id, e.target.value as TenseId)}
+                >
+                  {TENSE_LIST.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="hint" style={{ marginBottom: 16 }}>
+                <p style={{ marginTop: 0 }}>{getTense(book.tenseId).description}</p>
+                <p>{getTense(book.tenseId).narrativeHint} Spoken slips like “he says” vs “he said” follow this; quoted dialogue is left as the character spoke it.</p>
+              </div>
+              <div className="field">
+                <label htmlFor="book-perspective">Perspective</label>
+                <select
+                  id="book-perspective"
+                  value={book.perspectiveId ?? 'third-limited'}
+                  onChange={(e) => setPerspective(book.id, e.target.value as PerspectiveId)}
+                >
+                  {PERSPECTIVE_LIST.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="hint">
+                <p style={{ marginTop: 0 }}>{getPerspective(book.perspectiveId).description}</p>
+                <p>{getPerspective(book.perspectiveId).narrativeHint}</p>
+              </div>
             </>
           )}
         </div>

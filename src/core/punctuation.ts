@@ -63,9 +63,17 @@ function fixSpacing(text: string): string {
 
 /** Capitalize the first letter of each sentence. */
 export function capitalizeSentences(text: string): string {
-  let out = text.replace(/(^|[.!?]\s+|\u201C|")\s*([a-z])/g, (_m, pre: string, ch: string) => {
+  let out = text.replace(/(^|[.!?]\s+)\s*([a-z])/g, (_m, pre: string, ch: string) => {
     return pre + ch.toUpperCase();
   });
+  // Opening curly quotes start dialogue; closing curly quotes do not.
+  out = out.replace(/\u201C\s*([a-z])/g, (_m, ch: string) => `\u201C${ch.toUpperCase()}`);
+  // Straight quotes are identical for open/close — only treat a quote as
+  // opening when it sits at the start of a span (after space, dash, or colon).
+  out = out.replace(
+    /(^|[\s(\[{:\u2014\u2013])"(\s*)([a-z])/g,
+    (_m, pre: string, sp: string, ch: string) => `${pre}"${sp}${ch.toUpperCase()}`,
+  );
   // Capitalize the standalone pronoun "i".
   out = out.replace(/\bi\b/g, 'I').replace(/\bi'/g, "I'");
   return out;

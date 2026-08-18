@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { toMarkdown, toPlainText, toRtf, toScrivener } from '../export';
+import { EMBER_KING_TITLE } from '../seedManuscript';
+import { SCRIVENER_SPLIT_SEPARATOR, toMarkdown, toPlainText, toRtf, toScrivener } from '../export';
 import { buildDocx } from '../exportDocx';
 import { getGenre } from '../genres';
 import { appendSegments } from '../manuscript';
 import type { ExportContext } from '../export';
 
-const ctx: ExportContext = { title: 'The Ember King', author: 'A. Writer', genre: getGenre('fantasy') };
+const ctx: ExportContext = { title: EMBER_KING_TITLE, author: 'A. Writer', genre: getGenre('fantasy') };
 
 const blocks = appendSegments([], [
   { type: 'structure', event: { kind: 'chapter', title: 'The Dawn' } },
@@ -18,7 +19,7 @@ const manuscript = { blocks };
 describe('exporters', () => {
   it('produces markdown with headings and scene breaks', () => {
     const md = toMarkdown(manuscript, ctx);
-    expect(md).toContain('# The Ember King');
+    expect(md).toContain(`# ${EMBER_KING_TITLE}`);
     expect(md).toContain('## The Dawn');
     expect(md).toContain(ctx.genre.sceneBreakGlyph);
     expect(md).toContain('Kaeldros drew his blade.');
@@ -26,15 +27,22 @@ describe('exporters', () => {
 
   it('produces plain text', () => {
     const txt = toPlainText(manuscript, ctx);
-    expect(txt).toContain('THE EMBER KING');
+    expect(txt).toContain('EXAMPLE: THE EMBER KING');
     expect(txt).toContain('THE DAWN');
   });
 
-  it('produces valid-looking RTF', () => {
+  it('produces valid-looking RTF with a Scrivener split delimiter before the chapter', () => {
     const rtf = toRtf(manuscript, ctx);
     expect(rtf.startsWith('{\\rtf1')).toBe(true);
     expect(rtf.trim().endsWith('}')).toBe(true);
-    expect(rtf).toContain('The Ember King');
+    expect(rtf).toContain(`\\pard ${SCRIVENER_SPLIT_SEPARATOR}\\par`);
+    expect(rtf.indexOf(`\\pard ${SCRIVENER_SPLIT_SEPARATOR}\\par`)).toBeLessThan(rtf.indexOf('The Dawn'));
+  });
+
+  it('can emit RTF without Import and Split markers for live paste', () => {
+    const rtf = toRtf(manuscript, ctx, { chapterSplit: false });
+    expect(rtf).toContain('The Dawn');
+    expect(rtf).not.toContain(`\\pard ${SCRIVENER_SPLIT_SEPARATOR}\\par`);
   });
 
   it('produces a Scrivener bundle with an outline', () => {

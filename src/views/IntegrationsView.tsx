@@ -1,17 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Book, IntegrationTarget } from '../core/types';
 import { getGenre } from '../core/genres';
-import { toMarkdown, toPlainText, toRtf, toScrivener, type ExportContext } from '../core/export';
+import {
+  SCRIVENER_SPLIT_SEPARATOR,
+  toMarkdown,
+  toPlainText,
+  toRtf,
+  toScrivener,
+  type ExportContext,
+} from '../core/export';
 import { docxToBlob } from '../core/exportDocx';
 import { slugify } from '../core/util';
 import { manuscriptStats } from '../core/manuscript';
+import { NativeHandoff } from '../components/NativeHandoff';
 
 interface TargetInfo {
   id: IntegrationTarget;
   name: string;
   icon: string;
   blurb: string;
-  steps: string[];
+  steps: ReactNode[];
   format: 'rtf' | 'docx' | 'md' | 'txt';
 }
 
@@ -20,13 +28,19 @@ const TARGETS: TargetInfo[] = [
     id: 'scrivener',
     name: 'Scrivener',
     icon: '📝',
-    blurb: 'Import as RTF and split into the binder by chapter and scene.',
+    blurb: 'Import and Split on # — one binder document per chapter.',
     format: 'rtf',
     steps: [
       'Download the SpeakFiction RTF below.',
-      'In Scrivener: File → Import → Files… and choose the .rtf.',
-      'Select the imported document, then Documents → Split → at Selection to break out chapters.',
-      'Scene breaks are centered so they align with your section separators.',
+      'In Scrivener 3 (Mac): File → Import → Import and Split… (not File → Import → Files…).',
+      'Choose the exported .rtf.',
+      <>
+        Select <b>Split into sections by finding separators in the text</b>. Set the separator to
+        exactly <span className="kbd">{SCRIVENER_SPLIT_SEPARATOR}</span> (a hash on its own line —
+        this is Scrivener’s default).
+      </>,
+      'Scrivener names each binder document from the first line after the split (the chapter title). The example story becomes five binder documents.',
+      'Scene breaks stay inside each chapter as a centered line (❖ plus the scene name). To split those later, open the chapter in the editor, click the scene line, then Documents → Split → at Selection. That command stays greyed out if nothing is open in the editor, or if you only have binder/corkboard items selected.',
     ],
   },
   {
@@ -176,19 +190,18 @@ export function IntegrationsView({ book }: { book: Book }) {
             </button>
           </div>
 
-          <div className="note-banner" style={{ marginTop: 18 }}>
-            <span className="ico">🖥️</span>
-            <div>
-              <b>Native macOS hand-off</b> (Scrivener / Word live insertion via the Accessibility
-              API) ships with the packaged desktop build. This preview provides the guided
-              file-based path, which works on every platform.
-            </div>
+          <div style={{ marginTop: 18 }}>
+            <NativeHandoff book={book} />
           </div>
         </div>
 
         <div className="card">
           <h3>Structure preview</h3>
-          <p className="sub">What SpeakFiction will create in {target.name}.</p>
+          <p className="sub">
+            {target.id === 'scrivener'
+              ? 'Import and Split creates one binder document per chapter. Scene lines stay inside the chapter.'
+              : `What SpeakFiction will create in ${target.name}.`}
+          </p>
           {scrivener.outline.length === 0 ? (
             <div className="empty">Dictate some chapters and scenes first.</div>
           ) : (

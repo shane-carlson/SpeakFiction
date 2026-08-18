@@ -26,13 +26,36 @@ export interface NameEntry {
 export type GenreId =
   | 'literary'
   | 'fantasy'
+  | 'litrpg'
   | 'sci-fi'
   | 'thriller'
   | 'mystery'
   | 'romance'
+  | 'romantasy'
   | 'horror'
   | 'ya'
   | 'generic';
+
+/** Narrative tense for the book. Dialogue keeps the character’s own tense. */
+export type TenseId = 'past' | 'present' | 'future' | 'past-perfect';
+
+export interface TenseProfile {
+  id: TenseId;
+  name: string;
+  description: string;
+  /** How narration vs dialogue should be treated. */
+  narrativeHint: string;
+}
+
+/** Who tells the story. Quoted dialogue keeps the character’s pronouns. */
+export type PerspectiveId = 'first' | 'second' | 'third-limited' | 'third-omniscient';
+
+export interface PerspectiveProfile {
+  id: PerspectiveId;
+  name: string;
+  description: string;
+  narrativeHint: string;
+}
 
 export type QuoteStyle = 'curly' | 'straight';
 export type DashStyle = 'em' | 'en' | 'hyphen';
@@ -85,6 +108,10 @@ export interface Book {
   title: string;
   seriesId?: string;
   genreId: GenreId;
+  /** Narrative tense. Defaults to past for fiction. */
+  tenseId: TenseId;
+  /** Narrative perspective. Defaults to third-limited. */
+  perspectiveId: PerspectiveId;
   nameLibrary: NameEntry[];
   manuscript: Manuscript;
   adaptive: AdaptiveModelState;
