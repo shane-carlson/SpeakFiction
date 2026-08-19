@@ -3,8 +3,14 @@ import { PERSIST_NAME } from './persistedState';
 const SAVE_MS = 400;
 
 let hydrated = false;
+let loadedPersistedSession = false;
 let timer = 0;
 let pending: string | null = null;
+
+/** True when this launch loaded library-state.json or a zustand persist snapshot. */
+export function hasPersistedSession(): boolean {
+  return loadedPersistedSession;
+}
 
 function nativeState() {
   return window.speakfiction?.state;
@@ -38,6 +44,7 @@ function writeDisk(json: string): void {
 /** Zustand persist string storage: Electron userData file, with localStorage fallback. */
 export const sessionStateStorage = {
   getItem: (name: string): string | null => {
+    loadedPersistedSession = false;
     const fromDisk = nativeState()?.loadSync?.();
     const candidates = [fromDisk, readLocal(name)];
     for (const value of candidates) {
@@ -47,6 +54,8 @@ export const sessionStateStorage = {
       } catch {
         continue;
       }
+      // Any readable persist payload means this is not a first install.
+      loadedPersistedSession = true;
       hydrated = true;
       writeLocal(name, value);
       return value;

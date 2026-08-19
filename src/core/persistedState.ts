@@ -63,6 +63,29 @@ export function normalizeLastSeenVersion(value: unknown): string | null {
   return trimmed || null;
 }
 
+/** Persist JSON from a previous run (`library-state.json` or zustand snapshot). */
+export function persistSnapshotIndicatesPriorSession(raw: unknown): boolean {
+  if (raw == null) return false;
+  let value: unknown = raw;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return false;
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const rec = value as Record<string, unknown>;
+  const state =
+    rec.state && typeof rec.state === 'object' && !Array.isArray(rec.state)
+      ? (rec.state as Record<string, unknown>)
+      : rec;
+  if (Array.isArray(state.books) && state.books.length > 0) return true;
+  return 'state' in rec && 'version' in rec;
+}
+
 export function omitKey<T extends object>(record: T, key: string): T {
   const copy = { ...(record as Record<string, unknown>) };
   delete copy[key];

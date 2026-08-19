@@ -10,30 +10,74 @@ import {
   notesMatchVersion,
   normalizeReleaseNotes,
   parseReleaseNotes,
+  pendingNotesIndicateUpdate,
   releaseTagMatches,
   resolveWhatsNewNotes,
+  shouldRecordLastSeenOnLaunch,
   shouldShowWhatsNew,
 } from '../whatsNew';
 
 describe('shouldShowWhatsNew', () => {
-  it('does not show on first launch of an install', () => {
-    expect(shouldShowWhatsNew(null, '0.1.6-b11')).toBe(false);
-    expect(shouldShowWhatsNew(undefined, '0.1.6-b11')).toBe(false);
-    expect(shouldShowWhatsNew('', '0.1.6-b11')).toBe(false);
-    expect(shouldShowWhatsNew('   ', '0.1.6-b11')).toBe(false);
+  it('does not show on a true first install', () => {
+    expect(shouldShowWhatsNew(null, '0.1.7-b12')).toBe(false);
+    expect(shouldShowWhatsNew(undefined, '0.1.7-b12')).toBe(false);
+    expect(shouldShowWhatsNew('', '0.1.7-b12')).toBe(false);
+    expect(shouldShowWhatsNew('   ', '0.1.7-b12')).toBe(false);
+  });
+
+  it('shows an upgrade that never wrote lastSeenVersion', () => {
+    expect(shouldShowWhatsNew(null, '0.1.7-b12', { hasPriorSession: true })).toBe(true);
+    expect(shouldShowWhatsNew(undefined, '0.1.7-b12', { hasPriorSession: true })).toBe(true);
+    expect(shouldShowWhatsNew('', '0.1.7-b12', { hasPriorSession: true })).toBe(true);
+  });
+
+  it('shows when pending updater notes are present after restart', () => {
+    expect(shouldShowWhatsNew(null, '0.1.7-b12', { hasPendingNotes: true })).toBe(true);
+    expect(shouldShowWhatsNew('0.1.6-b11', '0.1.7-b12', { hasPendingNotes: true })).toBe(true);
   });
 
   it('does not show when the running version was already seen', () => {
-    expect(shouldShowWhatsNew('0.1.6-b11', '0.1.6-b11')).toBe(false);
+    expect(shouldShowWhatsNew('0.1.7-b12', '0.1.7-b12')).toBe(false);
+    expect(shouldShowWhatsNew('0.1.7-b12', '0.1.7-b12', { hasPriorSession: true, hasPendingNotes: true })).toBe(
+      false,
+    );
   });
 
   it('shows after a version bump until the user dismisses', () => {
     expect(shouldShowWhatsNew('0.1.5-b10', '0.1.6-b11')).toBe(true);
     expect(shouldShowWhatsNew('0.1.6-b10', '0.1.6-b11')).toBe(true);
+    expect(shouldShowWhatsNew('0.1.6-b11', '0.1.7-b12')).toBe(true);
   });
 
   it('never shows without a current version', () => {
     expect(shouldShowWhatsNew('0.1.5', '')).toBe(false);
+    expect(shouldShowWhatsNew(null, '', { hasPriorSession: true, hasPendingNotes: true })).toBe(false);
+  });
+});
+
+describe('shouldRecordLastSeenOnLaunch', () => {
+  it('records the running version on a true first install', () => {
+    expect(shouldRecordLastSeenOnLaunch(null, '0.1.7-b12')).toBe(true);
+    expect(shouldRecordLastSeenOnLaunch(null, '0.1.7-b12', { hasPriorSession: false })).toBe(true);
+  });
+
+  it('does not record on first paint of an upgrade', () => {
+    expect(shouldRecordLastSeenOnLaunch(null, '0.1.7-b12', { hasPriorSession: true })).toBe(false);
+    expect(shouldRecordLastSeenOnLaunch(null, '0.1.7-b12', { hasPendingNotes: true })).toBe(false);
+    expect(shouldRecordLastSeenOnLaunch('0.1.6-b11', '0.1.7-b12')).toBe(false);
+  });
+
+  it('does not overwrite a version that was already acknowledged', () => {
+    expect(shouldRecordLastSeenOnLaunch('0.1.7-b12', '0.1.7-b12')).toBe(false);
+  });
+});
+
+describe('pendingNotesIndicateUpdate', () => {
+  it('treats a saved updater notes file as an upgrade restart', () => {
+    expect(pendingNotesIndicateUpdate(null)).toBe(false);
+    expect(pendingNotesIndicateUpdate(undefined)).toBe(false);
+    expect(pendingNotesIndicateUpdate({ version: '0.1.8', notes: 'Fixes' })).toBe(true);
+    expect(pendingNotesIndicateUpdate({ version: '0.1.8', notes: '' })).toBe(true);
   });
 });
 

@@ -410,6 +410,7 @@ export const useStore = create<AppState>()(
           series,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          // Missing lastSeenVersion stays null — do not fill with the running version.
           lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : 'dictate',
         };
@@ -431,6 +432,8 @@ export const useStore = create<AppState>()(
           activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          // Persist is source of truth. Defaulting to current.lastSeenVersion or the
+          // running app version would hide upgrades from installs that never wrote it.
           lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
           books: (p.books ?? current.books).map((b) => ({
             ...b,

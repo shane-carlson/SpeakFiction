@@ -24,19 +24,52 @@ export function appVersionId(version: string, build: string | number = ''): stri
   return `${v}-b${b}`;
 }
 
+export interface WhatsNewContext {
+  /** True when this launch loaded library-state / zustand persist from disk. */
+  hasPriorSession?: boolean;
+  /** True when electron-updater left pending What’s New notes for this restart. */
+  hasPendingNotes?: boolean;
+}
+
 /**
- * Show What’s New only after a version change. Missing lastSeenVersion is a
- * first launch of this install (or first launch of this feature): do not show.
+ * Show What’s New after an upgrade, not on a true first install.
+ *
+ * Missing lastSeenVersion is ambiguous: 0.1.6 never wrote it, so an auto-update
+ * to 0.1.7 must not be treated as a first launch. Use prior session or pending
+ * updater notes to distinguish those upgrades.
  */
 export function shouldShowWhatsNew(
   lastSeenVersion: string | null | undefined,
   currentVersion: string,
+  context: WhatsNewContext = {},
 ): boolean {
   const current = String(currentVersion ?? '').trim();
   if (!current) return false;
   const seen = normalizeLastSeenVersion(lastSeenVersion);
-  if (!seen) return false;
-  return seen !== current;
+  if (seen === current) return false;
+  if (context.hasPendingNotes) return true;
+  if (seen) return true;
+  return Boolean(context.hasPriorSession);
+}
+
+/**
+ * Stamp lastSeenVersion on launch only for a true first install. Upgrades keep
+ * lastSeenVersion unset until the user dismisses What’s New.
+ */
+export function shouldRecordLastSeenOnLaunch(
+  lastSeenVersion: string | null | undefined,
+  currentVersion: string,
+  context: WhatsNewContext = {},
+): boolean {
+  const current = String(currentVersion ?? '').trim();
+  if (!current) return false;
+  if (normalizeLastSeenVersion(lastSeenVersion)) return false;
+  return !shouldShowWhatsNew(lastSeenVersion, current, context);
+}
+
+export function pendingNotesIndicateUpdate(pending: PendingWhatsNew | null | undefined): boolean {
+  if (!pending) return false;
+  return Boolean(pending.notes?.trim() || pending.version?.trim());
 }
 
 export function githubReleaseTag(version: string, build: string | number = ''): string {
@@ -102,6 +135,14 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.1.8': [
+    'What’s New now shows after a real upgrade, including installs that never recorded a last-seen version. Queer lit is a first-class genre with a rainbow palette; YA is brighter, and romance has proper light-mode colors.',
+    '',
+    '- What’s New after real upgrades (not treated as a first install)',
+    '- Queer lit genre and rainbow theme',
+    '- Brighter YA palette and romance light-mode colors',
+    '- Library, theme, and dictation place still persist on this device',
+  ].join('\n'),
   '0.1.7': [
     'After you update, SpeakFiction now shows a short What’s New card so you can see what changed in this version.',
     '',
