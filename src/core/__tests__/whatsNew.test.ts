@@ -3,16 +3,19 @@ import {
   appVersionId,
   bundledWhatsNew,
   DEFAULT_WHATS_NEW,
+  featureBullets,
   fetchGithubReleaseNotes,
   githubReleaseApiUrl,
   githubReleaseCandidateUrls,
   githubReleaseTag,
+  hasCuratedWhatsNew,
   notesMatchVersion,
   normalizeReleaseNotes,
   parseReleaseNotes,
   pendingNotesIndicateUpdate,
   releaseTagMatches,
   resolveWhatsNewNotes,
+  sanitizeWhatsNewNotes,
   shouldRecordLastSeenOnLaunch,
   shouldShowWhatsNew,
 } from '../whatsNew';
@@ -131,33 +134,119 @@ describe('release notes sources', () => {
     ]);
   });
 
-  it('prefers pending updater notes, then GitHub, then bundled copy', async () => {
-    const pending = await resolveWhatsNewNotes({
-      version: '0.1.6',
-      build: 11,
-      pending: { version: '0.1.6', notes: 'From the downloaded update.' },
-    });
-    expect(pending).toEqual({ text: 'From the downloaded update.', source: 'pending' });
+  it('keeps only feature bullets and drops pack/ops sections', () => {
+    const sanitized = sanitizeWhatsNewNotes(`
+## Features
+- Strike last sentence in the dictation box
+- Less silence junk without eating the next sentence
 
+## Pack
+- Notarized DMG via stapler
+- Attach latest.yml
+
+## Mac
+- Apple Silicon Metal vs Intel whisper-small.en
+
+## Windows
+- NSIS installer
+
+## Site
+- Copy SpeakFiction-0.1.9.dmg
+`);
+    expect(featureBullets(sanitized)).toEqual([
+      'Strike last sentence in the dictation box',
+      'Less silence junk without eating the next sentence',
+    ]);
+  });
+
+  it('uses curated 0.2.0 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.0')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.0',
+      build: 15,
+      pending: {
+        version: '0.2.0',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.0'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Dictation hears more of what you say, including quiet lines',
+      'Spoken cues (new chapter, new scene, new paragraph) reach the box again',
+      'What’s New is a short list of features, not installer notes',
+    ]);
+  });
+
+  it('uses curated bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.1.9')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.1.9',
+      build: 20,
+      pending: {
+        version: '0.1.9',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.1.9'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Strike last sentence in the dictation box — keep the line visible, leave it out of the manuscript',
+      'Less silence junk (“no, no”) without eating the next sentence',
+      'Struck drafts stay in the box so you can still see what you dropped',
+      'The box is labeled Transcription so it is clear what you are editing',
+    ]);
+  });
+
+  it('sanitizes pending notes for versions without curated copy', async () => {
+    const pending = await resolveWhatsNewNotes({
+      version: '9.9.9',
+      build: 1,
+      pending: {
+        version: '9.9.9',
+        notes: '## Features\n- New outline view so scenes are easier to jump between\n\n## Pack\n- Notarized DMG',
+      },
+    });
+    expect(pending).toEqual({
+      text: '- New outline view so scenes are easier to jump between',
+      source: 'pending',
+    });
+  });
+
+  it('sanitizes GitHub notes when there is no curated copy or usable pending body', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
-      if (String(url).includes('v0.1.6-b11')) {
+      if (String(url).includes('v9.9.9')) {
         return {
           ok: true,
-          json: async () => ({ tag_name: 'v0.1.6-b11', body: 'GitHub body' }),
+          json: async () => ({
+            tag_name: 'v9.9.9-b1',
+            body: '## Features\n- Faster export so you can get the manuscript out\n\n## Windows\n- NSIS installer',
+          }),
         };
       }
       return { ok: false, json: async () => ({}) };
     }) as unknown as typeof fetch;
-    const github = await resolveWhatsNewNotes({ version: '0.1.6', build: 11, fetchImpl });
-    expect(github).toEqual({ text: 'GitHub body', source: 'github' });
+    const github = await resolveWhatsNewNotes({ version: '9.9.9', build: 1, fetchImpl });
+    expect(github).toEqual({
+      text: '- Faster export so you can get the manuscript out',
+      source: 'github',
+    });
+  });
 
+  it('falls back to default bullets when pending and GitHub are pack/ops only', async () => {
     const fail = vi.fn(async () => {
       throw new Error('offline');
     }) as unknown as typeof fetch;
-    const bundled = await resolveWhatsNewNotes({ version: '0.1.6', build: 11, fetchImpl: fail });
+    const bundled = await resolveWhatsNewNotes({
+      version: '9.9.9',
+      build: 1,
+      pending: { version: '9.9.9', notes: '## Pack\n- Notarized DMG via stapler' },
+      fetchImpl: fail,
+    });
     expect(bundled.source).toBe('bundled');
-    expect(bundled.text).toBe(bundledWhatsNew('0.1.6'));
+    expect(bundled.text).toBe(DEFAULT_WHATS_NEW);
     expect(bundledWhatsNew('9.9.9')).toBe(DEFAULT_WHATS_NEW);
+    expect(featureBullets(DEFAULT_WHATS_NEW).length).toBeGreaterThanOrEqual(3);
   });
 
   it('skips latest GitHub release notes for a different version', async () => {

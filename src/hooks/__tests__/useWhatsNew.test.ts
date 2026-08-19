@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { appVersionId } from '../../core/whatsNew';
+import { appVersionId, bundledWhatsNew } from '../../core/whatsNew';
 import { useStore } from '../../store';
 import { useWhatsNew } from '../useWhatsNew';
 
@@ -71,6 +71,21 @@ describe('useWhatsNew', () => {
       expect(result.current.open).toBe(true);
     });
     expect(useStore.getState().lastSeenVersion).toBeNull();
+  });
+
+  it('shows curated feature bullets instead of pending GitHub pack notes', async () => {
+    hasPersistedSessionMock.mockReturnValue(true);
+    mockPending({
+      version: __APP_VERSION__,
+      notes: '## Pack\n- Notarized DMG via stapler\n\n## Features\n- Ignore this GitHub wall',
+    });
+    const { result } = renderHook(() => useWhatsNew());
+    await waitFor(() => {
+      expect(result.current.open).toBe(true);
+      expect(result.current.notes).toBe(bundledWhatsNew(__APP_VERSION__));
+    });
+    expect(result.current.notes).not.toContain('Notarized');
+    expect(result.current.notes).not.toContain('Ignore this GitHub wall');
   });
 
   it('does not show when the running version was already acknowledged', async () => {

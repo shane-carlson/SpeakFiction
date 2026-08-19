@@ -1,3 +1,8 @@
+/**
+ * In-app What’s New is a short list of feature-benefit bullets only.
+ * Pack, signing, installers, hardware, and updater internals stay on GitHub
+ * Releases — never in this dialog. Prefer BUNDLED_BY_VERSION over raw notes.
+ */
 import { normalizeLastSeenVersion } from './persistedState';
 
 export const GITHUB_REPO = 'shane-carlson/SpeakFiction';
@@ -13,6 +18,27 @@ export interface PendingWhatsNew {
   version: string;
   notes: string;
   name?: string;
+}
+
+const MAX_WHATS_NEW_BULLETS = 6;
+
+/** Headings whose sections are packaging/ops, not user-facing features. */
+const OPS_HEADING_RE =
+  /^(pack(?:aging)?|mac(?:os)?|windows|win(?:32)?|linux|site|installers?|signing|notarization|hardware|auto-?update|distribution|ci|ops)\b/i;
+
+/** Lines that are installer, signing, hardware, or artifact copy. */
+const OPS_COPY_RE =
+  /\b(notariz|stapler|codesign|hardened runtime|electron-builder|nsis|\.dmg|\.yml|latest\.yml|blockmap|apple silicon|intel mac|whisper-(?:cli|small|medium|large)|ggml-|pack:mac|pack:win|build number|buildNumber|github release artifacts?)\b/i;
+
+function bullets(...items: string[]): string {
+  return items.map((item) => `- ${item}`).join('\n');
+}
+
+export function marketingVersion(version: string | null | undefined): string {
+  return String(version ?? '')
+    .trim()
+    .replace(/^v/i, '')
+    .split('-b')[0];
 }
 
 /** Display/persist id, e.g. `0.1.6-b11`. */
@@ -107,14 +133,8 @@ export function releaseTagMatches(tag: string, version: string, build: string | 
 }
 
 export function notesMatchVersion(pendingVersion: string | null | undefined, currentVersion: string): boolean {
-  const pending = String(pendingVersion ?? '')
-    .trim()
-    .replace(/^v/i, '')
-    .split('-b')[0];
-  const current = String(currentVersion ?? '')
-    .trim()
-    .replace(/^v/i, '')
-    .split('-b')[0];
+  const pending = marketingVersion(pendingVersion);
+  const current = marketingVersion(currentVersion);
   return Boolean(pending && current && pending === current);
 }
 
@@ -135,46 +155,47 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
-  '0.1.9': [
-    'Quiet stretches no longer dump filler like “no no” into the dictation box, and the next real sentence still lands. Strike last sentence marks text in the box — strikethrough stays visible and is omitted on insert. The box is labeled Transcription.',
-    '',
-    '- Silence-filler loops are dropped without dropping the following sentence',
-    '- Strike last sentence in the dictation box (strikethrough stays visible; omitted on manuscript insert)',
-    '- Transcription label above the dictation box',
-    '- Dictation drafts persist as struck and unstruck spans',
-  ].join('\n'),
-  '0.1.8': [
-    'What’s New now shows after a real upgrade, including installs that never recorded a last-seen version. Queer lit is a first-class genre with a rainbow palette; YA is brighter, and romance has proper light-mode colors.',
-    '',
-    '- What’s New after real upgrades (not treated as a first install)',
-    '- Queer lit genre and rainbow theme',
-    '- Brighter YA palette and romance light-mode colors',
-    '- Library, theme, and dictation place still persist on this device',
-  ].join('\n'),
-  '0.1.7': [
-    'After you update, SpeakFiction now shows a short What’s New card so you can see what changed in this version.',
-    '',
-    '- Dismissible What’s New after in-app updates (not on first install)',
-    '- Library, theme, and dictation place still persist on this device',
-    '- Your license is unchanged',
-  ].join('\n'),
-  '0.1.6': [
-    'Your books, theme, and dictation place now persist in SpeakFiction’s app data, so they come back after a quit or an update.',
-    '',
-    '- Library and manuscript stay on this device',
-    '- Restart to install when a download is ready',
-    '- Your license is unchanged',
-  ].join('\n'),
+  '0.2.0': bullets(
+    'Dictation hears more of what you say, including quiet lines',
+    'Spoken cues (new chapter, new scene, new paragraph) reach the box again',
+    'What’s New is a short list of features, not installer notes',
+  ),
+  '0.1.9': bullets(
+    'Strike last sentence in the dictation box — keep the line visible, leave it out of the manuscript',
+    'Less silence junk (“no, no”) without eating the next sentence',
+    'Struck drafts stay in the box so you can still see what you dropped',
+    'The box is labeled Transcription so it is clear what you are editing',
+  ),
+  '0.1.8': bullets(
+    'What’s New after real upgrades — not treated as a first install',
+    'Queer lit genre and brighter YA/romance palettes',
+    'Library, theme, and dictation place still persist on this device',
+  ),
+  '0.1.7': bullets(
+    'What’s New after a real upgrade, not on first install',
+    'Library, theme, and dictation place still persist on this device',
+    'Your license is unchanged',
+  ),
+  '0.1.6': bullets(
+    'Library and manuscript stay on this device after a quit or update',
+    'Theme and dictation place come back where you left them',
+    'Your license is unchanged',
+  ),
 };
 
-export const DEFAULT_WHATS_NEW =
-  'This version includes writing-flow and reliability improvements. Your library and license stay on this device.';
+export const DEFAULT_WHATS_NEW = bullets(
+  'Writing-flow and reliability improvements',
+  'Library, theme, and dictation place stay on this device',
+  'Your license is unchanged',
+);
+
+export function hasCuratedWhatsNew(version: string): boolean {
+  const v = marketingVersion(version);
+  return Boolean(v && BUNDLED_BY_VERSION[v]);
+}
 
 export function bundledWhatsNew(version: string): string {
-  const v = String(version ?? '')
-    .trim()
-    .replace(/^v/i, '')
-    .split('-b')[0];
+  const v = marketingVersion(version);
   return (v && BUNDLED_BY_VERSION[v]) || DEFAULT_WHATS_NEW;
 }
 
@@ -243,6 +264,46 @@ export function parseReleaseNotes(raw: string): NotesBlock[] {
   return blocks;
 }
 
+function isOpsHeading(text: string): boolean {
+  return OPS_HEADING_RE.test(text.trim());
+}
+
+function isOpsCopy(text: string): boolean {
+  return OPS_COPY_RE.test(text);
+}
+
+/** Drop pack/ops headings and copy; keep a short feature-benefit list. */
+export function sanitizeWhatsNewNotes(raw: string): string {
+  const blocks = parseReleaseNotes(raw);
+  const items: string[] = [];
+  let skipSection = false;
+
+  for (const block of blocks) {
+    if (block.type === 'heading') {
+      skipSection = isOpsHeading(block.text);
+      continue;
+    }
+    if (skipSection) continue;
+    if (block.type !== 'list') continue;
+    for (const item of block.items) {
+      const text = item.trim();
+      if (text && !isOpsCopy(text)) items.push(text);
+    }
+  }
+
+  const unique = [...new Set(items)].slice(0, MAX_WHATS_NEW_BULLETS);
+  return unique.length ? bullets(...unique) : '';
+}
+
+/** List items for the dialog — headings and paragraphs are ignored. */
+export function featureBullets(notes: string): string[] {
+  const items: string[] = [];
+  for (const block of parseReleaseNotes(notes)) {
+    if (block.type === 'list') items.push(...block.items.map((item) => item.trim()).filter(Boolean));
+  }
+  return [...new Set(items)].slice(0, MAX_WHATS_NEW_BULLETS);
+}
+
 export async function fetchGithubReleaseNotes(
   version: string,
   build: string | number = '',
@@ -274,11 +335,21 @@ export async function resolveWhatsNewNotes(opts: {
   pending?: PendingWhatsNew | null;
   fetchImpl?: typeof fetch;
 }): Promise<{ text: string; source: WhatsNewSource }> {
+  if (hasCuratedWhatsNew(opts.version)) {
+    return { text: bundledWhatsNew(opts.version), source: 'bundled' };
+  }
+
   const pendingNotes = opts.pending?.notes?.trim() ?? '';
   if (pendingNotes && notesMatchVersion(opts.pending?.version, opts.version)) {
-    return { text: pendingNotes, source: 'pending' };
+    const sanitized = sanitizeWhatsNewNotes(pendingNotes);
+    if (sanitized) return { text: sanitized, source: 'pending' };
   }
+
   const fromGithub = await fetchGithubReleaseNotes(opts.version, opts.build, opts.fetchImpl ?? fetch);
-  if (fromGithub) return { text: fromGithub, source: 'github' };
-  return { text: bundledWhatsNew(opts.version), source: 'bundled' };
+  if (fromGithub) {
+    const sanitized = sanitizeWhatsNewNotes(fromGithub);
+    if (sanitized) return { text: sanitized, source: 'github' };
+  }
+
+  return { text: DEFAULT_WHATS_NEW, source: 'bundled' };
 }

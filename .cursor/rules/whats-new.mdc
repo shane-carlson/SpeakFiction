@@ -1,0 +1,22 @@
+---
+description: In-app What’s New is short feature-benefit bullets only (no pack/ops)
+globs: "**/whatsNew.ts,**/WhatsNewModal.tsx,**/useWhatsNew.ts,**/whatsNewStore.cjs,**/whatsNew.test.ts"
+alwaysApply: false
+---
+
+# What’s New (in-app)
+
+The dialog is **3–6 feature-benefit bullets**. Each line: what shipped + why it helps.
+
+GitHub Releases may keep pack/signing/hardware detail for humans. **Do not** put that wall of text in the app. Prefer `BUNDLED_BY_VERSION` in `src/core/whatsNew.ts`. If pending or GitHub notes are used, sanitize to feature bullets; drop Pack/Mac/Windows/Site headings and installer copy.
+
+## Include
+
+- Strike last sentence in the dictation box — keep the line visible, leave it out of the manuscript
+- Less silence junk (“no, no”) without eating the next sentence
+
+## Exclude
+
+- Notarization, stapler, DMGs, NSIS, `latest.yml`, Intel vs Apple Silicon models, build numbers as the story
+
+A small “Version 0.1.9” title is fine. Keep dismiss, first-install vs upgrade, and the pending notes file for detection — not as raw GitHub copy.

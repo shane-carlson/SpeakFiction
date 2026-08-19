@@ -1,21 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { parseReleaseNotes } from '../core/whatsNew';
+import { DEFAULT_WHATS_NEW, featureBullets, marketingVersion } from '../core/whatsNew';
 
 export function WhatsNewModal({
   open,
   version,
-  build,
   notes,
   onDismiss,
 }: {
   open: boolean;
   version: string;
-  build: string;
+  build?: string;
   notes: string;
   onDismiss: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const blocks = parseReleaseNotes(notes);
+  const bullets = featureBullets(notes);
+  const items = bullets.length ? bullets : featureBullets(DEFAULT_WHATS_NEW);
 
   useEffect(() => {
     if (!open) return;
@@ -31,8 +31,8 @@ export function WhatsNewModal({
 
   if (!open) return null;
 
-  const versionLabel = version ? `v${version.replace(/^v/i, '')}` : 'this version';
-  const buildLabel = build && build !== '0' ? ` · build ${build}` : '';
+  const marketing = marketingVersion(version);
+  const versionLabel = marketing ? `Version ${marketing}` : 'this version';
 
   return (
     <div className="whats-new-overlay" onClick={onDismiss} role="presentation">
@@ -47,36 +47,18 @@ export function WhatsNewModal({
         <div className="whats-new-head">
           <div>
             <h3 id="whats-new-title">What’s new</h3>
-            <p className="sub">
-              {versionLabel}
-              {buildLabel}
-            </p>
+            <p className="sub">{versionLabel}</p>
           </div>
           <button type="button" className="btn ghost compact" onClick={onDismiss} aria-label="Close">
             ×
           </button>
         </div>
         <div id="whats-new-body" className="whats-new-body">
-          {blocks.length === 0 ? (
-            <p>This update is ready on your device. Your library and license are unchanged.</p>
-          ) : (
-            blocks.map((block, index) => {
-              if (block.type === 'heading') {
-                const Tag = block.level === 1 ? 'h3' : 'h4';
-                return <Tag key={index}>{block.text}</Tag>;
-              }
-              if (block.type === 'list') {
-                return (
-                  <ul key={index}>
-                    {block.items.map((item, itemIndex) => (
-                      <li key={itemIndex}>{item}</li>
-                    ))}
-                  </ul>
-                );
-              }
-              return <p key={index}>{block.text}</p>;
-            })
-          )}
+          <ul>
+            {items.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
         </div>
         <button ref={closeRef} type="button" className="btn primary whats-new-got-it" onClick={onDismiss}>
           Got it
