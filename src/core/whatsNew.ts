@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.4': bullets(
+    'Insert dictation lands in the transcription box at the caret, not the manuscript',
+    'Spoken lines stay in the box until you insert them into the manuscript',
+    'Insert into manuscript promotes unstruck text and clears the box for the next take',
+    'Struck lines stay visible in the box and stay out of the manuscript',
+  ),
   '0.2.3': bullets('Windows app icon and taskbar show the SpeakFiction logo'),
   '0.2.2': bullets(
     'Insert dictation at the cursor without wiping the transcription box',

@@ -159,6 +159,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.4 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.4')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.4',
+      build: 19,
+      pending: {
+        version: '0.2.4',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.4'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Insert dictation lands in the transcription box at the caret, not the manuscript',
+      'Spoken lines stay in the box until you insert them into the manuscript',
+      'Insert into manuscript promotes unstruck text and clears the box for the next take',
+      'Struck lines stay visible in the box and stay out of the manuscript',
+    ]);
+  });
+
   it('uses curated 0.2.3 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.3')).toBe(true);
     const resolved = await resolveWhatsNewNotes({
