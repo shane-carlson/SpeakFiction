@@ -516,7 +516,9 @@ button {
 }
 .main:has(.dictate-page) {
   overflow: hidden;
-  padding-bottom: 24px;
+}
+.main:has(.dictate-page:not(.is-ms-editor)) {
+  padding: 12px 22px 12px;
 }
 .dictate-page {
   flex: 1;
@@ -546,9 +548,12 @@ button {
 .split-pane-side-fill {
   flex: 1 1 0;
 }
-.split-pane-side > .dictate-card {
+.split-pane-side > .dictate-card,
+.split-pane-side > .ms-editor-rail,
+.split-pane-side > .ms-editor-canvas {
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 .split-pane-handle {
   flex: none;
@@ -596,6 +601,7 @@ body.is-resizing iframe {
   overflow: hidden;
 }
 .dictate-console {
+  overflow-x: hidden;
   overflow-y: auto;
 }
 .dictate-ms-scroll {
@@ -624,6 +630,103 @@ body.is-resizing iframe {
   color: var(--text-dim);
   font-size: 13px;
   max-width: 640px;
+}
+
+/* Main Dictate screen only — not full-screen manuscript editor. */
+.dictate-page:not(.is-ms-editor) > .page-head {
+  margin-bottom: 8px;
+  gap: 12px;
+  align-items: center;
+}
+.dictate-page:not(.is-ms-editor) > .page-head h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.dictate-page:not(.is-ms-editor) > .page-head p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.dictate-stats {
+  gap: 8px;
+  margin-bottom: 8px;
+  flex: none;
+}
+.dictate-page:not(.is-ms-editor) .stat {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+.dictate-page:not(.is-ms-editor) .stat .n {
+  font-size: 16px;
+  line-height: 1.15;
+}
+.dictate-page:not(.is-ms-editor) .stat .l {
+  font-size: 10px;
+  margin-top: 0;
+}
+.card.dictate-card {
+  padding: 12px 14px;
+}
+.card.dictate-card h3 {
+  font-size: 14px;
+}
+.card.dictate-card .sub {
+  font-size: 11px;
+  margin: 0 0 8px;
+}
+.dictate-mic {
+  margin-bottom: 8px;
+  gap: 12px;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+.dictate-page:not(.is-ms-editor) .mic-btn {
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+  flex: none;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.dictate-keys {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.dictate-console .stt-profile {
+  margin-bottom: 8px;
+  padding: 5px 10px;
+  flex-shrink: 0;
+}
+.dictate-console .audio-settings {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.dictate-console .audio-settings .row {
+  margin-bottom: 4px;
+}
+.dictate-console .audio-settings .field {
+  margin-bottom: 6px;
+}
+.dictate-console .field:has(.dictation-transcript) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+.dictate-console .dictation-transcript {
+  flex: 1 1 auto;
+  min-height: 6.5em;
+  height: auto;
+  resize: none;
+}
+.dictate-chips {
+  margin: 0 0 8px;
+  flex-shrink: 0;
+}
+.dictate-insert {
+  justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .book-pill {
@@ -1120,6 +1223,12 @@ label {
   gap: 6px;
   align-items: center;
 }
+.ms-toolbar-heading-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
 .ms-toolbar-end {
   margin-left: auto;
 }
@@ -1150,6 +1259,9 @@ label {
   border: 1px solid transparent;
   padding: 6px 8px;
   min-height: 1.7em;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
   color: var(--text);
   outline: none;
   white-space: pre-wrap;
@@ -1221,10 +1333,18 @@ label {
   color: var(--text);
 }
 .ms-editor-shell {
+  /* Full-screen manuscript editor: left rail + wide canvas. */
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
+}
+.ms-editor-shell > .split-pane {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
 }
 .ms-editor-head {
   display: flex;
@@ -1238,12 +1358,112 @@ label {
 }
 .dictate-page.is-ms-editor {
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  flex: 1;
+}
+.app:has(.is-ms-editor),
+.app.sidebar-collapsed:has(.is-ms-editor) {
+  grid-template-columns: minmax(0, 1fr);
 }
 .app:has(.is-ms-editor) .sidebar {
   display: none;
 }
 .app:has(.is-ms-editor) .main {
-  padding: 14px 22px 18px;
+  padding: 10px 14px 12px;
+  min-width: 0;
+  width: 100%;
+}
+.ms-editor-rail {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding: 12px 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ms-editor-rail .ms-editor-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 0;
+}
+.ms-editor-rail .ms-editor-head h2 {
+  font-size: 20px;
+}
+.ms-editor-rail .hint {
+  font-size: 11px;
+  line-height: 1.35;
+}
+.ms-toolbar-rail {
+  flex: 1;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+  min-height: 0;
+}
+.ms-toolbar-rail .ms-toolbar-group {
+  flex-direction: column;
+  align-items: stretch;
+}
+.ms-toolbar-rail .ms-toolbar-format,
+.ms-toolbar-rail .ms-toolbar-heading-btns {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.ms-toolbar-rail .btn {
+  width: 100%;
+  justify-content: center;
+}
+.ms-toolbar-rail .ms-toolbar-format .btn,
+.ms-toolbar-rail .ms-toolbar-heading-btns .btn {
+  width: auto;
+  flex: 1 1 auto;
+}
+.ms-toolbar-rail .ms-toolbar-end {
+  margin-left: 0;
+  margin-top: auto;
+}
+.ms-editor-canvas {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 22px 18px;
+}
+.ms-editor-canvas .dictate-ms-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+.ms-editor-canvas .manuscript,
+.ms-editor-canvas .empty {
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+}
+.ms-editor-canvas .ms-para,
+.ms-editor-canvas .ms-para-editor,
+.ms-editor-canvas .ms-chapter,
+.ms-editor-canvas .ms-section,
+.ms-editor-canvas .ms-image-block {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .empty {

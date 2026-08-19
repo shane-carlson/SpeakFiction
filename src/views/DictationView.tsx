@@ -34,6 +34,12 @@ import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
 import type { DictationCommand } from '../core/voiceCommands';
 import type { InlineMarkKind } from '../core/types';
+import {
+  MANUSCRIPT_SPLIT_DEFAULT,
+  MANUSCRIPT_SPLIT_MAX,
+  MANUSCRIPT_SPLIT_MIN,
+  MANUSCRIPT_SPLIT_MIN_PX,
+} from '../core/splitRatio';
 import { IMAGE_ACCEPT } from '../core/manuscriptMedia';
 import { ingestManuscriptImage } from '../core/mediaStore';
 import { openBytesFile } from '../core/localFiles';
@@ -69,6 +75,8 @@ export function DictationView({
   const savedProfileLabel = useStore((s) => s.sttProfileLabel);
   const dictateSplit = useStore((s) => s.dictateSplit);
   const setDictateSplit = useStore((s) => s.setDictateSplit);
+  const manuscriptSplit = useStore((s) => s.manuscriptSplit);
+  const setManuscriptSplit = useStore((s) => s.setManuscriptSplit);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -391,17 +399,45 @@ export function DictationView({
     return (
       <div className="dictate-page is-ms-editor">
         <div className="ms-editor-shell">
-          <div className="ms-editor-head">
-            <h2>Manuscript</h2>
-            <span className="hint">{book.title} · Esc to exit</span>
-          </div>
-          {toolbar}
-          {imageError && (
-            <div className="hint" style={{ color: 'var(--warn)', margin: '6px 0' }}>
-              {imageError}
-            </div>
-          )}
-          {manuscriptScroll}
+          <SplitPane
+            ratio={manuscriptSplit}
+            onRatioChange={setManuscriptSplit}
+            minRatio={MANUSCRIPT_SPLIT_MIN}
+            maxRatio={MANUSCRIPT_SPLIT_MAX}
+            minPx={MANUSCRIPT_SPLIT_MIN_PX}
+            resetRatio={MANUSCRIPT_SPLIT_DEFAULT}
+            pinMid={false}
+            aria-label="Resize manuscript tools and canvas"
+            left={
+              <div className="ms-editor-rail">
+                <div className="ms-editor-head">
+                  <h2>Manuscript</h2>
+                  <span className="hint">{book.title} · Esc to exit</span>
+                </div>
+                <ManuscriptToolbar
+                  focused={focusedBlock}
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  editorOpen={editorOpen}
+                  layout="rail"
+                  onToggleEditor={() => setEditorOpen((open) => !open)}
+                  onInsertStructure={onInsertStructure}
+                  onInsertImage={() => void pickImage()}
+                  onFormat={onFormat}
+                  onClearFormat={onClearFormat}
+                  onSetKind={onSetKind}
+                  onUndo={() => undoManuscript(book.id)}
+                  onRedo={() => redoManuscript(book.id)}
+                />
+                {imageError && (
+                  <div className="hint" style={{ color: 'var(--warn)' }}>
+                    {imageError}
+                  </div>
+                )}
+              </div>
+            }
+            right={<div className="ms-editor-canvas">{manuscriptScroll}</div>}
+          />
         </div>
       </div>
     );
@@ -436,7 +472,7 @@ export function DictationView({
         </label>
       </div>
 
-      <div className="grid cols-4" style={{ marginBottom: 18 }}>
+      <div className="grid cols-4 dictate-stats">
         <div className="stat">
           <div className="n">{stats.words.toLocaleString()}</div>
           <div className="l">Words</div>
@@ -476,7 +512,7 @@ export function DictationView({
             </div>
           )}
 
-          <div className="row" style={{ marginBottom: 14, gap: 16 }}>
+          <div className="row dictate-mic">
             <button
               className={`mic-btn ${speech.session === 'listening' ? 'recording' : ''} ${speech.session === 'paused' ? 'paused' : ''}`}
               onClick={() => (speech.session === 'listening' ? speech.pause() : void speech.start())}
@@ -508,11 +544,11 @@ export function DictationView({
                   {sessionLabel}
                 </span>
               )}
-              <div className="hint" style={{ marginTop: 4 }}>
+              <div className="hint dictate-keys">
                 Say <span className="kbd">start dictation</span> <span className="kbd">pause dictation</span>{' '}
                 <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>
               </div>
-              <div className="hint" style={{ marginTop: 6 }}>
+              <div className="hint dictate-keys">
                 While listening: <span className="kbd">Space</span> new paragraph ·{' '}
                 <span className="kbd">Enter</span> new chapter · <span className="kbd">Shift+Space</span> new
                 scene · <span className="kbd">Shift+Enter</span> new section. The next sentence is the
@@ -545,7 +581,7 @@ export function DictationView({
             />
           </div>
 
-          <div className="row wrap" style={{ margin: '10px 0' }}>
+          <div className="row wrap dictate-chips">
             {DICTATION_COMMAND_CHIPS.map((c) => (
               <button
                 key={c}
@@ -567,7 +603,7 @@ export function DictationView({
             </button>
           </div>
 
-          <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div className="row dictate-insert">
             <button className="btn ghost" onClick={() => setDraft(plainDraft(SAMPLE))}>
               Load sample
             </button>

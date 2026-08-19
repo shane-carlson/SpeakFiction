@@ -50,6 +50,7 @@ import {
   type ManuscriptPlace,
 } from './core/persistedState';
 import { sessionStateStorage } from './core/sessionStorage';
+import { MANUSCRIPT_SPLIT_DEFAULT, normalizeManuscriptSplit } from './core/splitRatio';
 import { uid } from './core/util';
 import type { AppliedCorrection } from './core/nameLibrary';
 import type { DictationDraft } from './core/dictationDraft';
@@ -89,6 +90,8 @@ interface AppState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   dictateSplit: number;
   setDictateSplit: (ratio: number) => void;
+  manuscriptSplit: number;
+  setManuscriptSplit: (ratio: number) => void;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   dictationDrafts: Record<string, DictationDraft>;
@@ -236,6 +239,8 @@ export const useStore = create<AppState>()(
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       dictateSplit: 0.48,
       setDictateSplit: (ratio) => set({ dictateSplit: ratio }),
+      manuscriptSplit: MANUSCRIPT_SPLIT_DEFAULT,
+      setManuscriptSplit: (ratio) => set({ manuscriptSplit: normalizeManuscriptSplit(ratio) }),
       activeTab: 'dictate',
       setActiveTab: (tab) => set({ activeTab: tab }),
       dictationDrafts: {},
@@ -568,6 +573,7 @@ export const useStore = create<AppState>()(
         sttProfileLabel: s.sttProfileLabel,
         sidebarCollapsed: s.sidebarCollapsed,
         dictateSplit: s.dictateSplit,
+        manuscriptSplit: s.manuscriptSplit,
         activeTab: s.activeTab,
         dictationDrafts: s.dictationDrafts,
         manuscriptPlace: s.manuscriptPlace,
@@ -612,6 +618,7 @@ export const useStore = create<AppState>()(
             typeof p.dictateSplit === 'number' && p.dictateSplit > 0.2 && p.dictateSplit < 0.8
               ? p.dictateSplit
               : current.dictateSplit,
+          manuscriptSplit: normalizeManuscriptSplit(p.manuscriptSplit, current.manuscriptSplit),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),

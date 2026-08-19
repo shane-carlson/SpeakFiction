@@ -27,4 +27,5 @@ export * from './backup';
 export * from './localFiles';
 export * from './license';
 export * from './persistedState';
+export * from './splitRatio';
 export * from './whatsNew';

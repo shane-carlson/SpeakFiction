@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.7': bullets(
+    'Full-screen manuscript: tools on the left, a wide page on the right, drag the bar between them to resize',
+    'Dictation, the transcription box, and insert-into-manuscript fit on the main screen without scrolling',
+    'Word, chapter, and scene counts sit smaller and higher so the writing panes get more room',
+  ),
   '0.2.6': bullets(
     'Full-screen manuscript editor — Escape to return to dictation',
     'Toolbar for new chapter, scene, section, and paragraph, plus headings and undo/redo',

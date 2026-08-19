@@ -1,15 +1,21 @@
 import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-
-const DEFAULT_MIN = 0.28;
-const DEFAULT_MAX = 0.72;
+import {
+  clampSplitRatio,
+  DICTATE_SPLIT_MAX,
+  DICTATE_SPLIT_MIN,
+  DICTATE_SPLIT_MIN_PX,
+} from '../core/splitRatio';
 
 export function SplitPane({
   left,
   right,
   ratio,
   onRatioChange,
-  minRatio = DEFAULT_MIN,
-  maxRatio = DEFAULT_MAX,
+  minRatio = DICTATE_SPLIT_MIN,
+  maxRatio = DICTATE_SPLIT_MAX,
+  minPx = DICTATE_SPLIT_MIN_PX,
+  resetRatio = 0.5,
+  pinMid = true,
   'aria-label': ariaLabel = 'Resize dictation and manuscript',
 }: {
   left: ReactNode;
@@ -18,6 +24,9 @@ export function SplitPane({
   onRatioChange: (ratio: number) => void;
   minRatio?: number;
   maxRatio?: number;
+  minPx?: number;
+  resetRatio?: number;
+  pinMid?: boolean;
   'aria-label'?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -27,14 +36,9 @@ export function SplitPane({
   const pct = Math.round(value * 1000) / 10;
 
   const clamp = useCallback(
-    (next: number, width: number) => {
-      const fromPx = width > 0 ? 240 / width : minRatio;
-      const lo = Math.min(0.5, Math.max(minRatio, fromPx));
-      const hi = Math.max(0.5, Math.min(maxRatio, 1 - fromPx));
-      if (lo > hi) return 0.5;
-      return Math.min(hi, Math.max(lo, next));
-    },
-    [maxRatio, minRatio],
+    (next: number, width: number) =>
+      clampSplitRatio(next, width, { minRatio, maxRatio, minPx, pinMid }),
+    [maxRatio, minPx, minRatio, pinMid],
   );
 
   const applyClientX = useCallback(
@@ -75,23 +79,25 @@ export function SplitPane({
     stopDrag();
   };
 
+  const widthOf = () => wrapRef.current?.getBoundingClientRect().width ?? 0;
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const step = e.shiftKey ? 0.08 : 0.03;
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      onRatioChange(clamp(ratio - step, wrapRef.current?.getBoundingClientRect().width ?? 0));
+      onRatioChange(clamp(ratio - step, widthOf()));
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      onRatioChange(clamp(ratio + step, wrapRef.current?.getBoundingClientRect().width ?? 0));
+      onRatioChange(clamp(ratio + step, widthOf()));
     } else if (e.key === 'Home') {
       e.preventDefault();
-      onRatioChange(minRatio);
+      onRatioChange(clamp(minRatio, widthOf()));
     } else if (e.key === 'End') {
       e.preventDefault();
-      onRatioChange(maxRatio);
+      onRatioChange(clamp(maxRatio, widthOf()));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      onRatioChange(0.5);
+      onRatioChange(clamp(resetRatio, widthOf()));
     }
   };
 
@@ -113,7 +119,7 @@ export function SplitPane({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={() => onRatioChange(0.5)}
+        onDoubleClick={() => onRatioChange(clamp(resetRatio, widthOf()))}
         onKeyDown={onKeyDown}
       />
       <div className="split-pane-side split-pane-side-fill">{right}</div>

@@ -27,6 +27,7 @@ export function ManuscriptToolbar({
   canUndo,
   canRedo,
   editorOpen,
+  layout = 'bar',
   onToggleEditor,
   onInsertStructure,
   onInsertImage,
@@ -40,6 +41,7 @@ export function ManuscriptToolbar({
   canUndo: boolean;
   canRedo: boolean;
   editorOpen: boolean;
+  layout?: 'bar' | 'rail';
   onToggleEditor: () => void;
   onInsertStructure: (kind: ManuscriptInsertKind) => void;
   onInsertImage: () => void;
@@ -53,7 +55,11 @@ export function ManuscriptToolbar({
   const formatEnabled = focused?.type === 'paragraph';
 
   return (
-    <div className="ms-toolbar" role="toolbar" aria-label="Manuscript editor">
+    <div
+      className={`ms-toolbar${layout === 'rail' ? ' ms-toolbar-rail' : ''}`}
+      role="toolbar"
+      aria-label="Manuscript editor"
+    >
       <div className="ms-toolbar-group">
         {STRUCTURE_BUTTONS.map((b) => (
           <button key={b.kind} type="button" className="btn compact" onClick={() => onInsertStructure(b.kind)}>
@@ -64,7 +70,7 @@ export function ManuscriptToolbar({
           Insert image
         </button>
       </div>
-      <div className="ms-toolbar-group">
+      <div className="ms-toolbar-group ms-toolbar-format">
         {FORMAT_BUTTONS.map((b) => (
           <button
             key={b.kind}
@@ -83,17 +89,19 @@ export function ManuscriptToolbar({
       </div>
       <div className="ms-toolbar-group">
         <span className="ms-toolbar-label">Heading</span>
-        {HEADING_BUTTONS.map((b) => (
-          <button
-            key={b.kind}
-            type="button"
-            className={`btn compact${heading === b.kind ? ' primary' : ''}`}
-            disabled={!focused || focused.type === 'image'}
-            onClick={() => onSetKind(b.kind)}
-          >
-            {b.label}
-          </button>
-        ))}
+        <div className="ms-toolbar-heading-btns">
+          {HEADING_BUTTONS.map((b) => (
+            <button
+              key={b.kind}
+              type="button"
+              className={`btn compact${heading === b.kind ? ' primary' : ''}`}
+              disabled={!focused || focused.type === 'image'}
+              onClick={() => onSetKind(b.kind)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="ms-toolbar-group ms-toolbar-end">
         <button type="button" className="btn compact ghost" disabled={!canUndo} onClick={onUndo}>
