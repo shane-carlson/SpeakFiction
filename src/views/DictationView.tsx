@@ -79,6 +79,8 @@ export function DictationView({
   const setDictateSplit = useStore((s) => s.setDictateSplit);
   const manuscriptSplit = useStore((s) => s.manuscriptSplit);
   const setManuscriptSplit = useStore((s) => s.setManuscriptSplit);
+  const editorOpen = useStore((s) => s.manuscriptEditorOpen);
+  const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -96,7 +98,6 @@ export function DictationView({
   const canRedo = useStore((s) => (s.manuscriptHistory[book.id]?.future.length ?? 0) > 0);
   const [outcome, setOutcome] = useState<DictationOutcome | null>(null);
   const [showProfile, setShowProfile] = useState(true);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const restoredBook = useRef<string | null>(null);
@@ -299,7 +300,7 @@ export function DictationView({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editorOpen]);
+  }, [editorOpen, setEditorOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -375,7 +376,7 @@ export function DictationView({
       canUndo={canUndo}
       canRedo={canRedo}
       editorOpen={editorOpen}
-      onToggleEditor={() => setEditorOpen((open) => !open)}
+      onToggleEditor={() => setEditorOpen(!editorOpen)}
       onInsertStructure={onInsertStructure}
       onInsertImage={() => void pickImage()}
       onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}
@@ -435,7 +436,7 @@ export function DictationView({
                   canRedo={canRedo}
                   editorOpen={editorOpen}
                   layout="rail"
-                  onToggleEditor={() => setEditorOpen((open) => !open)}
+                  onToggleEditor={() => setEditorOpen(!editorOpen)}
                   onInsertStructure={onInsertStructure}
                   onInsertImage={() => void pickImage()}
                   onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}

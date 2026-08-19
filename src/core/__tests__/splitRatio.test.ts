@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampSplitRatio,
+  DICTATE_SPLIT_DEFAULT,
+  DICTATE_SPLIT_MAX,
+  DICTATE_SPLIT_MIN,
   MANUSCRIPT_SPLIT_DEFAULT,
   MANUSCRIPT_SPLIT_MAX,
   MANUSCRIPT_SPLIT_MIN,
   MANUSCRIPT_SPLIT_MIN_PX,
+  normalizeDictateSplit,
   normalizeManuscriptSplit,
 } from '../splitRatio';
 
@@ -38,5 +42,16 @@ describe('normalizeManuscriptSplit', () => {
     expect(normalizeManuscriptSplit('15%')).toBe(0.15);
     expect(normalizeManuscriptSplit(0)).toBe(0.15);
     expect(normalizeManuscriptSplit(0.9)).toBe(0.15);
+  });
+});
+
+describe('normalizeDictateSplit', () => {
+  it('keeps a saved console ratio and falls back for junk', () => {
+    expect(normalizeDictateSplit(0.4)).toBe(0.4);
+    expect(normalizeDictateSplit(DICTATE_SPLIT_DEFAULT)).toBe(0.48);
+    expect(normalizeDictateSplit(DICTATE_SPLIT_MIN)).toBe(DICTATE_SPLIT_MIN);
+    expect(normalizeDictateSplit(DICTATE_SPLIT_MAX)).toBe(DICTATE_SPLIT_MAX);
+    expect(normalizeDictateSplit(0.1, 0.48)).toBe(0.48);
+    expect(normalizeDictateSplit('half', 0.48)).toBe(0.48);
   });
 });

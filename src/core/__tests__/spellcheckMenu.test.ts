@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  applyChapterHeadingMenuAction,
   buildManuscriptContextMenu,
+  CHAPTER_DELETE_ID,
+  CHAPTER_DELETE_LABEL,
+  CHAPTER_UNWRAP_ID,
+  CHAPTER_UNWRAP_LABEL,
   manuscriptInsertMenuItems,
 } from '../manuscriptContextMenu';
 import {
@@ -52,6 +57,33 @@ describe('withSpellcheckItems', () => {
     expect(items[0]).toMatchObject({ label: 'No suggestions', disabled: true, group: 'spellcheck' });
     expect(items[1]?.id).toBe(SPELLCHECK_ADD_ID);
     expect(items[2]).toMatchObject({ id: 'insert-dictation-here', disabled: true });
+  });
+
+  it('puts chapter unwrap and delete after spellcheck on a chapter heading', () => {
+    const items = buildManuscriptContextMenu(
+      true,
+      { misspelledWord: 'teh', dictionarySuggestions: ['the'] },
+      { chapterHeading: true },
+    );
+    expect(items.map((i) => i.label)).toEqual([
+      'the',
+      'Add “teh” to dictionary',
+      CHAPTER_UNWRAP_LABEL,
+      CHAPTER_DELETE_LABEL,
+      'Insert dictation here',
+      'Insert new chapter',
+      'Insert new scene',
+      'Insert new section',
+      'Insert new paragraph',
+      'Insert image',
+    ]);
+    expect(items.find((i) => i.id === CHAPTER_UNWRAP_ID)?.group).toBe('chapter');
+    expect(items.find((i) => i.id === CHAPTER_DELETE_ID)?.group).toBe('chapter');
+  });
+
+  it('leads with both chapter actions when the heading is spelled correctly', () => {
+    const items = buildManuscriptContextMenu(true, null, { chapterHeading: true });
+    expect(items.map((i) => i.label).slice(0, 2)).toEqual([CHAPTER_UNWRAP_LABEL, CHAPTER_DELETE_LABEL]);
   });
 });
 
@@ -110,5 +142,21 @@ describe('createSpellcheckGate', () => {
     await vi.advanceTimersByTimeAsync(40);
     await expect(pending).resolves.toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe('applyChapterHeadingMenuAction', () => {
+  it('routes unwrap vs delete-range and ignores other items', () => {
+    const unwrapHeading = vi.fn();
+    const deleteChapter = vi.fn();
+    const actions = { unwrapHeading, deleteChapter };
+    expect(applyChapterHeadingMenuAction(CHAPTER_UNWRAP_ID, actions)).toBe(true);
+    expect(unwrapHeading).toHaveBeenCalledTimes(1);
+    expect(deleteChapter).not.toHaveBeenCalled();
+    expect(applyChapterHeadingMenuAction(CHAPTER_DELETE_ID, actions)).toBe(true);
+    expect(deleteChapter).toHaveBeenCalledTimes(1);
+    expect(applyChapterHeadingMenuAction('insert-chapter', actions)).toBe(false);
+    expect(unwrapHeading).toHaveBeenCalledTimes(1);
+    expect(deleteChapter).toHaveBeenCalledTimes(1);
   });
 });

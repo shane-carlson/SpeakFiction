@@ -1,9 +1,10 @@
 // Electron main process. In dev it loads the Vite server; in production it
 // loads the built renderer from ./dist. Kept as CommonJS (.cjs) so it runs
 // without a separate compile step even though the project is ESM.
-const { app, BrowserWindow, shell, ipcMain, systemPreferences, session, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, screen, shell, ipcMain, systemPreferences, session, nativeImage, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
+const windowState = require('./windowState.cjs');
 
 const isDev = process.env.ELECTRON === '1' || !app.isPackaged;
 app.setName('SpeakFiction');
@@ -44,13 +45,20 @@ function setupSpellChecker() {
   }
   // macOS uses the OS spellchecker and ignores Hunspell language lists.
   if (process.platform === 'darwin') return;
-  const langs = pickSpellCheckerLanguages(ses.availableSpellCheckerLanguages, app.getLocale());
+  const available = ses.availableSpellCheckerLanguages;
+  const restored = windowState.restoreSpellcheckLanguages(
+    windowState.load().spellcheckLanguages,
+    available,
+  );
+  const langs = restored.length ? restored : pickSpellCheckerLanguages(available, app.getLocale());
   if (!langs.length || typeof ses.setSpellCheckerLanguages !== 'function') return;
   try {
     ses.setSpellCheckerLanguages(langs);
+    windowState.save({ spellcheckLanguages: langs });
   } catch {
     try {
       ses.setSpellCheckerLanguages(['en-US']);
+      windowState.save({ spellcheckLanguages: ['en-US'] });
     } catch {
       /* Hunspell dictionary may be unavailable offline */
     }
@@ -237,11 +245,11 @@ ipcMain.handle('handoff:send', (_event, appId, payload) => handoff.sendToApp(app
 function createWindow() {
   const iconFile = windowIconPath();
   const icon = nativeImage.createFromPath(iconFile);
+  const displays = screen.getAllDisplays();
+  const primary = screen.getPrimaryDisplay();
+  const placed = windowState.clampWindowBounds(windowState.load(), displays, primary);
   const win = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 960,
-    minHeight: 640,
+    ...windowState.browserWindowOptions(placed),
     backgroundColor: '#0e1016',
     // Default macOS chrome: title bar, traffic lights, drag-to-move, double-click zoom.
     ...(process.platform !== 'darwin' ? { autoHideMenuBar: true } : {}),
@@ -253,6 +261,11 @@ function createWindow() {
       nodeIntegration: false,
       spellcheck: true,
     },
+  });
+  windowState.applyZoom(win, placed);
+  windowState.track(win);
+  win.once('ready-to-show', () => {
+    if (!win.isDestroyed()) win.show();
   });
 
   win.webContents.on('context-menu', (_event, params) => {

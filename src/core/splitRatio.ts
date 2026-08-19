@@ -1,4 +1,5 @@
 /** Dictation console / manuscript card (windowed Dictate tab). */
+export const DICTATE_SPLIT_DEFAULT = 0.48;
 export const DICTATE_SPLIT_MIN = 0.28;
 export const DICTATE_SPLIT_MAX = 0.72;
 export const DICTATE_SPLIT_MIN_PX = 240;
@@ -40,5 +41,11 @@ export function clampSplitRatio(
 export function normalizeManuscriptSplit(value: unknown, fallback = MANUSCRIPT_SPLIT_DEFAULT): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
   if (value < MANUSCRIPT_SPLIT_MIN || value > MANUSCRIPT_SPLIT_MAX) return fallback;
+  return value;
+}
+
+export function normalizeDictateSplit(value: unknown, fallback = DICTATE_SPLIT_DEFAULT): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  if (value < DICTATE_SPLIT_MIN || value > DICTATE_SPLIT_MAX) return fallback;
   return value;
 }

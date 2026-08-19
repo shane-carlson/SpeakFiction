@@ -68,6 +68,10 @@ export function normalizeLastSeenVersion(value: unknown): string | null {
   return trimmed || null;
 }
 
+export function normalizeManuscriptEditorOpen(value: unknown): boolean {
+  return value === true;
+}
+
 /** Persist JSON from a previous run (`library-state.json` or zustand snapshot). */
 export function persistSnapshotIndicatesPriorSession(raw: unknown): boolean {
   if (raw == null) return false;

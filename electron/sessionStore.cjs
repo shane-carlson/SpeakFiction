@@ -1,5 +1,6 @@
 // Library + UI session JSON in userData. Survives app quit and is not tied
-// to Chromium localStorage origins (file:// vs localhost).
+// to Chromium localStorage origins (file:// vs localhost). Window bounds live
+// beside this file in window-state.json (see electron/windowState.cjs).
 const fs = require('node:fs');
 const path = require('node:path');
 

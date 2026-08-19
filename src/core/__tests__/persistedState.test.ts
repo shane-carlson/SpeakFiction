@@ -3,6 +3,7 @@ import {
   isAppTab,
   normalizeDictationDrafts,
   normalizeLastSeenVersion,
+  normalizeManuscriptEditorOpen,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -59,6 +60,9 @@ describe('persisted session fields', () => {
     expect(isAppTab('settings')).toBe(false);
     expect(normalizeLastSeenVersion('0.1.6-b11')).toBe('0.1.6-b11');
     expect(normalizeLastSeenVersion('')).toBe(null);
+    expect(normalizeManuscriptEditorOpen(true)).toBe(true);
+    expect(normalizeManuscriptEditorOpen(undefined)).toBe(false);
+    expect(normalizeManuscriptEditorOpen('yes')).toBe(false);
   });
 
   it('treats persisted library JSON as a prior session, not a first install', () => {

@@ -51,6 +51,7 @@ import {
   isAppTab,
   normalizeDictationDrafts,
   normalizeLastSeenVersion,
+  normalizeManuscriptEditorOpen,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -61,7 +62,7 @@ import {
   type ManuscriptPlace,
 } from './core/persistedState';
 import { sessionStateStorage } from './core/sessionStorage';
-import { MANUSCRIPT_SPLIT_DEFAULT, normalizeManuscriptSplit } from './core/splitRatio';
+import { DICTATE_SPLIT_DEFAULT, MANUSCRIPT_SPLIT_DEFAULT, normalizeDictateSplit, normalizeManuscriptSplit } from './core/splitRatio';
 import { uid } from './core/util';
 import type { AppliedCorrection } from './core/nameLibrary';
 import type { DictationDraft } from './core/dictationDraft';
@@ -108,6 +109,8 @@ interface AppState {
   setDictateSplit: (ratio: number) => void;
   manuscriptSplit: number;
   setManuscriptSplit: (ratio: number) => void;
+  manuscriptEditorOpen: boolean;
+  setManuscriptEditorOpen: (open: boolean) => void;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   dictationDrafts: Record<string, DictationDraft>;
@@ -263,10 +266,12 @@ export const useStore = create<AppState>()(
       rememberSttProfile: (label) => set({ sttProfileLabel: label }),
       sidebarCollapsed: false,
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-      dictateSplit: 0.48,
-      setDictateSplit: (ratio) => set({ dictateSplit: ratio }),
+      dictateSplit: DICTATE_SPLIT_DEFAULT,
+      setDictateSplit: (ratio) => set({ dictateSplit: normalizeDictateSplit(ratio) }),
       manuscriptSplit: MANUSCRIPT_SPLIT_DEFAULT,
       setManuscriptSplit: (ratio) => set({ manuscriptSplit: normalizeManuscriptSplit(ratio) }),
+      manuscriptEditorOpen: false,
+      setManuscriptEditorOpen: (open) => set({ manuscriptEditorOpen: Boolean(open) }),
       activeTab: 'dictate',
       setActiveTab: (tab) => set({ activeTab: tab }),
       dictationDrafts: {},
@@ -675,6 +680,7 @@ export const useStore = create<AppState>()(
         sidebarCollapsed: s.sidebarCollapsed,
         dictateSplit: s.dictateSplit,
         manuscriptSplit: s.manuscriptSplit,
+        manuscriptEditorOpen: s.manuscriptEditorOpen,
         activeTab: s.activeTab,
         dictationDrafts: s.dictationDrafts,
         manuscriptPlace: s.manuscriptPlace,
@@ -704,6 +710,7 @@ export const useStore = create<AppState>()(
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
           // Missing lastSeenVersion stays null — do not fill with the running version.
           lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
+          manuscriptEditorOpen: normalizeManuscriptEditorOpen(p.manuscriptEditorOpen),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : 'dictate',
         };
       },
@@ -717,11 +724,9 @@ export const useStore = create<AppState>()(
           themeMode: normalizeThemeMode(p.themeMode, DEFAULT_THEME_MODE),
           themeId: normalizeThemeId(p.themeId, DEFAULT_THEME_ID),
           sidebarCollapsed: Boolean(p.sidebarCollapsed),
-          dictateSplit:
-            typeof p.dictateSplit === 'number' && p.dictateSplit > 0.2 && p.dictateSplit < 0.8
-              ? p.dictateSplit
-              : current.dictateSplit,
+          dictateSplit: normalizeDictateSplit(p.dictateSplit, current.dictateSplit),
           manuscriptSplit: normalizeManuscriptSplit(p.manuscriptSplit, current.manuscriptSplit),
+          manuscriptEditorOpen: normalizeManuscriptEditorOpen(p.manuscriptEditorOpen),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),

@@ -13,7 +13,7 @@ import type { ManuscriptPlace } from '../core/persistedState';
 import { offsetsFromDomRange } from '../core/dictationDraft';
 import { ingestManuscriptImage } from '../core/mediaStore';
 import { mimeFromFile } from '../core/manuscriptMedia';
-import { buildManuscriptContextMenu } from '../core/manuscriptContextMenu';
+import { buildManuscriptContextMenu, applyChapterHeadingMenuAction } from '../core/manuscriptContextMenu';
 import {
   SPELLCHECK_ADD_ID,
   manuscriptSpellcheckGate,
@@ -23,6 +23,7 @@ import {
   type SpellcheckHit,
 } from '../core/spellcheckMenu';
 import { AppContextMenu } from './AppContextMenu';
+import { ChapterRemoveControl } from './ChapterRemoveControl';
 import { RichParagraph } from './RichParagraph';
 import { ManuscriptImageFrame } from './ManuscriptImageFrame';
 
@@ -75,32 +76,6 @@ function DragHandle({ label }: { label: string }) {
     <span className="ms-drag-handle" draggable={false} aria-hidden="true" title={label}>
       ⋮⋮
     </span>
-  );
-}
-
-function ChapterRemoveControl({
-  open,
-  onOpen,
-}: {
-  open: boolean;
-  onOpen: (x: number, y: number) => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="btn ghost ms-block-remove"
-      aria-label="Chapter remove options"
-      aria-haspopup="menu"
-      aria-expanded={open}
-      title="Remove chapter"
-      onClick={(e) => {
-        e.stopPropagation();
-        const rect = e.currentTarget.getBoundingClientRect();
-        onOpen(rect.right - 8, rect.bottom + 4);
-      }}
-    >
-      ✕
-    </button>
   );
 }
 
@@ -188,15 +163,11 @@ export function ManuscriptView({
   const updateImageCaption = useStore((s) => s.updateImageCaption);
   const updateImageAlt = useStore((s) => s.updateImageAlt);
   const updateTableCell = useStore((s) => s.updateTableCell);
-  const [chapterMenu, setChapterMenu] = useState<{
-    x: number;
-    y: number;
-    blockId: string;
-  } | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
     dest: ManuscriptInsertAt;
+    chapterHeading?: boolean;
     field?: SpellField | null;
     spell?: SpellcheckHit | null;
   } | null>(null);
@@ -238,12 +209,14 @@ export function ManuscriptView({
     e.preventDefault();
     e.stopPropagation();
     const dest = destFromEvent(e, blocks);
+    const destBlock = dest.atBlockId ? blocks.find((b) => b.id === dest.atBlockId) : undefined;
+    const chapterHeading = destBlock?.type === 'chapter';
     if (dest.atBlockId) {
       report(dest.atBlockId, dest.splitOffset, dest.splitOffset);
     }
     const token = ++menuGen.current;
     const field = spellFieldFromTarget(e.target);
-    const base = { x: e.clientX, y: e.clientY, dest, field };
+    const base = { x: e.clientX, y: e.clientY, dest, field, chapterHeading };
     const waitMs = window.speakfiction?.spellcheck?.onContextMenu ? 150 : 0;
     const immediate = manuscriptSpellcheckGate.takeImmediate();
     if (immediate || waitMs === 0) {
@@ -286,6 +259,20 @@ export function ManuscriptView({
       if (word) window.speakfiction?.spellcheck?.addWord(word);
       return;
     }
+    if (
+      applyChapterHeadingMenuAction(id, {
+        unwrapHeading: () => {
+          if (menu.dest.atBlockId) unwrapHeading(book.id, menu.dest.atBlockId);
+        },
+        deleteChapter: () => {
+          if (!menu.dest.atBlockId) return;
+          const ok = window.confirm('Delete this chapter and all of its content?');
+          if (ok) deleteBlockRange(book.id, menu.dest.atBlockId);
+        },
+      })
+    ) {
+      return;
+    }
     if (id === 'insert-dictation-here') {
       onInsertDictation?.(menu.dest);
       return;
@@ -308,7 +295,7 @@ export function ManuscriptView({
   };
 
   const beginDrag = (e: React.DragEvent, index: number, block: Block) => {
-    if ((e.target as HTMLElement).closest('input, textarea, button, [contenteditable="true"], .ms-para-editor')) {
+    if ((e.target as HTMLElement).closest('input, textarea, button, [contenteditable="true"], .ms-para-editor, .ms-chapter-remove')) {
       e.preventDefault();
       return;
     }
@@ -364,7 +351,9 @@ export function ManuscriptView({
     <AppContextMenu
       x={menu.x}
       y={menu.y}
-      items={buildManuscriptContextMenu(Boolean(canInsertDictation), menu.spell)}
+      items={buildManuscriptContextMenu(Boolean(canInsertDictation), menu.spell, {
+        chapterHeading: menu.chapterHeading,
+      })}
       onClose={closeMenu}
       onSelect={onMenuSelect}
     />
@@ -473,8 +462,11 @@ export function ManuscriptView({
                   }
                 />
                 <ChapterRemoveControl
-                  open={chapterMenu?.blockId === b.id}
-                  onOpen={(x, y) => setChapterMenu({ x, y, blockId: b.id })}
+                  onUnwrap={() => unwrapHeading(book.id, b.id)}
+                  onDelete={() => {
+                    const ok = window.confirm('Delete this chapter and all of its content?');
+                    if (ok) deleteBlockRange(book.id, b.id);
+                  }}
                 />
               </div>
             );
@@ -659,25 +651,6 @@ export function ManuscriptView({
         })}
       </div>
       {insertMenu}
-      {chapterMenu && (
-        <AppContextMenu
-          x={chapterMenu.x}
-          y={chapterMenu.y}
-          items={[
-            { id: 'unwrap-header', label: 'Remove chapter header', group: 'chapter' },
-            { id: 'delete-chapter', label: 'Delete chapter', group: 'chapter' },
-          ]}
-          onClose={() => setChapterMenu(null)}
-          onSelect={(id) => {
-            const blockId = chapterMenu.blockId;
-            if (id === 'unwrap-header') unwrapHeading(book.id, blockId);
-            if (id === 'delete-chapter') {
-              const ok = window.confirm('Delete this chapter and all of its content?');
-              if (ok) deleteBlockRange(book.id, blockId);
-            }
-          }}
-        />
-      )}
     </>
   );
 }

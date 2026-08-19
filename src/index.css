@@ -1265,6 +1265,34 @@ label {
   font-size: 11px;
   flex-shrink: 0;
 }
+.ms-chapter-remove {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+}
+.ms-chapter-remove-flyout {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 2px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  padding: 6px;
+  margin: 0;
+}
+.ms-chapter-remove-flyout [role='menuitem'] {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 600;
+}
+.ms-chapter-remove-flyout [role='menuitem']:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
 .ms-block-remove.is-absolute {
   position: absolute;
   right: 0;

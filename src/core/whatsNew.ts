@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.10': bullets(
+    'The window comes back where you left it — size, place, zoom, and maximized — even after an update, and it stays on a visible screen',
+    'Dictation and manuscript splitters, the last tab you were on, and full-screen editor stay where you set them',
+    'Hover the X on a chapter heading for Remove chapter header vs Delete chapter — the same choices as a right-click',
+  ),
   '0.2.9': bullets(
     'Right-click a chapter heading to drop just the header and keep the body, or delete the whole chapter after you confirm',
     'Say “undo last command” (or last voice, audio, or verbal command) to take back the last spoken cue',
