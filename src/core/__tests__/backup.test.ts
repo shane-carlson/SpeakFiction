@@ -103,6 +103,37 @@ describe('backup serialize/deserialize', () => {
     expect(() => parseBackup('not-json')).toThrow(/not valid JSON/);
   });
 
+  it('round-trips paragraph marks, image blocks, and attached media bytes', () => {
+    const withMedia: Book = {
+      ...book,
+      manuscript: {
+        blocks: [
+          {
+            id: 'p-1',
+            type: 'paragraph',
+            text: 'The wind howled.',
+            marks: [{ kind: 'italic', start: 4, end: 8 }],
+          },
+          {
+            id: 'img-1',
+            type: 'image',
+            image: { mediaId: 'keep-map', mime: 'image/png', caption: 'The keep', alt: 'Map' },
+          },
+        ],
+      },
+    };
+    const media = { 'keep-map': { mime: 'image/png', b64: 'AAAA' } };
+    const parsed = parseBackup(backupToJson(serializeBookBackup(withMedia, series, media)));
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.manuscript.blocks[0].marks).toEqual([{ kind: 'italic', start: 4, end: 8 }]);
+    expect(parsed.book.manuscript.blocks[1]).toMatchObject({
+      type: 'image',
+      image: { mediaId: 'keep-map', mime: 'image/png', caption: 'The keep' },
+    });
+    expect(parsed.media).toEqual(media);
+  });
+
   it('round-trips romance, queer-lit, and ya genre ids and drops unknown ones', () => {
     for (const genreId of ['romance', 'queer-lit', 'ya'] as const) {
       const json = backupToJson(serializeBookBackup({ ...book, genreId }, series));

@@ -17,8 +17,15 @@ import {
   type DictationDraft,
 } from '../core/dictationDraft';
 import { DICTATION_COMMAND_CHIPS } from '../core/dictationContextMenu';
-import { manuscriptStats, type ManuscriptInsertAt } from '../core/manuscript';
+import {
+  destFromPlace,
+  manuscriptStats,
+  type ManuscriptInsertAt,
+  type ManuscriptInsertKind,
+  type StructureHeadingKind,
+} from '../core/manuscript';
 import { ManuscriptView } from '../components/ManuscriptView';
+import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
@@ -26,6 +33,10 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
 import type { DictationCommand } from '../core/voiceCommands';
+import type { InlineMarkKind } from '../core/types';
+import { IMAGE_ACCEPT } from '../core/manuscriptMedia';
+import { ingestManuscriptImage } from '../core/mediaStore';
+import { openBytesFile } from '../core/localFiles';
 
 const SAMPLE =
   "new chapter titled The Oracle's Warning period " +
@@ -62,8 +73,18 @@ export function DictationView({
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
   const setManuscriptPlace = useStore((s) => s.setManuscriptPlace);
+  const insertManuscriptStructure = useStore((s) => s.insertManuscriptStructure);
+  const insertManuscriptImage = useStore((s) => s.insertManuscriptImage);
+  const formatManuscript = useStore((s) => s.formatManuscript);
+  const setManuscriptBlockKind = useStore((s) => s.setManuscriptBlockKind);
+  const undoManuscript = useStore((s) => s.undoManuscript);
+  const redoManuscript = useStore((s) => s.redoManuscript);
+  const canUndo = useStore((s) => (s.manuscriptHistory[book.id]?.past.length ?? 0) > 0);
+  const canRedo = useStore((s) => (s.manuscriptHistory[book.id]?.future.length ?? 0) > 0);
   const [outcome, setOutcome] = useState<DictationOutcome | null>(null);
   const [showProfile, setShowProfile] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const restoredBook = useRef<string | null>(null);
   const setDraft = useCallback((value: DictationDraft | ((prev: DictationDraft) => DictationDraft)) => {
@@ -243,6 +264,148 @@ export function DictationView({
   const insert = () => promoteToManuscript();
   const draftVisible = draftText(draft);
   const canInsertDictation = Boolean(takeInsertTranscript(draft).transcript);
+  const focusedBlock = book.manuscript.blocks.find((b) => b.id === place?.blockId);
+  const insertDest = destFromPlace(book.manuscript.blocks, place);
+
+  useEffect(() => {
+    if (!editorOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setEditorOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editorOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta || e.altKey) return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .dictate-card')) return;
+      if (target.closest('.dictation-transcript, .dictate-console')) return;
+      if (e.key.toLowerCase() !== 'z') return;
+      e.preventDefault();
+      if (e.shiftKey) redoManuscript(book.id);
+      else undoManuscript(book.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [book.id, redoManuscript, undoManuscript]);
+
+  const pickImage = useCallback(
+    async (dest?: ManuscriptInsertAt) => {
+      setImageError(null);
+      const res = await openBytesFile({
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+        accept: IMAGE_ACCEPT,
+      });
+      if (!res.ok || !res.bytes) return;
+      const ingested = await ingestManuscriptImage({
+        bytes: res.bytes,
+        mime: res.mime,
+        name: res.path,
+      });
+      if (!ingested.ok) {
+        setImageError(ingested.reason);
+        return;
+      }
+      insertManuscriptImage(book.id, ingested.image, dest ?? insertDest);
+    },
+    [book.id, insertDest, insertManuscriptImage],
+  );
+
+  const onInsertStructure = (kind: ManuscriptInsertKind) => {
+    insertManuscriptStructure(book.id, kind, insertDest);
+  };
+
+  const onFormat = (kind: InlineMarkKind) => {
+    if (!focusedBlock || focusedBlock.type !== 'paragraph') return;
+    formatManuscript(
+      book.id,
+      focusedBlock.id,
+      { start: place?.selectionStart ?? 0, end: place?.selectionEnd ?? place?.selectionStart ?? 0 },
+      { type: 'toggle', kind },
+    );
+  };
+
+  const onClearFormat = () => {
+    if (!focusedBlock || focusedBlock.type !== 'paragraph') return;
+    formatManuscript(
+      book.id,
+      focusedBlock.id,
+      { start: place?.selectionStart ?? 0, end: place?.selectionEnd ?? place?.selectionStart ?? 0 },
+      { type: 'clear' },
+    );
+  };
+
+  const onSetKind = (kind: StructureHeadingKind) => {
+    if (!focusedBlock) return;
+    setManuscriptBlockKind(book.id, focusedBlock.id, kind);
+  };
+
+  const toolbar = (
+    <ManuscriptToolbar
+      focused={focusedBlock}
+      canUndo={canUndo}
+      canRedo={canRedo}
+      editorOpen={editorOpen}
+      onToggleEditor={() => setEditorOpen((open) => !open)}
+      onInsertStructure={onInsertStructure}
+      onInsertImage={() => void pickImage()}
+      onFormat={onFormat}
+      onClearFormat={onClearFormat}
+      onSetKind={onSetKind}
+      onUndo={() => undoManuscript(book.id)}
+      onRedo={() => redoManuscript(book.id)}
+    />
+  );
+
+  const manuscriptScroll = (
+    <div
+      className="dictate-ms-scroll"
+      ref={scrollRef}
+      onScroll={(e) => {
+        const scrollTop = e.currentTarget.scrollTop;
+        const prev = useStore.getState().manuscriptPlace[book.id];
+        setManuscriptPlace(book.id, { ...prev, scrollTop });
+      }}
+    >
+      <ManuscriptView
+        book={book}
+        place={place}
+        canInsertDictation={canInsertDictation}
+        onInsertDictation={promoteToManuscript}
+        onPickImage={(dest) => void pickImage(dest)}
+        onPlaceChange={(next) => {
+          const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
+          setManuscriptPlace(book.id, { ...next, scrollTop });
+        }}
+      />
+    </div>
+  );
+
+  if (editorOpen) {
+    return (
+      <div className="dictate-page is-ms-editor">
+        <div className="ms-editor-shell">
+          <div className="ms-editor-head">
+            <h2>Manuscript</h2>
+            <span className="hint">{book.title} · Esc to exit</span>
+          </div>
+          {toolbar}
+          {imageError && (
+            <div className="hint" style={{ color: 'var(--warn)', margin: '6px 0' }}>
+              {imageError}
+            </div>
+          )}
+          {manuscriptScroll}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dictate-page">
@@ -442,28 +605,19 @@ export function DictationView({
         }
         right={
         <div className="card dictate-card">
-          <h3>Manuscript</h3>
-          <p className="sub">Everything below is editable. Structure was created from your spoken cues.</p>
-          <div
-            className="dictate-ms-scroll"
-            ref={scrollRef}
-            onScroll={(e) => {
-              const scrollTop = e.currentTarget.scrollTop;
-              const prev = useStore.getState().manuscriptPlace[book.id];
-              setManuscriptPlace(book.id, { ...prev, scrollTop });
-            }}
-          >
-            <ManuscriptView
-              book={book}
-              place={place}
-              canInsertDictation={canInsertDictation}
-              onInsertDictation={promoteToManuscript}
-              onPlaceChange={(next) => {
-                const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
-                setManuscriptPlace(book.id, { ...next, scrollTop });
-              }}
-            />
+          <div className="ms-card-head">
+            <div>
+              <h3>Manuscript</h3>
+              <p className="sub">Everything below is editable. Structure was created from your spoken cues.</p>
+            </div>
           </div>
+          {toolbar}
+          {imageError && (
+            <div className="hint" style={{ color: 'var(--warn)', margin: '4px 0 8px' }}>
+              {imageError}
+            </div>
+          )}
+          {manuscriptScroll}
         </div>
         }
       />

@@ -83,3 +83,56 @@ export async function openTextFile(opts?: { filters?: FileFilter[] }): Promise<s
     .join(',');
   return pickFileInBrowser(accept || '.json');
 }
+
+export interface OpenBytesResult {
+  ok: boolean;
+  path?: string;
+  bytes?: Uint8Array;
+  mime?: string;
+}
+
+function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve({ ok: false });
+        return;
+      }
+      void file.arrayBuffer().then(
+        (buf) =>
+          resolve({
+            ok: true,
+            path: file.name,
+            bytes: new Uint8Array(buf),
+            mime: file.type,
+          }),
+        () => resolve({ ok: false }),
+      );
+    });
+    input.click();
+  });
+}
+
+/** Open a binary file (images) via Electron dialog, or a hidden file input. */
+export async function openBytesFile(opts?: { filters?: FileFilter[]; accept?: string }): Promise<OpenBytesResult> {
+  const files = window.speakfiction?.files;
+  if (files?.openBytes) {
+    const res = await files.openBytes(opts);
+    if (!res.ok || !res.bytes) return { ok: false };
+    return {
+      ok: true,
+      path: res.path,
+      bytes: Uint8Array.from(res.bytes),
+      mime: res.mime,
+    };
+  }
+  const accept =
+    opts?.accept ||
+    (opts?.filters ?? []).flatMap((f) => f.extensions.map((ext) => `.${ext}`)).join(',') ||
+    'image/*';
+  return pickBytesInBrowser(accept);
+}

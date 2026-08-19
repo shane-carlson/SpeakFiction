@@ -1,5 +1,19 @@
-import type { Block, BlockType, Manuscript } from './types';
+import type {
+  Block,
+  BlockType,
+  InlineMark,
+  InlineMarkKind,
+  Manuscript,
+  ManuscriptImage,
+} from './types';
 import type { Segment } from './audioCues';
+import {
+  clearFormatting,
+  expandCollapsedRange,
+  normalizeMarks,
+  splitMarkedText,
+  toggleMark,
+} from './richText';
 import { uid } from './util';
 
 export function emptyManuscript(): Manuscript {
@@ -29,9 +43,11 @@ export function appendSegments(blocks: Block[], segments: Segment[]): Block[] {
 
     const last = out[out.length - 1];
     if (!forceNewParagraph && last && last.type === 'paragraph') {
+      const text = `${last.text ?? ''} ${seg.text}`.trim();
       out[out.length - 1] = {
         ...last,
-        text: `${last.text ?? ''} ${seg.text}`.trim(),
+        text,
+        marks: normalizeMarks(last.marks, text.length),
       };
     } else {
       out.push({ id: uid('blk'), type: 'paragraph', text: seg.text });
@@ -80,10 +96,13 @@ function spliceAround(
     const text = target.text ?? '';
     const off = Math.max(0, Math.min(Math.floor(dest.splitOffset), text.length));
     if (off > 0 && off < text.length) {
-      const left = text.slice(0, off).replace(/\s+$/, '');
-      const right = text.slice(off).replace(/^\s+/, '');
-      const leftBlock: Block[] = left ? [{ ...target, text: left }] : [];
-      const rightBlock: Block[] = right ? [{ ...target, id: uid('blk'), text: right }] : [];
+      const split = splitMarkedText(text, target.marks, off);
+      const leftBlock: Block[] = split.leftText
+        ? [{ ...target, text: split.leftText, marks: split.leftMarks }]
+        : [];
+      const rightBlock: Block[] = split.rightText
+        ? [{ ...target, id: uid('blk'), text: split.rightText, marks: split.rightMarks }]
+        : [];
       return {
         before: [...blocks.slice(0, index), ...leftBlock],
         after: [...rightBlock, ...blocks.slice(index + 1)],
@@ -127,6 +146,7 @@ const STRUCTURE_RANK: Record<BlockType, number> = {
   scene: 1,
   section: 1,
   paragraph: 2,
+  image: 2,
 };
 
 export interface BlockRange {
@@ -215,15 +235,95 @@ export function setBlockTitle(blocks: Block[], blockId: string, title: string): 
   return blocks.map((b) => (b.id === blockId ? { ...b, title } : b));
 }
 
-export type ManuscriptInsertKind = 'scene' | 'paragraph';
+export type ManuscriptInsertKind = 'chapter' | 'scene' | 'section' | 'paragraph';
 
 function emptyInsertBlock(kind: ManuscriptInsertKind): Block {
   if (kind === 'paragraph') return { id: uid('blk'), type: 'paragraph', text: '' };
-  return { id: uid('blk'), type: 'scene' };
+  return { id: uid('blk'), type: kind };
+}
+
+export function insertImageBlock(
+  blocks: Block[],
+  image: ManuscriptImage,
+  dest?: ManuscriptInsertAt,
+): Block[] {
+  const incoming: Block[] = [{ id: uid('blk'), type: 'image', image, title: image.caption }];
+  const { before, after, append } = spliceAround(blocks, dest);
+  if (append) return [...blocks, ...incoming];
+  return [...before, ...incoming, ...after];
+}
+
+/** Heading levels map onto manuscript structure, not a parallel HTML heading system. */
+export type StructureHeadingKind = 'chapter' | 'scene' | 'section' | 'paragraph';
+
+export function setBlockKind(blocks: Block[], blockId: string, kind: StructureHeadingKind): Block[] {
+  return blocks.map((b) => {
+    if (b.id !== blockId) return b;
+    if (b.type === 'image') return b;
+    if (b.type === kind) return b;
+    if (kind === 'paragraph') {
+      const text = (b.title || b.text || '').trim();
+      return { id: b.id, type: 'paragraph', text };
+    }
+    const title = (b.title || b.text || '').trim();
+    return { id: b.id, type: kind, title: title || undefined };
+  });
+}
+
+export function setParagraphContent(
+  blocks: Block[],
+  blockId: string,
+  text: string,
+  marks?: InlineMark[],
+): Block[] {
+  return blocks.map((b) =>
+    b.id === blockId && b.type === 'paragraph'
+      ? { ...b, text, marks: normalizeMarks(marks ?? b.marks, text.length) }
+      : b,
+  );
+}
+
+export function formatParagraph(
+  blocks: Block[],
+  blockId: string,
+  range: { start: number; end: number },
+  action: { type: 'toggle'; kind: InlineMarkKind } | { type: 'clear' },
+): Block[] {
+  return blocks.map((b) => {
+    if (b.id !== blockId || b.type !== 'paragraph') return b;
+    const text = b.text ?? '';
+    const start = range.start;
+    const end = range.end;
+    const nextRange =
+      action.type === 'clear'
+        ? end > start
+          ? { start, end }
+          : { start: 0, end: text.length }
+        : expandCollapsedRange(text, start, end);
+    const next =
+      action.type === 'clear'
+        ? clearFormatting(b.marks, nextRange.start, nextRange.end, text.length)
+        : toggleMark(b.marks, nextRange.start, nextRange.end, action.kind, text.length);
+    return { ...b, marks: next };
+  });
+}
+
+export function setImageCaption(blocks: Block[], blockId: string, caption: string): Block[] {
+  return blocks.map((b) => {
+    if (b.id !== blockId || b.type !== 'image' || !b.image) return b;
+    return { ...b, title: caption, image: { ...b.image, caption } };
+  });
+}
+
+export function setImageAlt(blocks: Block[], blockId: string, alt: string): Block[] {
+  return blocks.map((b) => {
+    if (b.id !== blockId || b.type !== 'image' || !b.image) return b;
+    return { ...b, image: { ...b.image, alt } };
+  });
 }
 
 /**
- * Insert an empty scene marker or paragraph at a manuscript destination.
+ * Insert an empty structure marker or paragraph at a manuscript destination.
  * Unlike dictation, empty paragraphs are kept so the writer can type into them.
  */
 export function insertEmptyStructure(
@@ -243,10 +343,18 @@ export interface ManuscriptStats {
   scenes: number;
   sections: number;
   paragraphs: number;
+  images: number;
 }
 
 export function manuscriptStats(m: Manuscript): ManuscriptStats {
-  const stats: ManuscriptStats = { words: 0, chapters: 0, scenes: 0, sections: 0, paragraphs: 0 };
+  const stats: ManuscriptStats = {
+    words: 0,
+    chapters: 0,
+    scenes: 0,
+    sections: 0,
+    paragraphs: 0,
+    images: 0,
+  };
   for (const b of m.blocks) {
     switch (b.type) {
       case 'chapter':
@@ -262,6 +370,9 @@ export function manuscriptStats(m: Manuscript): ManuscriptStats {
         stats.paragraphs++;
         stats.words += countWords(b.text ?? '');
         break;
+      case 'image':
+        stats.images++;
+        break;
     }
   }
   return stats;
@@ -276,4 +387,19 @@ export function countWords(text: string): number {
 /** Remove trailing empty paragraphs (can appear after a dangling cue). */
 export function trimEmptyBlocks(blocks: Block[]): Block[] {
   return blocks.filter((b) => b.type !== 'paragraph' || (b.text ?? '').trim() !== '');
+}
+
+/** Insert destination from the writer's last caret in the manuscript. */
+export function destFromPlace(
+  blocks: Block[],
+  place?: { blockId?: string; selectionStart?: number },
+): ManuscriptInsertAt | undefined {
+  if (!place?.blockId) return undefined;
+  const atIndex = blocks.findIndex((b) => b.id === place.blockId);
+  if (atIndex < 0) return undefined;
+  return {
+    atBlockId: place.blockId,
+    atIndex,
+    splitOffset: place.selectionStart,
+  };
 }

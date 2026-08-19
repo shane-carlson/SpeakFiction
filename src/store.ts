@@ -3,6 +3,9 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
   Book,
   GenreId,
+  InlineMark,
+  InlineMarkKind,
+  ManuscriptImage,
   NameCategory,
   NameEntry,
   PerspectiveId,
@@ -12,14 +15,22 @@ import type {
 import { emptyAdaptiveState } from './core/adaptiveModel';
 import {
   emptyManuscript,
+  formatParagraph,
   insertEmptyStructure,
+  insertImageBlock,
   insertSegments,
   moveBlockRange,
+  setBlockKind,
   setBlockTitle,
+  setImageAlt,
+  setImageCaption,
+  setParagraphContent,
   trimEmptyBlocks,
   type ManuscriptInsertAt,
   type ManuscriptInsertKind,
+  type StructureHeadingKind,
 } from './core/manuscript';
+import { removeMedia } from './core/mediaStore';
 import { processTranscript } from './core/dictationProcessor';
 import { getGenre } from './core/genres';
 import { DEFAULT_TENSE } from './core/tense';
@@ -86,6 +97,7 @@ interface AppState {
   setManuscriptPlace: (bookId: string, place: ManuscriptPlace) => void;
   lastSeenVersion: string | null;
   setLastSeenVersion: (version: string) => void;
+  manuscriptHistory: Record<string, { past: Book['manuscript']['blocks'][]; future: Book['manuscript']['blocks'][] }>;
 
   createSeries: (name: string) => string;
   createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
@@ -106,7 +118,7 @@ interface AppState {
     transcript: string,
     dest?: ManuscriptInsertAt,
   ) => DictationOutcome;
-  updateBlockText: (bookId: string, blockId: string, text: string) => void;
+  updateBlockText: (bookId: string, blockId: string, text: string, marks?: InlineMark[]) => void;
   updateBlockTitle: (bookId: string, blockId: string, title: string) => void;
   deleteBlock: (bookId: string, blockId: string) => void;
   moveManuscriptRange: (bookId: string, fromIndex: number, dropIndex: number) => void;
@@ -115,6 +127,18 @@ interface AppState {
     kind: ManuscriptInsertKind,
     dest?: ManuscriptInsertAt,
   ) => void;
+  insertManuscriptImage: (bookId: string, image: ManuscriptImage, dest?: ManuscriptInsertAt) => void;
+  formatManuscript: (
+    bookId: string,
+    blockId: string,
+    range: { start: number; end: number },
+    action: { type: 'toggle'; kind: InlineMarkKind } | { type: 'clear' },
+  ) => void;
+  setManuscriptBlockKind: (bookId: string, blockId: string, kind: StructureHeadingKind) => void;
+  updateImageCaption: (bookId: string, blockId: string, caption: string) => void;
+  updateImageAlt: (bookId: string, blockId: string, alt: string) => void;
+  undoManuscript: (bookId: string) => void;
+  redoManuscript: (bookId: string) => void;
   clearManuscript: (bookId: string) => void;
 
   importBookBackup: (backup: BookBackup, replaceExisting: boolean) => 'added' | 'replaced' | 'exists';
@@ -172,6 +196,25 @@ function relabelExampleStory(books: Book[], series: Series[]): { books: Book[]; 
   };
 }
 
+function dropImageMedia(blocks: Book['manuscript']['blocks']): void {
+  for (const b of blocks) {
+    if (b.type === 'image' && b.image) void removeMedia(b.image.mediaId);
+  }
+}
+
+function pushHistory(
+  s: { manuscriptHistory: AppState['manuscriptHistory']; books: Book[] },
+  bookId: string,
+): AppState['manuscriptHistory'] {
+  const book = s.books.find((b) => b.id === bookId);
+  if (!book) return s.manuscriptHistory;
+  const hist = s.manuscriptHistory[bookId] ?? { past: [], future: [] };
+  return {
+    ...s.manuscriptHistory,
+    [bookId]: { past: [...hist.past, book.manuscript.blocks].slice(-50), future: [] },
+  };
+}
+
 const seed = seedBook();
 
 export const useStore = create<AppState>()(
@@ -203,6 +246,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ manuscriptPlace: { ...s.manuscriptPlace, [bookId]: place } })),
       lastSeenVersion: null,
       setLastSeenVersion: (version) => set({ lastSeenVersion: normalizeLastSeenVersion(version) }),
+      manuscriptHistory: {},
 
       createSeries: (name) => {
         const id = uid('ser');
@@ -237,6 +281,7 @@ export const useStore = create<AppState>()(
             books,
             dictationDrafts: omitKey(s.dictationDrafts, id),
             manuscriptPlace: omitKey(s.manuscriptPlace, id),
+            manuscriptHistory: omitKey(s.manuscriptHistory, id),
             activeBookId: s.activeBookId === id ? books[0]?.id ?? null : s.activeBookId,
           };
         }),
@@ -321,14 +366,12 @@ export const useStore = create<AppState>()(
         return { corrections: result.corrections, structureAdded, wordsAdded };
       },
 
-      updateBlockText: (bookId, blockId, text) =>
+      updateBlockText: (bookId, blockId, text, marks) =>
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
             manuscript: {
-              blocks: b.manuscript.blocks.map((blk) =>
-                blk.id === blockId ? { ...blk, text } : blk,
-              ),
+              blocks: setParagraphContent(b.manuscript.blocks, blockId, text, marks),
             },
           })),
         })),
@@ -342,12 +385,18 @@ export const useStore = create<AppState>()(
         })),
 
       deleteBlock: (bookId, blockId) =>
-        set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({
-            ...b,
-            manuscript: { blocks: b.manuscript.blocks.filter((blk) => blk.id !== blockId) },
-          })),
-        })),
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          const victim = book?.manuscript.blocks.find((blk) => blk.id === blockId);
+          if (victim?.type === 'image' && victim.image) void removeMedia(victim.image.mediaId);
+          return {
+            books: patchBook(s.books, bookId, (b) => ({
+              ...b,
+              manuscript: { blocks: b.manuscript.blocks.filter((blk) => blk.id !== blockId) },
+            })),
+            manuscriptHistory: pushHistory(s, bookId),
+          };
+        }),
 
       moveManuscriptRange: (bookId, fromIndex, dropIndex) =>
         set((s) => ({
@@ -355,6 +404,7 @@ export const useStore = create<AppState>()(
             ...b,
             manuscript: { blocks: moveBlockRange(b.manuscript.blocks, fromIndex, dropIndex) },
           })),
+          manuscriptHistory: pushHistory(s, bookId),
         })),
 
       insertManuscriptStructure: (bookId, kind, dest) =>
@@ -363,12 +413,97 @@ export const useStore = create<AppState>()(
             ...b,
             manuscript: { blocks: insertEmptyStructure(b.manuscript.blocks, kind, dest) },
           })),
+          manuscriptHistory: pushHistory(s, bookId),
         })),
 
-      clearManuscript: (bookId) =>
+      insertManuscriptImage: (bookId, image, dest) =>
         set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: emptyManuscript() })),
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: insertImageBlock(b.manuscript.blocks, image, dest) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
         })),
+
+      formatManuscript: (bookId, blockId, range, action) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: formatParagraph(b.manuscript.blocks, blockId, range, action) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        })),
+
+      setManuscriptBlockKind: (bookId, blockId, kind) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: setBlockKind(b.manuscript.blocks, blockId, kind) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        })),
+
+      updateImageCaption: (bookId, blockId, caption) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: setImageCaption(b.manuscript.blocks, blockId, caption) },
+          })),
+        })),
+
+      updateImageAlt: (bookId, blockId, alt) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: setImageAlt(b.manuscript.blocks, blockId, alt) },
+          })),
+        })),
+
+      undoManuscript: (bookId) =>
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          const hist = s.manuscriptHistory[bookId];
+          if (!book || !hist?.past.length) return s;
+          const prev = hist.past[hist.past.length - 1];
+          return {
+            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: { blocks: prev } })),
+            manuscriptHistory: {
+              ...s.manuscriptHistory,
+              [bookId]: {
+                past: hist.past.slice(0, -1),
+                future: [book.manuscript.blocks, ...hist.future].slice(0, 50),
+              },
+            },
+          };
+        }),
+
+      redoManuscript: (bookId) =>
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          const hist = s.manuscriptHistory[bookId];
+          if (!book || !hist?.future.length) return s;
+          const next = hist.future[0];
+          return {
+            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: { blocks: next } })),
+            manuscriptHistory: {
+              ...s.manuscriptHistory,
+              [bookId]: {
+                past: [...hist.past, book.manuscript.blocks].slice(-50),
+                future: hist.future.slice(1),
+              },
+            },
+          };
+        }),
+
+      clearManuscript: (bookId) =>
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          if (book) dropImageMedia(book.manuscript.blocks);
+          return {
+            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: emptyManuscript() })),
+            manuscriptHistory: pushHistory(s, bookId),
+          };
+        }),
 
       importBookBackup: (backup, replaceExisting) => {
         const incoming = { ...backup.book, updatedAt: Date.now() };

@@ -5,6 +5,7 @@ import { buildDocx } from '../exportDocx';
 import { getGenre } from '../genres';
 import { appendSegments } from '../manuscript';
 import type { ExportContext } from '../export';
+import type { Manuscript } from '../types';
 
 const ctx: ExportContext = { title: EMBER_KING_TITLE, author: 'A. Writer', genre: getGenre('fantasy') };
 
@@ -54,5 +55,71 @@ describe('exporters', () => {
   it('builds a docx document without throwing', () => {
     const doc = buildDocx(manuscript, ctx);
     expect(doc).toBeTruthy();
+  });
+
+  it('embeds PNG bytes in RTF and DOCX when images are supplied', () => {
+    const png = Uint8Array.from(
+      atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
+      (c) => c.charCodeAt(0),
+    );
+    const withImage: Manuscript = {
+      blocks: [
+        ...blocks,
+        {
+          id: 'img-1',
+          type: 'image',
+          image: { mediaId: 'keep-map', mime: 'image/png', caption: 'The keep' },
+        },
+        {
+          id: 'p-bold',
+          type: 'paragraph',
+          text: 'The wind howled.',
+          marks: [{ kind: 'bold', start: 4, end: 8 }],
+        },
+      ],
+    };
+    const withImages: ExportContext = {
+      ...ctx,
+      images: {
+        'keep-map': { mime: 'image/png', bytes: png, caption: 'The keep' },
+      },
+    };
+    const rtf = toRtf(withImage, withImages);
+    expect(rtf).toContain('\\pngblip');
+    expect(rtf).toContain('\\pict');
+    expect(rtf).toContain('\\b ');
+    expect(rtf).toContain('The keep');
+
+    const md = toMarkdown(withImage, withImages);
+    expect(md).toContain('data:image/png;base64,');
+    expect(md).toContain('**wind**');
+
+    const txt = toPlainText(withImage, withImages);
+    expect(txt).toContain('[image: The keep]');
+
+    expect(buildDocx(withImage, withImages)).toBeTruthy();
+  });
+
+  it('falls back to a caption line for GIF/WebP in RTF', () => {
+    const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38]);
+    const rtf = toRtf(
+      {
+        blocks: [
+          {
+            id: 'img-gif',
+            type: 'image',
+            image: { mediaId: 'gif-1', mime: 'image/gif', caption: 'Banner' },
+          },
+        ],
+      },
+      {
+        ...ctx,
+        images: {
+          'gif-1': { mime: 'image/gif', bytes: gif, caption: 'Banner' },
+        },
+      },
+    );
+    expect(rtf).not.toContain('\\pngblip');
+    expect(rtf).toContain('[image: Banner]');
   });
 });

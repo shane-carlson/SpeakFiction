@@ -3,12 +3,15 @@ import {
   appendSegments,
   chapterOrder,
   emptyManuscript,
+  formatParagraph,
   insertEmptyStructure,
+  insertImageBlock,
   insertSegments,
   manuscriptStats,
   movableRange,
   moveBlockRange,
   resolveInsertIndex,
+  setBlockKind,
   setBlockTitle,
   validDropIndices,
 } from '../manuscript';
@@ -264,5 +267,63 @@ describe('insertEmptyStructure', () => {
     expect(next.map((b) => b.type)).toEqual(['paragraph', 'scene', 'paragraph']);
     expect(next[0].text).toBe('Hello.');
     expect(next[2].text).toBe('World.');
+  });
+
+  it('toolbar insert kinds add chapter and section markers', () => {
+    const blocks = sampleBook();
+    const withChapter = insertEmptyStructure(blocks, 'chapter', { atIndex: 3 });
+    expect(withChapter[3].type).toBe('chapter');
+    const withSection = insertEmptyStructure(blocks, 'section', { atIndex: 3 });
+    expect(withSection[3].type).toBe('section');
+  });
+});
+
+describe('formatParagraph', () => {
+  it('toggles bold on a selection and clears marks', () => {
+    const blocks: Block[] = [{ id: 'p1', type: 'paragraph', text: 'The wind howled.' }];
+    const bolded = formatParagraph(blocks, 'p1', { start: 4, end: 8 }, { type: 'toggle', kind: 'bold' });
+    expect(bolded[0].marks).toEqual([{ kind: 'bold', start: 4, end: 8 }]);
+    const cleared = formatParagraph(bolded, 'p1', { start: 4, end: 8 }, { type: 'clear' });
+    expect(cleared[0].marks).toEqual([]);
+  });
+
+  it('keeps dictation-promoted plain strings unmarked', () => {
+    const blocks = appendSegments([], [{ type: 'text', text: 'Kaeldros crested the ridge.' }]);
+    expect(blocks[0].marks).toBeUndefined();
+  });
+});
+
+describe('setBlockKind', () => {
+  it('turns a paragraph into a scene heading using the same structure type as dictation', () => {
+    const blocks: Block[] = [{ id: 'p1', type: 'paragraph', text: 'The Ridge' }];
+    const next = setBlockKind(blocks, 'p1', 'scene');
+    expect(next[0]).toMatchObject({ type: 'scene', title: 'The Ridge' });
+    expect(next[0].text).toBeUndefined();
+  });
+
+  it('turns a chapter heading back into a body paragraph', () => {
+    const blocks: Block[] = [{ id: 'c1', type: 'chapter', title: 'The Gate' }];
+    expect(setBlockKind(blocks, 'c1', 'paragraph')[0]).toMatchObject({
+      type: 'paragraph',
+      text: 'The Gate',
+    });
+  });
+});
+
+describe('insertImageBlock', () => {
+  it('inserts a reorderable image block at a gap', () => {
+    const blocks = sampleBook();
+    const next = insertImageBlock(
+      blocks,
+      { mediaId: 'img-1', mime: 'image/png', alt: 'Map', caption: 'The keep' },
+      { atIndex: 3 },
+    );
+    expect(next[3]).toMatchObject({
+      type: 'image',
+      image: { mediaId: 'img-1', mime: 'image/png', caption: 'The keep' },
+    });
+    expect(next[4].type).toBe('scene');
+    expect(next[5].text).toBe('Two sentries crossed their spears.');
+    expect(next).toHaveLength(blocks.length + 1);
   });
 });

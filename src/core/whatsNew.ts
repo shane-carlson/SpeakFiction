@@ -155,6 +155,13 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.6': bullets(
+    'Full-screen manuscript editor — Escape to return to dictation',
+    'Toolbar for new chapter, scene, section, and paragraph, plus headings and undo/redo',
+    'Bold, italic, underline, strikethrough, and clear formatting in the manuscript',
+    'Insert pictures as manuscript blocks; they stay on this computer',
+    'Export with pictures to Word, Scrivener, and Google Docs',
+  ),
   '0.2.5': bullets(
     'Drag to reorder chapters, scenes, and paragraphs in the manuscript',
     'Chapter numbers update to match order; titles stay editable in the manuscript',

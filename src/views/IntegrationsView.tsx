@@ -13,6 +13,7 @@ import { docxToBlob } from '../core/exportDocx';
 import { slugify } from '../core/util';
 import { manuscriptStats } from '../core/manuscript';
 import { NativeHandoff } from '../components/NativeHandoff';
+import { loadExportImages } from '../core/mediaStore';
 
 interface TargetInfo {
   id: IntegrationTarget;
@@ -28,7 +29,7 @@ const TARGETS: TargetInfo[] = [
     id: 'scrivener',
     name: 'Scrivener',
     icon: '📝',
-    blurb: 'Import and Split on # — one binder document per chapter.',
+    blurb: 'Import and Split on # — one binder document per chapter. PNG and JPEG pictures embed in the RTF.',
     format: 'rtf',
     steps: [
       'Download the SpeakFiction RTF below.',
@@ -47,7 +48,7 @@ const TARGETS: TargetInfo[] = [
     id: 'word',
     name: 'Microsoft Word',
     icon: '📄',
-    blurb: 'A styled .docx with Heading 1 chapters and page breaks.',
+    blurb: 'A styled .docx with Heading 1 chapters, page breaks, and embedded pictures.',
     format: 'docx',
     steps: [
       'Download the .docx below.',
@@ -59,13 +60,13 @@ const TARGETS: TargetInfo[] = [
     id: 'googledocs',
     name: 'Google Docs',
     icon: '🗂️',
-    blurb: 'Upload the .docx; Docs converts headings automatically.',
+    blurb: 'Upload the .docx; Docs converts headings and keeps embedded pictures.',
     format: 'docx',
     steps: [
       'Download the .docx below.',
       'In Google Drive: New → File upload, then select the .docx.',
       'Right-click the file → Open with → Google Docs.',
-      'Headings map to the document outline (View → Show outline).',
+      'Headings map to the document outline (View → Show outline). Pictures stay in the Doc.',
     ],
   },
   {
@@ -108,20 +109,22 @@ export function IntegrationsView({ book }: { book: Book }) {
   const base = slugify(book.title);
 
   const handleExport = async () => {
+    const images = await loadExportImages(book.manuscript);
+    const withImages: ExportContext = { ...ctx, images };
     switch (target.format) {
       case 'rtf':
-        download(`${base}.rtf`, toRtf(book.manuscript, ctx), 'application/rtf');
+        download(`${base}.rtf`, toRtf(book.manuscript, withImages), 'application/rtf');
         break;
       case 'md':
-        download(`${base}.md`, toMarkdown(book.manuscript, ctx), 'text/markdown');
+        download(`${base}.md`, toMarkdown(book.manuscript, withImages), 'text/markdown');
         break;
       case 'txt':
-        download(`${base}.txt`, toPlainText(book.manuscript, ctx), 'text/plain');
+        download(`${base}.txt`, toPlainText(book.manuscript, withImages), 'text/plain');
         break;
       case 'docx':
         download(
           `${base}.docx`,
-          await docxToBlob(book.manuscript, ctx),
+          await docxToBlob(book.manuscript, withImages),
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         );
         break;

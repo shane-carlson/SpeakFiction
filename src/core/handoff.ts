@@ -16,5 +16,11 @@ export function toLiveInsertRtf(manuscript: Manuscript, ctx: ExportContext): str
 
 export function liveInsertIsEmpty(manuscript: Manuscript): boolean {
   const stats = manuscriptStats(manuscript);
-  return stats.words === 0 && stats.chapters === 0 && stats.scenes === 0;
+  return (
+    stats.words === 0 &&
+    stats.chapters === 0 &&
+    stats.scenes === 0 &&
+    stats.sections === 0 &&
+    stats.images === 0
+  );
 }

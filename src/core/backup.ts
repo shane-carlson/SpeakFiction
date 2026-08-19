@@ -1,9 +1,11 @@
-import type { AdaptiveModelState, Book, Manuscript, NameEntry, Series } from './types';
+import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage, NameEntry, Series } from './types';
 import { emptyAdaptiveState } from './adaptiveModel';
 import { DEFAULT_TENSE } from './tense';
 import { DEFAULT_PERSPECTIVE } from './perspective';
 import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isGenreId, isThemeId, type ThemeId, type ThemeMode } from './theme';
 import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './audioSettings';
+import { isManuscriptImageMime } from './manuscriptMedia';
+import { INLINE_MARK_KINDS } from './richText';
 
 export const BACKUP_KIND_BOOK = 'speakfiction.book' as const;
 export const BACKUP_KIND_LIBRARY = 'speakfiction.library' as const;
@@ -15,6 +17,8 @@ export interface BookBackup {
   exportedAt: number;
   book: Book;
   series?: Series | null;
+  /** Image binaries keyed by mediaId so JSON backups carry pictures. */
+  media?: Record<string, { mime: string; b64: string }>;
 }
 
 export interface LibraryBackup {
@@ -28,6 +32,7 @@ export interface LibraryBackup {
   themeId: ThemeId;
   audioSettings: AudioSettings;
   sttProfileLabel?: string | null;
+  media?: Record<string, { mime: string; b64: string }>;
 }
 
 export type SpeakFictionBackup = BookBackup | LibraryBackup;
@@ -44,13 +49,18 @@ export function libraryBackupFilename(): string {
   return 'speakfiction-library.json';
 }
 
-export function serializeBookBackup(book: Book, series?: Series | null): BookBackup {
+export function serializeBookBackup(
+  book: Book,
+  series?: Series | null,
+  media?: Record<string, { mime: string; b64: string }>,
+): BookBackup {
   return {
     kind: BACKUP_KIND_BOOK,
     version: BACKUP_FORMAT_VERSION,
     exportedAt: Date.now(),
     book,
     series: series ?? null,
+    media,
   };
 }
 
@@ -62,6 +72,7 @@ export function serializeLibraryBackup(input: {
   themeId: ThemeId;
   audioSettings: AudioSettings;
   sttProfileLabel?: string | null;
+  media?: Record<string, { mime: string; b64: string }>;
 }): LibraryBackup {
   return {
     kind: BACKUP_KIND_LIBRARY,
@@ -74,6 +85,7 @@ export function serializeLibraryBackup(input: {
     themeId: input.themeId,
     audioSettings: input.audioSettings,
     sttProfileLabel: input.sttProfileLabel ?? null,
+    media: input.media,
   };
 }
 
@@ -81,6 +93,18 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function normalizeBackupMedia(raw: unknown): Record<string, { mime: string; b64: string }> | undefined {
+  const rec = asRecord(raw);
+  if (!rec) return undefined;
+  const out: Record<string, { mime: string; b64: string }> = {};
+  for (const [id, value] of Object.entries(rec)) {
+    const item = asRecord(value);
+    if (!item || typeof item.b64 !== 'string' || !isManuscriptImageMime(String(item.mime))) continue;
+    out[id] = { mime: String(item.mime), b64: item.b64 };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeAdaptive(raw: unknown): AdaptiveModelState {
@@ -93,19 +117,69 @@ function normalizeAdaptive(raw: unknown): AdaptiveModelState {
   };
 }
 
+function normalizeMarks(raw: unknown): InlineMark[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const marks = raw
+    .map((m) => asRecord(m))
+    .filter((m): m is Record<string, unknown> => Boolean(m))
+    .map((m) => ({
+      kind: m.kind,
+      start: typeof m.start === 'number' ? m.start : Number(m.start),
+      end: typeof m.end === 'number' ? m.end : Number(m.end),
+    }))
+    .filter(
+      (m): m is InlineMark =>
+        INLINE_MARK_KINDS.includes(m.kind as InlineMark['kind']) &&
+        Number.isFinite(m.start) &&
+        Number.isFinite(m.end) &&
+        m.end > m.start,
+    )
+    .map((m) => ({ kind: m.kind as InlineMark['kind'], start: m.start, end: m.end }));
+  return marks.length ? marks : undefined;
+}
+
+function normalizeImage(raw: unknown): ManuscriptImage | undefined {
+  const rec = asRecord(raw);
+  if (!rec || typeof rec.mediaId !== 'string' || !rec.mediaId) return undefined;
+  const mime = typeof rec.mime === 'string' ? rec.mime : '';
+  if (!isManuscriptImageMime(mime)) return undefined;
+  return {
+    mediaId: rec.mediaId,
+    mime,
+    alt: typeof rec.alt === 'string' ? rec.alt : undefined,
+    caption: typeof rec.caption === 'string' ? rec.caption : undefined,
+    width: typeof rec.width === 'number' && Number.isFinite(rec.width) ? rec.width : undefined,
+    height: typeof rec.height === 'number' && Number.isFinite(rec.height) ? rec.height : undefined,
+  };
+}
+
+const BLOCK_TYPES = new Set(['chapter', 'scene', 'section', 'paragraph', 'image']);
+
 function normalizeManuscript(raw: unknown): Manuscript {
   const rec = asRecord(raw);
   const blocks = rec && Array.isArray(rec.blocks) ? rec.blocks : [];
   return {
     blocks: blocks
       .map((b) => asRecord(b))
-      .filter((b): b is Record<string, unknown> => Boolean(b && typeof b.id === 'string' && typeof b.type === 'string'))
-      .map((b) => ({
-        id: String(b.id),
-        type: b.type as Manuscript['blocks'][number]['type'],
-        title: typeof b.title === 'string' ? b.title : undefined,
-        text: typeof b.text === 'string' ? b.text : undefined,
-      })),
+      .filter((b): b is Record<string, unknown> =>
+        Boolean(b && typeof b.id === 'string' && typeof b.type === 'string' && BLOCK_TYPES.has(String(b.type))),
+      )
+      .map((b) => {
+        const type = b.type as Manuscript['blocks'][number]['type'];
+        const block: Manuscript['blocks'][number] = {
+          id: String(b.id),
+          type,
+          title: typeof b.title === 'string' ? b.title : undefined,
+          text: typeof b.text === 'string' ? b.text : undefined,
+        };
+        const marks = normalizeMarks(b.marks);
+        if (marks) block.marks = marks;
+        if (type === 'image') {
+          const image = normalizeImage(b.image);
+          if (image) block.image = image;
+        }
+        return block;
+      }),
   };
 }
 
@@ -177,6 +251,7 @@ export function parseBackup(json: string): SpeakFictionBackup {
       exportedAt: typeof rec.exportedAt === 'number' ? rec.exportedAt : Date.now(),
       book,
       series: normalizeSeries(rec.series),
+      media: normalizeBackupMedia(rec.media),
     };
   }
 
@@ -197,6 +272,7 @@ export function parseBackup(json: string): SpeakFictionBackup {
       themeId: isThemeId(typeof rec.themeId === 'string' ? rec.themeId : null) ? rec.themeId as ThemeId : DEFAULT_THEME_ID,
       audioSettings: normalizeAudio(rec.audioSettings),
       sttProfileLabel: typeof rec.sttProfileLabel === 'string' ? rec.sttProfileLabel : null,
+      media: normalizeBackupMedia(rec.media),
     };
   }
 

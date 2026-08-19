@@ -78,7 +78,30 @@ export interface GenreProfile {
   sceneBreakGlyph: string;
 }
 
-export type BlockType = 'chapter' | 'scene' | 'section' | 'paragraph';
+export type BlockType = 'chapter' | 'scene' | 'section' | 'paragraph' | 'image';
+
+/** Inline formatting on a paragraph. Offsets are into `text` (plain string). */
+export type InlineMarkKind = 'bold' | 'italic' | 'underline' | 'strike';
+
+export interface InlineMark {
+  kind: InlineMarkKind;
+  /** Inclusive start index in `text`. */
+  start: number;
+  /** Exclusive end index in `text`. */
+  end: number;
+}
+
+export type ManuscriptImageMime = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+
+/** Reference to a picture stored beside the library session (not in git). */
+export interface ManuscriptImage {
+  mediaId: string;
+  mime: ManuscriptImageMime;
+  alt?: string;
+  caption?: string;
+  width?: number;
+  height?: number;
+}
 
 /** One node in the linear manuscript model. */
 export interface Block {
@@ -86,8 +109,12 @@ export interface Block {
   type: BlockType;
   /** Title for structural blocks (chapter/scene/section). */
   title?: string;
-  /** Prose for paragraph blocks. */
+  /** Prose for paragraph blocks. Always a plain string; marks are separate. */
   text?: string;
+  /** Optional inline marks. Missing/empty means plain (legacy manuscripts). */
+  marks?: InlineMark[];
+  /** Present when `type` is `image`. */
+  image?: ManuscriptImage;
 }
 
 export interface Manuscript {

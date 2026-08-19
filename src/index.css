@@ -1069,7 +1069,8 @@ label {
 .ms-chapter:hover .ms-drag-handle,
 .ms-scene:hover .ms-drag-handle,
 .ms-section:hover .ms-drag-handle,
-.ms-para:hover .ms-drag-handle {
+.ms-para:hover .ms-drag-handle,
+.ms-image-block:hover .ms-drag-handle {
   opacity: 0.9;
 }
 .ms-drag-handle:active {
@@ -1078,7 +1079,8 @@ label {
 .ms-chapter.is-dragging,
 .ms-scene.is-dragging,
 .ms-section.is-dragging,
-.ms-para.is-dragging {
+.ms-para.is-dragging,
+.ms-image-block.is-dragging {
   opacity: 0.4;
 }
 .ms-insert-gap {
@@ -1101,6 +1103,147 @@ label {
 .manuscript.is-dragging .ms-insert-gap.is-drop-over {
   background: var(--accent);
   height: 6px;
+}
+
+.ms-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 0 0 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ms-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ms-toolbar-end {
+  margin-left: auto;
+}
+.ms-toolbar-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.ms-format-bold {
+  font-weight: 800;
+}
+.ms-format-italic {
+  font-style: italic;
+}
+.ms-format-underline {
+  text-decoration: underline;
+}
+.ms-format-strike {
+  text-decoration: line-through;
+}
+.ms-para-editor {
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.7;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 8px;
+  min-height: 1.7em;
+  color: var(--text);
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ms-para-editor:hover {
+  border-color: var(--border);
+}
+.ms-para-editor:focus {
+  background: var(--bg-input);
+}
+.ms-scene-title,
+.ms-section-title {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  min-width: 8ch;
+}
+.ms-scene-title:focus,
+.ms-section-title:focus {
+  background: var(--bg-input);
+}
+.ms-image-block {
+  position: relative;
+  padding-left: 18px;
+  margin: 12px 0 18px;
+}
+.ms-image {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.ms-image img {
+  max-width: min(100%, 520px);
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.ms-image-missing {
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.ms-image-caption,
+.ms-image-alt {
+  font-family: var(--font);
+  font-size: 12px;
+  width: min(100%, 420px);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 2px 6px;
+}
+.ms-image-caption:focus,
+.ms-image-alt:focus {
+  background: var(--bg-input);
+  border-color: var(--border);
+  color: var(--text);
+}
+.ms-editor-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ms-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.ms-editor-head h2 {
+  margin: 0;
+}
+.dictate-page.is-ms-editor {
+  min-height: 0;
+}
+.app:has(.is-ms-editor) .sidebar {
+  display: none;
+}
+.app:has(.is-ms-editor) .main {
+  padding: 14px 22px 18px;
 }
 
 .empty {

@@ -18,6 +18,7 @@ import {
   type SpeakFictionBackup,
 } from '../core/backup';
 import { openTextFile, saveBytesFile, saveTextFile } from '../core/localFiles';
+import { collectBackupMedia, loadExportImages, restoreBackupMedia } from '../core/mediaStore';
 import { useStore } from '../store';
 
 const JSON_FILTERS = [{ name: 'SpeakFiction backup', extensions: ['json'] }];
@@ -67,7 +68,8 @@ export function BackupView({
   };
 
   const saveBookJson = async () => {
-    const json = backupToJson(serializeBookBackup(book, bookSeries));
+    const media = await collectBackupMedia(book.manuscript);
+    const json = backupToJson(serializeBookBackup(book, bookSeries, media));
     const res = await saveTextFile({
       defaultPath: bookBackupFilename(book),
       content: json,
@@ -78,6 +80,8 @@ export function BackupView({
   };
 
   const saveLibraryJson = async () => {
+    const media: Record<string, { mime: string; b64: string }> = {};
+    for (const b of books) Object.assign(media, await collectBackupMedia(b.manuscript));
     const json = backupToJson(
       serializeLibraryBackup({
         series,
@@ -87,6 +91,7 @@ export function BackupView({
         themeId,
         audioSettings,
         sttProfileLabel,
+        media,
       }),
     );
     const res = await saveTextFile({
@@ -103,10 +108,12 @@ export function BackupView({
       await saveBookJson();
       return;
     }
+    const images = await loadExportImages(book.manuscript);
+    const withImages: ExportContext = { ...ctx, images };
     if (format === 'rtf') {
       const res = await saveTextFile({
         defaultPath: `${slug}.rtf`,
-        content: toRtf(book.manuscript, ctx),
+        content: toRtf(book.manuscript, withImages),
         filters: [{ name: 'Rich Text', extensions: ['rtf'] }],
         mime: 'application/rtf',
       });
@@ -116,7 +123,7 @@ export function BackupView({
     if (format === 'md') {
       const res = await saveTextFile({
         defaultPath: `${slug}.md`,
-        content: toMarkdown(book.manuscript, ctx),
+        content: toMarkdown(book.manuscript, withImages),
         filters: [{ name: 'Markdown', extensions: ['md'] }],
         mime: 'text/markdown',
       });
@@ -126,14 +133,14 @@ export function BackupView({
     if (format === 'txt') {
       const res = await saveTextFile({
         defaultPath: `${slug}.txt`,
-        content: toPlainText(book.manuscript, ctx),
+        content: toPlainText(book.manuscript, withImages),
         filters: [{ name: 'Plain text', extensions: ['txt'] }],
         mime: 'text/plain',
       });
       report(statusFromSave(res.ok, res.path));
       return;
     }
-    const blob = await docxToBlob(book.manuscript, ctx);
+    const blob = await docxToBlob(book.manuscript, withImages);
     const bytes = new Uint8Array(await blob.arrayBuffer());
     const res = await saveBytesFile({
       defaultPath: `${slug}.docx`,
@@ -167,6 +174,7 @@ export function BackupView({
       fail(`“${pending.book.title}” is already in the library. Confirm replace to overwrite it.`);
       return;
     }
+    void restoreBackupMedia(pending.media);
     setPending(null);
     report(result === 'replaced' ? `Replaced “${pending.book.title}”.` : `Added “${pending.book.title}”.`);
   };
@@ -188,6 +196,7 @@ export function BackupView({
       if (!ok) return;
     }
     importLibraryBackup(pending, mode);
+    void restoreBackupMedia(pending.media);
     setPending(null);
     report(
       mode === 'replace'

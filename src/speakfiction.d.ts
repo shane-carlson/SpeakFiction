@@ -70,6 +70,18 @@ export interface SpeakFictionFilesBridge {
     filters?: FileFilter[];
   }) => Promise<{ ok: boolean; path?: string }>;
   openText: (opts?: { filters?: FileFilter[] }) => Promise<{ ok: boolean; path?: string; content?: string }>;
+  openBytes: (opts?: { filters?: FileFilter[] }) => Promise<{
+    ok: boolean;
+    path?: string;
+    bytes?: Uint8Array | number[];
+    mime?: string;
+  }>;
+}
+
+export interface SpeakFictionMediaBridge {
+  save: (opts: { id: string; mime: string; bytes: Uint8Array | number[] }) => Promise<{ ok: boolean }>;
+  load: (id: string) => Promise<{ ok: boolean; mime?: string; bytes?: Uint8Array | number[] }>;
+  remove: (id: string) => Promise<{ ok: boolean }>;
 }
 
 export interface SpeakFictionLicenseBridge {
@@ -97,6 +109,7 @@ export interface SpeakFictionBridge {
   audio?: SpeakFictionAudioBridge;
   stt?: SpeakFictionSttBridge;
   files?: SpeakFictionFilesBridge;
+  media?: SpeakFictionMediaBridge;
   state?: SpeakFictionStateBridge;
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;

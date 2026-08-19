@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Book } from '../core/types';
 import { getGenre } from '../core/genres';
 import { liveInsertIsEmpty, toLiveInsertRtf, toLiveInsertText } from '../core/handoff';
+import { loadExportImages } from '../core/mediaStore';
 import type { HandoffSendResult, HandoffStatus } from '../speakfiction';
 
 function nativeHandoff() {
@@ -34,11 +35,21 @@ export function NativeHandoff({ book }: { book: Book }) {
   const [message, setMessage] = useState<string | null>(null);
   const empty = liveInsertIsEmpty(book.manuscript);
   const genre = getGenre(book.genreId);
-  const payload = useMemo(() => {
+  const [payload, setPayload] = useState({ text: '', rtf: '' });
+
+  useEffect(() => {
+    let alive = true;
     const ctx = { title: book.title, genre };
-    return {
-      text: toLiveInsertText(book.manuscript, ctx),
-      rtf: toLiveInsertRtf(book.manuscript, ctx),
+    const text = toLiveInsertText(book.manuscript, ctx);
+    void loadExportImages(book.manuscript).then((images) => {
+      if (!alive) return;
+      setPayload({
+        text,
+        rtf: toLiveInsertRtf(book.manuscript, { ...ctx, images }),
+      });
+    });
+    return () => {
+      alive = false;
     };
   }, [book.manuscript, book.title, genre]);
 

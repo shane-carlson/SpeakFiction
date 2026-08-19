@@ -89,6 +89,7 @@ ipcMain.handle('audio:open-sound-settings', () => openSoundSettings());
 ipcMain.handle('audio:open-mic-privacy', () => openMicPrivacySettings());
 
 const sessionStore = require('./sessionStore.cjs');
+const mediaStore = require('./mediaStore.cjs');
 ipcMain.on('state:load', (event) => {
   event.returnValue = sessionStore.load();
 });
@@ -96,6 +97,9 @@ ipcMain.handle('state:save', (_event, json) => sessionStore.save(json));
 ipcMain.on('state:save-sync', (event, json) => {
   event.returnValue = sessionStore.save(json);
 });
+ipcMain.handle('media:save', (_event, payload) => mediaStore.save(payload));
+ipcMain.handle('media:load', (_event, id) => mediaStore.load(id));
+ipcMain.handle('media:remove', (_event, id) => mediaStore.remove(id));
 
 const { logoPath, windowIconPath } = require('./paths.cjs');
 const license = require('./license.cjs');
@@ -157,6 +161,29 @@ ipcMain.handle('files:open-text', async (_event, payload) => {
   if (canceled || !filePaths[0]) return { ok: false };
   const content = await fs.readFile(filePaths[0], 'utf8');
   return { ok: true, path: filePaths[0], content };
+});
+
+ipcMain.handle('files:open-bytes', async (_event, payload) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(targetWindow(), {
+    properties: ['openFile'],
+    filters: payload?.filters ?? [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (canceled || !filePaths[0]) return { ok: false };
+  const buf = await fs.readFile(filePaths[0]);
+  const ext = path.extname(filePaths[0]).slice(1).toLowerCase();
+  const mime =
+    ext === 'png'
+      ? 'image/png'
+      : ext === 'gif'
+        ? 'image/gif'
+        : ext === 'webp'
+          ? 'image/webp'
+          : ext === 'jpg' || ext === 'jpeg'
+            ? 'image/jpeg'
+            : '';
+  return { ok: true, path: filePaths[0], bytes: Uint8Array.from(buf), mime };
 });
 
 const handoff = require('./handoff.cjs');

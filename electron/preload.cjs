@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('speakfiction', {
     saveText: (opts) => ipcRenderer.invoke('files:save-text', opts),
     saveBytes: (opts) => ipcRenderer.invoke('files:save-bytes', opts),
     openText: (opts) => ipcRenderer.invoke('files:open-text', opts),
+    openBytes: (opts) => ipcRenderer.invoke('files:open-bytes', opts),
+  },
+  media: {
+    save: (opts) => ipcRenderer.invoke('media:save', opts),
+    load: (id) => ipcRenderer.invoke('media:load', id),
+    remove: (id) => ipcRenderer.invoke('media:remove', id),
   },
   state: {
     loadSync: () => ipcRenderer.sendSync('state:load'),
