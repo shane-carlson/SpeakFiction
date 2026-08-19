@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type {
   Book,
   GenreId,
@@ -15,13 +15,20 @@ import { processTranscript } from './core/dictationProcessor';
 import { getGenre } from './core/genres';
 import { DEFAULT_TENSE } from './core/tense';
 import { DEFAULT_PERSPECTIVE } from './core/perspective';
+import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, type ThemeId, type ThemeMode } from './core/theme';
 import {
-  DEFAULT_THEME_ID,
-  DEFAULT_THEME_MODE,
-  isThemeId,
-  type ThemeId,
-  type ThemeMode,
-} from './core/theme';
+  isAppTab,
+  normalizeDictationDrafts,
+  normalizeManuscriptPlace,
+  normalizeThemeId,
+  normalizeThemeMode,
+  omitKey,
+  PERSIST_NAME,
+  PERSIST_VERSION,
+  type AppTab,
+  type ManuscriptPlace,
+} from './core/persistedState';
+import { sessionStateStorage } from './core/sessionStorage';
 import { uid } from './core/util';
 import type { AppliedCorrection } from './core/nameLibrary';
 import {
@@ -60,6 +67,12 @@ interface AppState {
   setSidebarCollapsed: (collapsed: boolean) => void;
   dictateSplit: number;
   setDictateSplit: (ratio: number) => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
+  dictationDrafts: Record<string, string>;
+  setDictationDraft: (bookId: string, text: string) => void;
+  manuscriptPlace: Record<string, ManuscriptPlace>;
+  setManuscriptPlace: (bookId: string, place: ManuscriptPlace) => void;
 
   createSeries: (name: string) => string;
   createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
@@ -156,6 +169,14 @@ export const useStore = create<AppState>()(
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       dictateSplit: 0.48,
       setDictateSplit: (ratio) => set({ dictateSplit: ratio }),
+      activeTab: 'dictate',
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      dictationDrafts: {},
+      setDictationDraft: (bookId, text) =>
+        set((s) => ({ dictationDrafts: { ...s.dictationDrafts, [bookId]: text } })),
+      manuscriptPlace: {},
+      setManuscriptPlace: (bookId, place) =>
+        set((s) => ({ manuscriptPlace: { ...s.manuscriptPlace, [bookId]: place } })),
 
       createSeries: (name) => {
         const id = uid('ser');
@@ -186,7 +207,12 @@ export const useStore = create<AppState>()(
       deleteBook: (id) =>
         set((s) => {
           const books = s.books.filter((b) => b.id !== id);
-          return { books, activeBookId: s.activeBookId === id ? books[0]?.id ?? null : s.activeBookId };
+          return {
+            books,
+            dictationDrafts: omitKey(s.dictationDrafts, id),
+            manuscriptPlace: omitKey(s.manuscriptPlace, id),
+            activeBookId: s.activeBookId === id ? books[0]?.id ?? null : s.activeBookId,
+          };
         }),
 
       setActiveBook: (id) => set({ activeBookId: id }),
@@ -340,8 +366,24 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'speakfiction-state-v1',
-      version: 3,
+      name: PERSIST_NAME,
+      version: PERSIST_VERSION,
+      storage: createJSONStorage(() => sessionStateStorage),
+      skipHydration: true,
+      partialize: (s) => ({
+        series: s.series,
+        books: s.books,
+        activeBookId: s.activeBookId,
+        themeMode: s.themeMode,
+        themeId: s.themeId,
+        audioSettings: s.audioSettings,
+        sttProfileLabel: s.sttProfileLabel,
+        sidebarCollapsed: s.sidebarCollapsed,
+        dictateSplit: s.dictateSplit,
+        activeTab: s.activeTab,
+        dictationDrafts: s.dictationDrafts,
+        manuscriptPlace: s.manuscriptPlace,
+      }),
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         let books = (p.books ?? []).map((b) => ({
@@ -360,34 +402,34 @@ export const useStore = create<AppState>()(
           ...p,
           books,
           series,
+          dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
+          manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          activeTab: isAppTab(p.activeTab) ? p.activeTab : 'dictate',
         };
       },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<AppState>;
-        const relabeled = relabelExampleStory(
-          reseedTinyEmberKing(
-            (p.books ?? current.books).map((b) => ({
-              ...b,
-              tenseId: b.tenseId ?? DEFAULT_TENSE,
-              perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
-            })),
-          ),
-          p.series ?? current.series,
-        );
         return {
           ...current,
           ...p,
           audioSettings: { ...current.audioSettings, ...p.audioSettings },
           sttProfileLabel: p.sttProfileLabel ?? current.sttProfileLabel,
-          themeMode: p.themeMode === 'light' || p.themeMode === 'dark' ? p.themeMode : DEFAULT_THEME_MODE,
-          themeId: isThemeId(p.themeId) ? p.themeId : DEFAULT_THEME_ID,
+          themeMode: normalizeThemeMode(p.themeMode, DEFAULT_THEME_MODE),
+          themeId: normalizeThemeId(p.themeId, DEFAULT_THEME_ID),
           sidebarCollapsed: Boolean(p.sidebarCollapsed),
           dictateSplit:
             typeof p.dictateSplit === 'number' && p.dictateSplit > 0.2 && p.dictateSplit < 0.8
               ? p.dictateSplit
               : current.dictateSplit,
-          books: relabeled.books,
-          series: relabeled.series,
+          activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
+          dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
+          manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          books: (p.books ?? current.books).map((b) => ({
+            ...b,
+            tenseId: b.tenseId ?? DEFAULT_TENSE,
+            perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
+          })),
+          series: p.series ?? current.series,
         };
       },
     },

@@ -9,13 +9,12 @@ import { Logo } from './components/Logo';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { LicenseBanner } from './components/LicenseBanner';
 import { UpdateBanner } from './components/UpdateBanner';
-import { resolveThemeId } from './core/theme';
+import { applyDocumentTheme } from './core/theme';
+import type { AppTab } from './core/persistedState';
 import { useLicense } from './hooks/useLicense';
 import { useUpdater } from './hooks/useUpdater';
 
-type Tab = 'library' | 'dictate' | 'integrate' | 'model' | 'backup';
-
-const NAV: Array<{ id: Tab; label: string; icon: string }> = [
+const NAV: Array<{ id: AppTab; label: string; icon: string }> = [
   { id: 'dictate', label: 'Dictate', icon: '🎙️' },
   { id: 'library', label: 'Library', icon: '📚' },
   { id: 'integrate', label: 'Integrations', icon: '🔗' },
@@ -26,7 +25,8 @@ const NAV: Array<{ id: Tab; label: string; icon: string }> = [
 export default function App() {
   const license = useLicense();
   const updater = useUpdater();
-  const [tab, setTab] = useState<Tab>('dictate');
+  const tab = useStore((s) => s.activeTab);
+  const setTab = useStore((s) => s.setActiveTab);
   const [dictating, setDictating] = useState(false);
   const books = useStore((s) => s.books);
   const activeBookId = useStore((s) => s.activeBookId);
@@ -35,14 +35,10 @@ export default function App() {
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useStore((s) => s.setSidebarCollapsed);
   const activeBook = books.find((b) => b.id === activeBookId) ?? books[0] ?? null;
-  const resolvedTheme = resolveThemeId(themeId, activeBook?.genreId);
 
   useLayoutEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('data-mode', themeMode);
-    root.setAttribute('data-theme', resolvedTheme);
-    root.style.colorScheme = themeMode;
-  }, [themeMode, resolvedTheme]);
+    applyDocumentTheme(themeMode, themeId, activeBook?.genreId);
+  }, [themeMode, themeId, activeBook?.genreId]);
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>

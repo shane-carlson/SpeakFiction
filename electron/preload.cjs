@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('speakfiction', {
     saveBytes: (opts) => ipcRenderer.invoke('files:save-bytes', opts),
     openText: (opts) => ipcRenderer.invoke('files:open-text', opts),
   },
+  state: {
+    loadSync: () => ipcRenderer.sendSync('state:load'),
+    save: (json) => ipcRenderer.invoke('state:save', json),
+    saveSync: (json) => ipcRenderer.sendSync('state:save-sync', json),
+  },
   handoff: {
     getStatus: () => ipcRenderer.invoke('handoff:status'),
     requestAccess: () => ipcRenderer.invoke('handoff:request'),

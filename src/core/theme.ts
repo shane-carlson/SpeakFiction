@@ -24,6 +24,17 @@ export function resolveThemeId(themeId: ThemeId, bookGenreId: GenreId | undefine
   return isGenreId(bookGenreId) ? bookGenreId : 'generic';
 }
 
+export function applyDocumentTheme(
+  themeMode: ThemeMode,
+  themeId: ThemeId,
+  bookGenreId?: GenreId | null,
+): void {
+  const root = document.documentElement;
+  root.setAttribute('data-mode', themeMode);
+  root.setAttribute('data-theme', resolveThemeId(themeId, bookGenreId));
+  root.style.colorScheme = themeMode;
+}
+
 export function themeDisplayName(themeId: ThemeId, resolved: GenreId): string {
   const name = getGenre(resolved).name;
   return themeId === 'auto' ? `${name} (book)` : name;

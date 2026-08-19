@@ -1,0 +1,66 @@
+import type { GenreId } from './types';
+import { isThemeId, type ThemeId, type ThemeMode } from './theme';
+
+export const PERSIST_NAME = 'speakfiction-state-v1';
+export const PERSIST_VERSION = 4;
+
+export type AppTab = 'library' | 'dictate' | 'integrate' | 'model' | 'backup';
+
+export const APP_TABS: AppTab[] = ['dictate', 'library', 'integrate', 'model', 'backup'];
+
+export function isAppTab(value: unknown): value is AppTab {
+  return APP_TABS.includes(value as AppTab);
+}
+
+/** Scroll + caret so the manuscript reopens where the writer left it. */
+export interface ManuscriptPlace {
+  scrollTop: number;
+  blockId?: string;
+  selectionStart?: number;
+  selectionEnd?: number;
+}
+
+export function normalizeDictationDrafts(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [id, text] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof text === 'string') out[id] = text;
+  }
+  return out;
+}
+
+export function normalizeManuscriptPlace(raw: unknown): Record<string, ManuscriptPlace> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, ManuscriptPlace> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const rec = value as Record<string, unknown>;
+    const scrollTop = typeof rec.scrollTop === 'number' && Number.isFinite(rec.scrollTop) ? rec.scrollTop : 0;
+    const place: ManuscriptPlace = { scrollTop };
+    if (typeof rec.blockId === 'string' && rec.blockId) place.blockId = rec.blockId;
+    if (typeof rec.selectionStart === 'number' && Number.isFinite(rec.selectionStart)) {
+      place.selectionStart = rec.selectionStart;
+    }
+    if (typeof rec.selectionEnd === 'number' && Number.isFinite(rec.selectionEnd)) {
+      place.selectionEnd = rec.selectionEnd;
+    }
+    out[id] = place;
+  }
+  return out;
+}
+
+export function normalizeThemeMode(value: unknown, fallback: ThemeMode): ThemeMode {
+  return value === 'light' || value === 'dark' ? value : fallback;
+}
+
+export function normalizeThemeId(value: unknown, fallback: ThemeId): ThemeId {
+  return typeof value === 'string' && isThemeId(value) ? value : fallback;
+}
+
+export function omitKey<T extends object>(record: T, key: string): T {
+  const copy = { ...(record as Record<string, unknown>) };
+  delete copy[key];
+  return copy as T;
+}
+
+export type { GenreId };

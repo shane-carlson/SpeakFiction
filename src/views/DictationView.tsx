@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from '../core/types';
 import { useStore, type DictationOutcome } from '../store';
 import { getGenre } from '../core/genres';
@@ -55,9 +55,19 @@ export function DictationView({
   const savedProfileLabel = useStore((s) => s.sttProfileLabel);
   const dictateSplit = useStore((s) => s.dictateSplit);
   const setDictateSplit = useStore((s) => s.setDictateSplit);
-  const [draft, setDraft] = useState('');
+  const draft = useStore((s) => s.dictationDrafts[book.id] ?? '');
+  const setDictationDraft = useStore((s) => s.setDictationDraft);
+  const place = useStore((s) => s.manuscriptPlace[book.id]);
+  const setManuscriptPlace = useStore((s) => s.setManuscriptPlace);
   const [outcome, setOutcome] = useState<DictationOutcome | null>(null);
   const [showProfile, setShowProfile] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const restoredBook = useRef<string | null>(null);
+  const setDraft = useCallback((value: string | ((prev: string) => string)) => {
+    const prev = useStore.getState().dictationDrafts[book.id] ?? '';
+    const next = typeof value === 'function' ? value(prev) : value;
+    setDictationDraft(book.id, next);
+  }, [book.id, setDictationDraft]);
   const genre = getGenre(book.genreId);
   const tense = getTense(book.tenseId);
   const perspective = getPerspective(book.perspectiveId);
@@ -76,7 +86,7 @@ export function DictationView({
       if (!cleaned) return;
       setDraft((d) => joinDraft(d, cleaned));
     },
-    [book.adaptive, book.nameLibrary, book.perspectiveId, book.tenseId, genre],
+    [book.adaptive, book.nameLibrary, book.perspectiveId, book.tenseId, genre, setDraft],
   );
 
   const appendCue = useCallback((cue: string) => {
@@ -98,6 +108,34 @@ export function DictationView({
     onListeningChange?.(speech.session === 'listening');
     return () => onListeningChange?.(false);
   }, [onListeningChange, speech.session]);
+
+  useLayoutEffect(() => {
+    if (restoredBook.current === book.id) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    restoredBook.current = book.id;
+    const saved = useStore.getState().manuscriptPlace[book.id];
+    const hasDraft = Boolean((useStore.getState().dictationDrafts[book.id] ?? '').trim());
+    if (saved?.blockId) {
+      const node = el.querySelector(`[data-block-id="${saved.blockId.replace(/"/g, '')}"]`);
+      if (node instanceof HTMLElement) {
+        node.scrollIntoView({ block: 'nearest' });
+        const ta = node.querySelector('textarea');
+        if (ta && !hasDraft && saved.selectionStart != null) {
+          ta.focus();
+          const start = saved.selectionStart;
+          const end = saved.selectionEnd ?? start;
+          try {
+            ta.setSelectionRange(start, end);
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+    }
+    if (typeof saved?.scrollTop === 'number') el.scrollTop = saved.scrollTop;
+  }, [book.id, book.manuscript.blocks.length]);
 
   useEffect(() => {
     if (!profileLabel) return;
@@ -340,8 +378,23 @@ export function DictationView({
         <div className="card dictate-card">
           <h3>Manuscript</h3>
           <p className="sub">Everything below is editable. Structure was created from your spoken cues.</p>
-          <div className="dictate-ms-scroll">
-            <ManuscriptView book={book} />
+          <div
+            className="dictate-ms-scroll"
+            ref={scrollRef}
+            onScroll={(e) => {
+              const scrollTop = e.currentTarget.scrollTop;
+              const prev = useStore.getState().manuscriptPlace[book.id];
+              setManuscriptPlace(book.id, { ...prev, scrollTop });
+            }}
+          >
+            <ManuscriptView
+              book={book}
+              place={place}
+              onPlaceChange={(next) => {
+                const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
+                setManuscriptPlace(book.id, { ...next, scrollTop });
+              }}
+            />
           </div>
         </div>
         }

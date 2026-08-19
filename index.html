@@ -7,6 +7,38 @@
     <link rel="icon" type="image/png" href="/speakfiction-logo.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>SpeakFiction</title>
+    <script>
+      (function () {
+        try {
+          var raw = null;
+          if (window.speakfiction && window.speakfiction.state && window.speakfiction.state.loadSync) {
+            raw = window.speakfiction.state.loadSync();
+          }
+          if (!raw) raw = localStorage.getItem('speakfiction-state-v1');
+          if (!raw) return;
+          var parsed = JSON.parse(raw);
+          var s = parsed.state || parsed;
+          var mode = s.themeMode === 'light' || s.themeMode === 'dark' ? s.themeMode : 'dark';
+          document.documentElement.setAttribute('data-mode', mode);
+          document.documentElement.style.colorScheme = mode;
+          var themeId = s.themeId;
+          var books = s.books || [];
+          var active = null;
+          for (var i = 0; i < books.length; i++) {
+            if (books[i].id === s.activeBookId) {
+              active = books[i];
+              break;
+            }
+          }
+          if (!active) active = books[0];
+          var palette =
+            themeId && themeId !== 'auto'
+              ? themeId
+              : (active && active.genreId) || 'fantasy';
+          document.documentElement.setAttribute('data-theme', palette);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -87,6 +87,15 @@ ipcMain.handle('audio:request-mic', () => requestMic());
 ipcMain.handle('audio:open-sound-settings', () => openSoundSettings());
 ipcMain.handle('audio:open-mic-privacy', () => openMicPrivacySettings());
 
+const sessionStore = require('./sessionStore.cjs');
+ipcMain.on('state:load', (event) => {
+  event.returnValue = sessionStore.load();
+});
+ipcMain.handle('state:save', (_event, json) => sessionStore.save(json));
+ipcMain.on('state:save-sync', (event, json) => {
+  event.returnValue = sessionStore.save(json);
+});
+
 const { logoPath } = require('./paths.cjs');
 const license = require('./license.cjs');
 const updater = require('./updater.cjs');

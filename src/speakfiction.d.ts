@@ -52,6 +52,12 @@ export interface SpeakFictionHandoffBridge {
   ) => Promise<HandoffSendResult>;
 }
 
+export interface SpeakFictionStateBridge {
+  loadSync: () => string | null;
+  save: (json: string) => Promise<{ ok: boolean }>;
+  saveSync: (json: string) => { ok: boolean };
+}
+
 export interface SpeakFictionFilesBridge {
   saveText: (opts: {
     defaultPath: string;
@@ -86,6 +92,7 @@ export interface SpeakFictionBridge {
   audio?: SpeakFictionAudioBridge;
   stt?: SpeakFictionSttBridge;
   files?: SpeakFictionFilesBridge;
+  state?: SpeakFictionStateBridge;
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;
   updater?: SpeakFictionUpdaterBridge;
