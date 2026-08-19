@@ -312,6 +312,38 @@ button {
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
+  cursor: pointer;
+}
+.sidebar-version:hover,
+.sidebar-version:focus-visible {
+  color: var(--text-dim);
+}
+
+.update-banner {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.update-banner strong {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.update-banner-ready {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+.update-banner-restart {
+  margin-top: 8px;
+  width: 100%;
+  justify-content: center;
+  padding: 7px 10px;
+  font-size: 12px;
 }
 
 .license-banner {
@@ -340,12 +372,23 @@ button {
 .license-banner-grace {
   border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
 }
-.license-banner-buy {
+.license-banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 8px;
+}
+.license-banner-buy {
   width: 100%;
   justify-content: center;
   padding: 7px 10px;
   font-size: 12px;
+}
+.license-banner .license-actions {
+  margin-top: 8px;
+}
+.license-banner .license-key-form {
+  flex-wrap: wrap;
 }
 
 .license-gate {

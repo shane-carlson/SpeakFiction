@@ -42,9 +42,11 @@ function isTypingField(el: EventTarget | null): boolean {
 export function DictationView({
   book,
   license,
+  onListeningChange,
 }: {
   book: Book;
   license: ReturnType<typeof useLicense>;
+  onListeningChange?: (listening: boolean) => void;
 }) {
   const books = useStore((s) => s.books);
   const setActiveBook = useStore((s) => s.setActiveBook);
@@ -91,6 +93,11 @@ export function DictationView({
     mayDictate: license.mayDictate,
   });
   const profileLabel = speech.profileLabel || savedProfileLabel;
+
+  useEffect(() => {
+    onListeningChange?.(speech.session === 'listening');
+    return () => onListeningChange?.(false);
+  }, [onListeningChange, speech.session]);
 
   useEffect(() => {
     if (!profileLabel) return;

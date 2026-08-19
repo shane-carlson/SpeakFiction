@@ -1,8 +1,8 @@
 {
   "name": "speakfiction",
   "productName": "SpeakFiction",
-  "version": "0.1.2",
-  "buildNumber": 7,
+  "version": "0.1.3",
+  "buildNumber": 8,
   "description": "Dictation for fiction writers: per-book name libraries, genre-aware punctuation, audio-cue chapter/scene markers, and an adaptive on-device model. Native desktop app (Electron) for macOS and Windows, with guided integration into Scrivener, Word, and Google Docs.",
   "author": "SpeakFiction",
   "license": "MIT",
@@ -31,6 +31,7 @@
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "docx": "^9.0.2",
+    "electron-updater": "^6.6.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"

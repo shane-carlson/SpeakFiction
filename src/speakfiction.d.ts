@@ -72,6 +72,13 @@ export interface SpeakFictionLicenseBridge {
   buy: () => Promise<{ ok: boolean; error?: string }>;
 }
 
+export interface SpeakFictionUpdaterBridge {
+  getStatus: () => Promise<import('./core/update').UpdateStatus>;
+  check: () => Promise<import('./core/update').UpdateStatus>;
+  install: () => Promise<{ ok: boolean; error?: string }>;
+  onStatus: (cb: (status: import('./core/update').UpdateStatus) => void) => () => void;
+}
+
 export interface SpeakFictionBridge {
   platform: string;
   arch?: string;
@@ -81,6 +88,7 @@ export interface SpeakFictionBridge {
   files?: SpeakFictionFilesBridge;
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;
+  updater?: SpeakFictionUpdaterBridge;
 }
 
 declare global {

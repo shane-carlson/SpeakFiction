@@ -36,4 +36,14 @@ contextBridge.exposeInMainWorld('speakfiction', {
     activate: (key) => ipcRenderer.invoke('license:activate', key),
     buy: () => ipcRenderer.invoke('license:buy'),
   },
+  updater: {
+    getStatus: () => ipcRenderer.invoke('updater:status'),
+    check: () => ipcRenderer.invoke('updater:check'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onStatus: (cb) => {
+      const listener = (_event, next) => cb(next);
+      ipcRenderer.on('updater:event', listener);
+      return () => ipcRenderer.removeListener('updater:event', listener);
+    },
+  },
 });

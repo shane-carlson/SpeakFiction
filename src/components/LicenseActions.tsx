@@ -7,12 +7,14 @@ export function LicenseActions({
   error,
   onBuy,
   onActivate,
+  compact = false,
 }: {
   status: LicenseStatus;
   busy: boolean;
   error: string | null;
   onBuy: () => void;
   onActivate: (key: string) => Promise<unknown>;
+  compact?: boolean;
 }) {
   const [key, setKey] = useState('');
 
@@ -27,13 +29,14 @@ export function LicenseActions({
 
   return (
     <div className="license-actions">
-      {status.canBuy ? (
-        <button type="button" className="btn primary" onClick={() => void onBuy()} disabled={busy}>
-          Buy a license
-        </button>
-      ) : (
-        <p className="hint">Checkout is not configured in this build yet.</p>
-      )}
+      {!compact &&
+        (status.canBuy ? (
+          <button type="button" className="btn primary" onClick={() => void onBuy()} disabled={busy}>
+            Buy a license
+          </button>
+        ) : (
+          <p className="hint">Checkout is not configured in this build yet.</p>
+        ))}
       <form className="license-key-form" onSubmit={(e) => void submit(e)}>
         <input
           type="text"
@@ -50,9 +53,11 @@ export function LicenseActions({
         </button>
       </form>
       {error && <div className="license-error">{error}</div>}
-      <p className="hint license-privacy">
-        Polar handles payment. Your manuscript and dictation stay on this device.
-      </p>
+      {!compact && (
+        <p className="hint license-privacy">
+          Polar handles payment. Your manuscript and dictation stay on this device.
+        </p>
+      )}
     </div>
   );
 }

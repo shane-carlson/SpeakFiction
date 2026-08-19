@@ -83,8 +83,17 @@ for (const arch of arches) {
   ];
   if (canNotarize) builderArgs.push('--config.mac.notarize=true');
   else builderArgs.push('--config.mac.notarize=false');
+  if (!builderFlags.some((a) => a === '--publish' || a.startsWith('--publish='))) {
+    builderArgs.push('--publish', 'never');
+  }
   run(path.join(root, 'node_modules', '.bin', 'electron-builder'), builderArgs, archEnv);
   if (!dirOnly) archiveInstallers(stamped, arch);
+}
+
+if (!dirOnly && arches.length) {
+  const { mergeLatestMac } = require('./merge-latest-mac.cjs');
+  const merged = mergeLatestMac(path.join(root, 'release', 'installers'));
+  if (merged) console.log(`Merged Mac update manifest → ${path.relative(root, merged)}`);
 }
 
 function archiveInstallers({ version, buildNumber }, arch) {
@@ -104,6 +113,12 @@ function archiveInstallers({ version, buildNumber }, arch) {
   const copied = [];
   if (fs.existsSync(scratch)) {
     for (const name of fs.readdirSync(scratch)) {
+      if (name === 'latest-mac.yml') {
+        const destName = `latest-mac-${arch}.yml`;
+        fs.copyFileSync(path.join(scratch, name), path.join(installers, destName));
+        copied.push(destName);
+        continue;
+      }
       if (!/\.(dmg|zip|blockmap)$/.test(name)) continue;
       fs.copyFileSync(path.join(scratch, name), path.join(installers, name));
       copied.push(name);

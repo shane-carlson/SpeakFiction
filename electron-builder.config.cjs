@@ -8,6 +8,29 @@ const macArch = intel ? 'x64' : 'arm64';
 const ico = path.join(__dirname, 'build', 'icon.ico');
 const hasIco = fs.existsSync(ico);
 
+function updaterModules() {
+  const seen = new Set();
+  function walk(name) {
+    if (seen.has(name)) return;
+    let pkgPath;
+    try {
+      pkgPath = require.resolve(`${name}/package.json`, { paths: [__dirname] });
+    } catch {
+      return;
+    }
+    seen.add(name);
+    let pkg;
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    } catch {
+      return;
+    }
+    for (const dep of Object.keys(pkg.dependencies || {})) walk(dep);
+  }
+  walk('electron-updater');
+  return [...seen].map((name) => `node_modules/${name}/**/*`);
+}
+
 function whisperExtraResources() {
   if (packingWin) {
     const winBin = path.join(__dirname, 'models', 'bin-win-x64');
@@ -44,7 +67,7 @@ module.exports = {
     output: 'release/scratch',
     buildResources: 'build',
   },
-  files: ['package.json', 'dist/**/*', 'electron/**/*.cjs', '!**/node_modules/**'],
+  files: ['package.json', 'dist/**/*', 'electron/**/*.cjs', '!**/node_modules/**', ...updaterModules()],
   extraResources: [
     ...whisperExtraResources(),
     {
@@ -53,6 +76,12 @@ module.exports = {
     },
   ],
   afterPack: './scripts/afterPack.cjs',
+  publish: {
+    provider: 'github',
+    owner: 'shane-carlson',
+    repo: 'SpeakFiction',
+    releaseType: 'release',
+  },
   mac: {
     category: 'public.app-category.productivity',
     icon: 'build/icon.icns',

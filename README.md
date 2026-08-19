@@ -122,6 +122,29 @@ export POLAR_SERVER=production       # or sandbox
 
 Buy opens the Checkout Link in the browser. Paste the key Polar emailed. The app calls Polar’s customer-portal activate/validate APIs from the main process and stores `license.json` in Application Support / `%APPDATA%\SpeakFiction`. Offline, a licensed copy keeps working for 7 days.
 
+Updates do not require a new key. The license file stays in userData when the app binary is replaced.
+
+## In-app updates
+
+Packaged builds check GitHub Releases about 8 seconds after launch, then every 12 hours. A sidebar banner appears while an update downloads and when it is ready. **Restart to install** is disabled while the microphone is listening so a dictation session is not killed. Quitting the app also applies a downloaded update.
+
+electron-updater compares **semver** (`package.json` `version`), not `buildNumber`. Public updates must bump the marketing version (`npm run pack:mac` already does a patch bump).
+
+Each GitHub Release that should update existing installs needs:
+
+**Mac**
+- `SpeakFiction-<version>-b<build>-arm64.zip` and `.blockmap`
+- `SpeakFiction-<version>-b<build>-x64.zip` and `.blockmap`
+- `latest-mac.yml` (merged when you `pack:mac:all`)
+
+**Windows**
+- `SpeakFiction-<version>-b<build>-win-x64.exe` and `.blockmap`
+- `latest.yml`
+
+The DMG remains the website installer; auto-update uses the zip (Mac) or NSIS exe (Windows). Pack scripts copy those files into `release/installers/` and pass `--publish never` so a local pack does not upload. Attach them when you create the GitHub Release.
+
+Unpackaged `npm run dev:electron` skips updates. Force-off in a packaged build with `SPEAKFICTION_UPDATES=0`. Click the sidebar version to check immediately.
+
 ## Package a Windows installer
 
 `npm run pack:win` builds a 64-bit NSIS installer (and a zip) **from macOS** — you do not need a Windows machine. It keeps the current marketing version and **increments `buildNumber`** so the Windows build is distinct from the last Mac pack (for example `0.1.1-b4` after a Mac `0.1.1-b3`). Artifacts land next to the Mac DMGs:

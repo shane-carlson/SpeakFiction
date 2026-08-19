@@ -8,8 +8,10 @@ import { BackupView } from './views/BackupView';
 import { Logo } from './components/Logo';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { LicenseBanner } from './components/LicenseBanner';
+import { UpdateBanner } from './components/UpdateBanner';
 import { resolveThemeId } from './core/theme';
 import { useLicense } from './hooks/useLicense';
+import { useUpdater } from './hooks/useUpdater';
 
 type Tab = 'library' | 'dictate' | 'integrate' | 'model' | 'backup';
 
@@ -23,7 +25,9 @@ const NAV: Array<{ id: Tab; label: string; icon: string }> = [
 
 export default function App() {
   const license = useLicense();
+  const updater = useUpdater();
   const [tab, setTab] = useState<Tab>('dictate');
+  const [dictating, setDictating] = useState(false);
   const books = useStore((s) => s.books);
   const activeBookId = useStore((s) => s.activeBookId);
   const themeMode = useStore((s) => s.themeMode);
@@ -78,12 +82,25 @@ export default function App() {
 
         <div className="sidebar-footer">
           <ThemeSwitcher />
+          <UpdateBanner updater={updater} dictating={dictating} />
           <LicenseBanner license={license} />
           <div className="sidebar-privacy">
             <strong>Private by design.</strong> Dictation, your name library, and the adaptive model
             all stay on this device.
           </div>
-          <div className="sidebar-version" title={`Build ${__APP_BUILD__}`}>
+          <div
+            className="sidebar-version"
+            title={`Build ${__APP_BUILD__}. Click to check for updates.`}
+            onClick={() => void updater.check()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                void updater.check();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
             v{__APP_VERSION__}
           </div>
         </div>
@@ -93,7 +110,12 @@ export default function App() {
         {!activeBook ? (
           <LibraryView />
         ) : tab === 'dictate' ? (
-          <DictationView key={activeBook.id} book={activeBook} license={license} />
+          <DictationView
+            key={activeBook.id}
+            book={activeBook}
+            license={license}
+            onListeningChange={setDictating}
+          />
         ) : tab === 'library' ? (
           <LibraryView />
         ) : tab === 'integrate' ? (

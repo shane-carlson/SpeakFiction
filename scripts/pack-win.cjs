@@ -73,6 +73,9 @@ const commonArgs = [
   '--config.win.signAndEditExecutable=false',
   ...builderFlags,
 ];
+if (!builderFlags.some((a) => a === '--publish' || a.startsWith('--publish='))) {
+  commonArgs.push('--publish', 'never');
+}
 
 let packed = runAllowFail(builder, commonArgs);
 if (packed.status !== 0) {
@@ -93,6 +96,11 @@ function archiveInstallers({ version, buildNumber }) {
   const copied = [];
   if (fs.existsSync(scratch)) {
     for (const name of fs.readdirSync(scratch)) {
+      if (name === 'latest.yml') {
+        fs.copyFileSync(path.join(scratch, name), path.join(installers, name));
+        copied.push(name);
+        continue;
+      }
       if (!/\.(exe|zip|blockmap)$/.test(name)) continue;
       if (name.endsWith('.zip') && !/-win-/.test(name)) continue;
       if (name.endsWith('.blockmap') && !/-win-/.test(name)) continue;

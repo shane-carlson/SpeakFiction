@@ -89,6 +89,7 @@ ipcMain.handle('audio:open-mic-privacy', () => openMicPrivacySettings());
 
 const { logoPath } = require('./paths.cjs');
 const license = require('./license.cjs');
+const updater = require('./updater.cjs');
 const { getProfile, transcribeNative, nativeAvailable, ensureStt, cacheMatch, cachePut } = require('./whisperSidecar.cjs');
 
 ipcMain.handle('license:status', () => license.getStatus());
@@ -200,6 +201,7 @@ app.whenReady().then(() => {
     if (!icon.isEmpty()) app.dock.setIcon(icon);
   }
   createWindow();
+  updater.setup();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
