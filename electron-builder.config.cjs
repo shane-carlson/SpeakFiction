@@ -1,11 +1,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
 const packingWin =
   process.env.SF_WIN === '1' || process.argv.some((a) => a === '--win' || a.startsWith('--win'));
 const intel = process.env.SF_MAC_ARCH === 'x64';
 const macArch = intel ? 'x64' : 'arm64';
 const ico = path.join(__dirname, 'build', 'icon.ico');
+if (packingWin && !fs.existsSync(ico)) {
+  spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'make-ico.cjs')], { stdio: 'inherit' });
+}
 const hasIco = fs.existsSync(ico);
 
 function updaterModules() {
@@ -74,6 +78,7 @@ module.exports = {
       from: 'public/speakfiction-logo.png',
       to: 'speakfiction-logo.png',
     },
+    ...(packingWin && hasIco ? [{ from: 'build/icon.ico', to: 'icon.ico' }] : []),
   ],
   afterPack: './scripts/afterPack.cjs',
   publish: {
@@ -114,9 +119,8 @@ module.exports = {
     ],
   },
   win: {
-    icon: hasIco ? 'build/icon.ico' : 'public/speakfiction-logo.png',
+    icon: 'build/icon.ico',
     artifactName: '${productName}-${version}-b${env.SF_BUILD_NUMBER}-win-${arch}.${ext}',
-    signAndEditExecutable: false,
     target: [
       { target: 'nsis', arch: ['x64'] },
       { target: 'zip', arch: ['x64'] },
@@ -131,11 +135,7 @@ module.exports = {
     shortcutName: 'SpeakFiction',
     deleteAppDataOnUninstall: false,
     artifactName: '${productName}-${version}-b${env.SF_BUILD_NUMBER}-win-${arch}.${ext}',
-    ...(hasIco
-      ? {
-          installerIcon: 'build/icon.ico',
-          uninstallerIcon: 'build/icon.ico',
-        }
-      : {}),
+    installerIcon: 'build/icon.ico',
+    uninstallerIcon: 'build/icon.ico',
   },
 };

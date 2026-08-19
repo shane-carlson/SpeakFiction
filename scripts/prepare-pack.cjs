@@ -8,7 +8,6 @@ const intel = !win && (process.env.SF_MAC_ARCH === 'x64' || process.argv.include
 const binDir = path.join(root, 'models', win ? 'bin-win-x64' : intel ? 'bin-x64' : 'bin');
 const cli = path.join(binDir, win ? 'whisper-cli.exe' : 'whisper-cli');
 const icns = path.join(root, 'build', 'icon.icns');
-const ico = path.join(root, 'build', 'icon.ico');
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
@@ -39,9 +38,7 @@ if (win) {
   } else {
     console.log(`Using ${path.relative(root, cli)}`);
   }
-  if (!fs.existsSync(ico) || process.argv.includes('--force-icon')) {
-    run(process.execPath, [path.join(root, 'scripts', 'make-ico.cjs')]);
-  }
+  run(process.execPath, [path.join(root, 'scripts', 'make-ico.cjs')]);
   console.log('Packaging prerequisites ready (Windows x64).');
   process.exit(0);
 }

@@ -103,6 +103,33 @@ function logoPath() {
   return path.join(repoRoot(), 'public', 'speakfiction-logo.png');
 }
 
+/**
+ * Windows taskbar / window chrome need a multi-size .ico. Mac dock stays on the PNG.
+ * `exists` is injectable so tests can cover packaged NSIS layout without Electron.
+ */
+function resolveWindowIconPath({
+  platform = process.platform,
+  packaged = isPackaged(),
+  resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : '',
+  root = repoRoot(),
+  exists = (file) => fs.existsSync(file),
+} = {}) {
+  if (platform === 'win32') {
+    if (packaged && resourcesPath) {
+      const packed = path.join(resourcesPath, 'icon.ico');
+      if (exists(packed)) return packed;
+    }
+    const repoIco = path.join(root, 'build', 'icon.ico');
+    if (exists(repoIco)) return repoIco;
+  }
+  if (packaged && resourcesPath) return path.join(resourcesPath, 'speakfiction-logo.png');
+  return path.join(root, 'public', 'speakfiction-logo.png');
+}
+
+function windowIconPath() {
+  return resolveWindowIconPath();
+}
+
 module.exports = {
   electronApp,
   isPackaged,
@@ -117,4 +144,6 @@ module.exports = {
   modelPath,
   isUsableModelFile,
   logoPath,
+  resolveWindowIconPath,
+  windowIconPath,
 };

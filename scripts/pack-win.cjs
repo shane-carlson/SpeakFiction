@@ -70,7 +70,6 @@ const commonArgs = [
   '--config',
   path.join(root, 'electron-builder.config.cjs'),
   `--config.buildVersion=${stamped.buildNumber}`,
-  '--config.win.signAndEditExecutable=false',
   ...builderFlags,
 ];
 if (!builderFlags.some((a) => a === '--publish' || a.startsWith('--publish='))) {

@@ -7,6 +7,7 @@ const fs = require('node:fs/promises');
 
 const isDev = process.env.ELECTRON === '1' || !app.isPackaged;
 app.setName('SpeakFiction');
+// Must run before createWindow so the taskbar groups under this ID (and its exe icon).
 if (process.platform === 'win32') {
   app.setAppUserModelId('net.speakfiction.app');
 }
@@ -96,7 +97,7 @@ ipcMain.on('state:save-sync', (event, json) => {
   event.returnValue = sessionStore.save(json);
 });
 
-const { logoPath } = require('./paths.cjs');
+const { logoPath, windowIconPath } = require('./paths.cjs');
 const license = require('./license.cjs');
 const updater = require('./updater.cjs');
 const { getProfile, transcribeNative, nativeAvailable, ensureStt, cacheMatch, cachePut } = require('./whisperSidecar.cjs');
@@ -165,7 +166,8 @@ ipcMain.handle('handoff:open-privacy', () => handoff.openAccessibilitySettings()
 ipcMain.handle('handoff:send', (_event, appId, payload) => handoff.sendToApp(appId, payload));
 
 function createWindow() {
-  const icon = nativeImage.createFromPath(logoPath());
+  const iconFile = windowIconPath();
+  const icon = nativeImage.createFromPath(iconFile);
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -175,7 +177,8 @@ function createWindow() {
     ...(process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset' }
       : { autoHideMenuBar: true }),
-    icon: icon.isEmpty() ? undefined : icon,
+    // Windows taskbar uses the window/exe ICO; a PNG NativeImage is ignored there.
+    icon: process.platform === 'win32' ? iconFile : icon.isEmpty() ? undefined : icon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
