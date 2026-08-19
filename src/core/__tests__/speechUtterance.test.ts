@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GAP_SPLIT_MS,
+  MIN_COMMAND_S,
   MIN_ONSET_MS,
+  MIN_SPEECH_S,
   SILENCE_MS,
+  SPEECH_RMS,
   UtteranceSlicer,
   createDecodeQueue,
-  isLikelySilence,
+  shouldCommitDecoded,
   shouldSkipDecode,
   type ReadyUtterance,
 } from '../speechUtterance';
@@ -39,44 +41,59 @@ function utt(partial: Partial<ReadyUtterance> & Pick<ReadyUtterance, 'avgRms' | 
 }
 
 describe('UtteranceSlicer', () => {
-  it('splits a silence blip from the sentence that follows', () => {
+  it('keeps a quiet cue prefix with the louder title that follows a short breath', () => {
     const slicer = new UtteranceSlicer();
-    const first = pushMs(slicer, MIN_ONSET_MS + 80, 0.014);
-    expect(first).toEqual([]);
-    const split = pushMs(slicer, GAP_SPLIT_MS + 40, 0);
-    expect(split).toEqual([]);
-    const resumed = pushMs(slicer, MIN_ONSET_MS + 800, 0.05);
-    expect(resumed.length).toBe(1);
-    expect(resumed[0].avgRms).toBeLessThan(0.02);
-    expect(resumed[0].speechMs).toBeLessThan(400);
-
+    expect(pushMs(slicer, 280, 0.009)).toEqual([]);
+    expect(pushMs(slicer, 80, 0)).toEqual([]);
+    expect(pushMs(slicer, 800, 0.05)).toEqual([]);
     const committed = pushMs(slicer, SILENCE_MS + 40, 0);
-    expect(committed.length).toBe(1);
-    expect(committed[0].avgRms).toBeGreaterThan(0.04);
-    expect(committed[0].speechMs).toBeGreaterThan(700);
+    expect(committed).toHaveLength(1);
+    expect(shouldSkipDecode(committed[0])).toBe(false);
+    expect(committed[0].speechMs).toBeGreaterThan(900);
   });
 
   it('does not treat a lone click as an utterance', () => {
     const slicer = new UtteranceSlicer();
-    const segs = [
-      ...pushMs(slicer, 40, 0.04),
-      ...pushMs(slicer, SILENCE_MS + 40, 0),
-    ];
+    const segs = [...pushMs(slicer, 40, 0.04), ...pushMs(slicer, SILENCE_MS + 40, 0)];
     expect(segs).toEqual([]);
+    expect(40).toBeLessThan(MIN_ONSET_MS);
   });
 
-  it('splits a weak silence prefix from louder speech after a short pause', () => {
+  it('commits a short new-paragraph-length utterance instead of dropping it as a click', () => {
     const slicer = new UtteranceSlicer();
-    pushMs(slicer, MIN_ONSET_MS + 80, 0.014);
-    pushMs(slicer, 180, 0);
-    const split = pushMs(slicer, MIN_ONSET_MS + 800, 0.05);
-    expect(split.length).toBe(1);
-    expect(split[0].avgRms).toBeLessThan(0.02);
+    pushMs(slicer, 320, 0.03);
     const committed = pushMs(slicer, SILENCE_MS + 40, 0);
-    expect(committed.length).toBe(1);
-    expect(committed[0].avgRms).toBeGreaterThan(0.04);
-    expect(shouldSkipDecode(split[0])).toBe(true);
+    expect(committed).toHaveLength(1);
+    expect(committed[0].speechMs).toBeGreaterThan(MIN_COMMAND_S * 1000);
+    expect(committed[0].speechMs).toBeLessThan(MIN_SPEECH_S * 1000);
     expect(shouldSkipDecode(committed[0])).toBe(false);
+  });
+
+  it('keeps quiet speech above the VAD floor as one utterance', () => {
+    const slicer = new UtteranceSlicer();
+    expect(SPEECH_RMS).toBeLessThan(0.012);
+    pushMs(slicer, 500, 0.008);
+    const committed = pushMs(slicer, SILENCE_MS + 40, 0);
+    expect(committed).toHaveLength(1);
+    expect(shouldSkipDecode(committed[0])).toBe(false);
+  });
+});
+
+describe('shouldSkipDecode / shouldCommitDecoded', () => {
+  it('does not skip short structure cues or quiet speech', () => {
+    expect(shouldSkipDecode(utt({ avgRms: 0.02, speechMs: 280 }))).toBe(false);
+    expect(shouldSkipDecode(utt({ avgRms: 0.008, speechMs: 400 }))).toBe(false);
+    expect(shouldSkipDecode(utt({ avgRms: 0.04, speechMs: 40 }))).toBe(true);
+  });
+
+  it('commits cleaned text regardless of speechMs', () => {
+    expect(shouldCommitDecoded('new paragraph', { listening: true })).toBe(true);
+    expect(shouldCommitDecoded('new scene', { listening: true })).toBe(true);
+    expect(
+      shouldCommitDecoded('new chapter titled The Gate period the wind howled', { listening: true }),
+    ).toBe(true);
+    expect(shouldCommitDecoded('', { listening: true })).toBe(false);
+    expect(shouldCommitDecoded('hello', { listening: false })).toBe(false);
   });
 });
 
@@ -100,7 +117,6 @@ describe('DecodeQueue', () => {
 
     const silenceJob = utt({ avgRms: 0.013, speechMs: 400, samples: new Float32Array([0.013]) });
     const speechJob = utt({ avgRms: 0.05, speechMs: 900, samples: new Float32Array([0.05]) });
-    expect(isLikelySilence(silenceJob)).toBe(true);
     expect(shouldSkipDecode(silenceJob)).toBe(false);
 
     q.submit(silenceJob);
@@ -110,19 +126,50 @@ describe('DecodeQueue', () => {
     expect(commits).toEqual(['the morning started like any other morning']);
   });
 
-  it('does not start Whisper on a weak segment when real speech is already queued', async () => {
+  it('still decodes speech after a pause while a prior job is in flight', async () => {
+    // Invariant: in-flight jobs are never marked stale. A pause + louder
+    // follow-up must not skip the decode that already started, and the
+    // follow-up must still run.
+    const commits: string[] = [];
     const started: number[] = [];
+    let release: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const q = createDecodeQueue({
       transcribe: async (samples) => {
         started.push(samples[0]);
-        return samples[0] < 0.02 ? 'no, no' : 'the morning started';
+        if (samples[0] === 1) {
+          await hold;
+          return 'new chapter';
+        }
+        return 'The rain started. She closed the door and waited.';
       },
-      onText: () => undefined,
+      onText: (text) => commits.push(text),
     });
-    q.submit(utt({ avgRms: 0.013, speechMs: 400, samples: new Float32Array([0.013]) }));
-    q.submit(utt({ avgRms: 0.05, speechMs: 900, samples: new Float32Array([0.05]) }));
+
+    q.submit(utt({ avgRms: 0.018, speechMs: 420, samples: new Float32Array([1]) }));
+    q.submit(utt({ avgRms: 0.05, speechMs: 1400, samples: new Float32Array([2]) }));
+    release();
     await q.idle();
-    expect(started).toHaveLength(1);
-    expect(started[0]).toBeCloseTo(0.05, 5);
+    expect(started).toEqual([1, 2]);
+    expect(commits).toEqual(['new chapter', 'The rain started. She closed the door and waited.']);
+  });
+
+  it('decodes a short cue even when a longer sentence is already queued', async () => {
+    const started: number[] = [];
+    const commits: string[] = [];
+    const q = createDecodeQueue({
+      transcribe: async (samples) => {
+        started.push(samples[0]);
+        return samples[0] === 1 ? 'new paragraph' : 'the morning started';
+      },
+      onText: (text) => commits.push(text),
+    });
+    q.submit(utt({ avgRms: 0.013, speechMs: 320, samples: new Float32Array([1]) }));
+    q.submit(utt({ avgRms: 0.05, speechMs: 900, samples: new Float32Array([2]) }));
+    await q.idle();
+    expect(started).toEqual([1, 2]);
+    expect(commits).toEqual(['new paragraph', 'the morning started']);
   });
 });

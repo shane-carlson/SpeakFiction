@@ -45,6 +45,12 @@ const CMD_ALTERNATION = PHRASES.map((p) => p.phrase.replace(/ /g, '\\s+')).join(
 
 const CUE_FINDER = new RegExp(`\\b(${CMD_ALTERNATION})\\b`, 'gi');
 
+/** True when the transcript contains a spoken structure cue that must reach the draft. */
+export function containsStructureCue(text: string): boolean {
+  CUE_FINDER.lastIndex = 0;
+  return CUE_FINDER.test(text);
+}
+
 const TITLE_VERB = /^(?:titled|called|named|entitled)\s+/i;
 
 /** Cues that take the following sentence as a title when no “titled X” was spoken. */

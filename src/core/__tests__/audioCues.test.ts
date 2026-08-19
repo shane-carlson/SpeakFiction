@@ -71,6 +71,17 @@ describe('parseAudioCues', () => {
     expect(segs[1]).toEqual({ type: 'structure', event: { kind: 'chapter' } });
   });
 
+  it('keeps a one-breath chapter cue with title and following prose', () => {
+    const segs = parseAudioCues('new chapter titled The Gate. the wind howled');
+    expect(segs[0]).toEqual({ type: 'structure', event: { kind: 'chapter', title: 'The Gate' } });
+    expect(segs[1]).toEqual({ type: 'text', text: 'the wind howled' });
+  });
+
+  it('parses short scene and paragraph cues on their own', () => {
+    expect(parseAudioCues('new paragraph')).toEqual([{ type: 'structure', event: { kind: 'paragraph' } }]);
+    expect(parseAudioCues('new scene')).toEqual([{ type: 'structure', event: { kind: 'scene' } }]);
+  });
+
   it('titles a short following scene name, but not a long narration', () => {
     const named = parseAudioCues('new scene dusk. she waited');
     expect(named[0]).toEqual({ type: 'structure', event: { kind: 'scene', title: 'Dusk' } });

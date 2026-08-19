@@ -1,0 +1,24 @@
+---
+description: Transcription quality is the highest SpeakFiction product priority
+alwaysApply: true
+---
+
+# Transcription quality first
+
+Recall beats silence filtering. Prefer leftover filler in the dictation box over missing words or spoken structure cues.
+
+- Never ship aggressive RMS, no-speech, busy-skip, stale-job, or prefix-split filters that drop real speech.
+- Only reject utterances that are **clearly** silence hallucinations (isolated “no no”, “yeah yeah yeah”, “thanks for watching” with no other content).
+- Structure cues must always reach the draft: `new chapter`, `new scene`, `new section`, `new paragraph`, plus the title/prose that follows in the same or next utterance.
+- Do not gate commits on `MIN_SPEECH_S`. Short cues are valid speech.
+- Future silence-loop work must land with tests that keep “new chapter titled The Gate period the wind howled”, short “new paragraph” / “new scene”, “No, she said no.”, and a multi-sentence paragraph after a pause (in-flight jobs are never skipped).
+
+```typescript
+// ❌ BAD — skip quiet/short audio or mark in-flight decode stale
+if (avgRms < 0.012 || speechMs < 700) return;
+inFlight.stale = true;
+
+// ✅ GOOD — decode, then drop only pure filler loops
+const text = cleanTranscript(raw);
+if (text) commit(text);
+```

@@ -1,4 +1,10 @@
-import { collapseRepeats, cleanTranscript, isMostlyOneToken, isSilenceLoop } from '../transcriptCleanup';
+import {
+  collapseRepeats,
+  cleanTranscript,
+  isMostlyOneToken,
+  isSilenceLoop,
+  stripLeadingSilenceFiller,
+} from '../transcriptCleanup';
 
 describe('transcriptCleanup', () => {
   it('collapses long consecutive repeats', () => {
@@ -40,5 +46,24 @@ describe('transcriptCleanup', () => {
     expect(cleanTranscript('the morning started like any other morning')).toBe(
       'the morning started like any other morning',
     );
+  });
+
+  it('never treats spoken structure cues as filler', () => {
+    expect(cleanTranscript('new paragraph')).toBe('new paragraph');
+    expect(cleanTranscript('new scene')).toBe('new scene');
+    expect(cleanTranscript('new chapter titled The Gate period the wind howled')).toBe(
+      'new chapter titled The Gate period the wind howled',
+    );
+    expect(isSilenceLoop('new chapter')).toBe(false);
+  });
+
+  it('strips a glued filler loop from the sentence that follows', () => {
+    expect(stripLeadingSilenceFiller('no no the morning started like any other')).toBe(
+      'the morning started like any other',
+    );
+    expect(cleanTranscript('no no the morning started like any other')).toBe(
+      'the morning started like any other',
+    );
+    expect(stripLeadingSilenceFiller('No, she said no.')).toBe('No, she said no.');
   });
 });

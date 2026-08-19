@@ -6,9 +6,9 @@ import { ensureLocalStt, transcribePcm } from '../core/localStt';
 import { parseVoiceCommand, type DictationCommand } from '../core/voiceCommands';
 import type { SttProfile } from '../core/sttProfile';
 import {
-  MIN_SPEECH_S,
   UtteranceSlicer,
   createDecodeQueue,
+  shouldCommitDecoded,
   type DecodeQueue,
   type ReadyUtterance,
 } from '../core/speechUtterance';
@@ -129,7 +129,7 @@ export function useSpeechRecognition(
       onCommandRef.current?.(parsed.command);
     }
     const prose = parsed.remainder.trim();
-    if (prose && utt.listening && (parsed.command || utt.speechMs >= MIN_SPEECH_S * 1000)) {
+    if (shouldCommitDecoded(prose, utt)) {
       onFinalRef.current(prose);
     }
     setInterim('');

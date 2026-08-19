@@ -67,6 +67,21 @@ describe('processTranscript', () => {
     expect(prose).not.toMatch(/Exile Returns/i);
   });
 
+  it('keeps a spoken new-chapter cue with title and the prose after period', () => {
+    const result = processTranscript('new chapter titled The Gate period the wind howled', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+    });
+    const chapter = result.segments.find((s) => s.type === 'structure' && s.event.kind === 'chapter');
+    expect(chapter && chapter.type === 'structure' ? chapter.event.title : '').toBe('The Gate');
+    const prose = result.segments
+      .filter((s) => s.type === 'text')
+      .map((s) => (s.type === 'text' ? s.text : ''))
+      .join(' ');
+    expect(prose).toMatch(/wind howled/i);
+  });
+
   it('quotes implied dialogue without requiring open/close quote', () => {
     const result = processTranscript('hello he said period', {
       entries,

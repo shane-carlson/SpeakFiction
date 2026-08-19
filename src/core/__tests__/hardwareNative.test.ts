@@ -56,6 +56,8 @@ describe('native hardware helpers', () => {
     expect(args).not.toContain('-l');
     expect(args).not.toContain('--language');
     expect(args).not.toContain('--task');
+    expect(args).toContain('--no-speech-thold');
+    expect(args[args.indexOf('--no-speech-thold') + 1]).toBe('0.75');
     const multi = sidecar.nativeArgs(
       { modelId: 'ggml-large-v3-turbo.bin', threads: 4, beamSize: 5, runtime: 'whisper.cpp-metal' },
       'utt.wav',

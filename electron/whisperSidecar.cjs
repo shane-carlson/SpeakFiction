@@ -145,6 +145,7 @@ function nativeArgs(profile, wav) {
     '0',
     '--temperature-inc',
     '0',
+    // Higher = keep more speech (whisper.cpp skips when no_speech_prob > thold).
     '--no-speech-thold',
     '0.75',
     '--max-context',
@@ -254,7 +255,7 @@ function postInference(wav, profile) {
       fileBuf,
       `\r\n--${boundary}\r\nContent-Disposition: form-data; name="temperature"\r\n\r\n0\r\n`,
       `--${boundary}\r\nContent-Disposition: form-data; name="temperature_inc"\r\n\r\n0\r\n`,
-      `--${boundary}\r\nContent-Disposition: form-data; name="no_speech_thold"\r\n\r\n0.75\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="no_speech_thold"\r\n\r\n0.75\r\n`, // higher = keep more speech
       `--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\njson\r\n`,
       `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nen\r\n`,
       `--${boundary}--\r\n`,
@@ -299,11 +300,14 @@ function pcmRms(pcm) {
   return Math.sqrt(sum / Math.max(1, pcm.length));
 }
 
+/** Aligned with MIN_DECODE_RMS in speechUtterance.ts. Near-digital-silence only. */
+const MIN_PCM_RMS = 0.003;
+
 async function transcribeNative(payload, profile) {
   const sampleRate = payload?.sampleRate || 16000;
   const pcm = resampleTo16k(samplesFromPayload(payload), sampleRate);
-  if (pcm.length < 16000 * 0.2) return '';
-  if (pcmRms(pcm) < 0.012) return '';
+  if (pcm.length < 16000 * 0.12) return '';
+  if (pcmRms(pcm) < MIN_PCM_RMS) return '';
   const wav = path.join(os.tmpdir(), `sf-whisper-${process.pid}-${Date.now()}.wav`);
   writeWav16k(wav, pcm);
   try {

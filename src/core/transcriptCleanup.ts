@@ -1,3 +1,5 @@
+import { containsStructureCue } from './audioCues';
+
 const FILLER =
   /^(thanks for watching\.?|thank you\.?|thanks\.?|thank you for watching\.?|you|yeah\.?|yep\.?|yes\.?|no\.?|bye\.?|okay\.?|ok\.?|hmm\.?|uh\.?|um\.?|ah\.?|oh\.?|the|a|and|\.|\,)$/i;
 
@@ -27,6 +29,10 @@ const HALLUCINATION_WORDS = new Set([
 
 const SUBTITLE_PHRASE =
   /^(thanks for watching|thank you for watching|thanks for watching everybody|thank you)[.!?]*$/i;
+
+/** Whisper often loops one filler word, then glues the next real sentence onto it. */
+const IDENTICAL_LEADING_FILLER =
+  /^((?:no|yeah|yep|yes|okay|ok|hmm|uh|um|ah|oh)(?:[.,!?])?)(?:\s+\1(?:[.,!?])?)+(\s+|$)/i;
 
 function tokensOf(text: string): string[] {
   return text
@@ -71,24 +77,51 @@ export function isMostlyOneToken(text: string): boolean {
 }
 
 /**
+ * Strip a leading run of the same Whisper filler token when a real sentence follows.
+ * Does not nibble short phrases or mixed prose like “No, she said no.”
+ */
+export function stripLeadingSilenceFiller(text: string): string {
+  const trimmed = text.trim();
+  const match = IDENTICAL_LEADING_FILLER.exec(trimmed);
+  if (!match) return trimmed;
+  const rest = trimmed.slice(match[0].length).trim();
+  if (tokensOf(rest).length < 3) return trimmed;
+  return rest;
+}
+
+/**
  * Whole-utterance silence garbage: repeated short tokens or known filler loops.
  * Mixed prose that happens to contain "no" once is not a loop.
+ * Spoken structure cues are never treated as filler.
  */
 export function isSilenceLoop(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  if (containsStructureCue(trimmed)) return false;
   if (FILLER.test(trimmed) || SUBTITLE_PHRASE.test(trimmed)) return true;
   const tokens = tokensOf(trimmed).map(norm).filter(Boolean);
   if (tokens.length === 0) return false;
   if (tokens.every((t) => t === tokens[0]) && HALLUCINATION_WORDS.has(tokens[0])) return true;
-  if (isMostlyOneToken(trimmed)) return true;
+  if (isMostlyOneToken(trimmed)) {
+    const counts = new Map<string, number>();
+    for (const token of tokens) counts.set(token, (counts.get(token) ?? 0) + 1);
+    let top = '';
+    let topCount = 0;
+    for (const [token, count] of counts) {
+      if (count > topCount) {
+        top = token;
+        topCount = count;
+      }
+    }
+    if (HALLUCINATION_WORDS.has(top) || /^\d+$/.test(top)) return true;
+  }
   return false;
 }
 
 export function cleanTranscript(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed || isSilenceLoop(trimmed)) return '';
-  const collapsed = collapseRepeats(trimmed);
+  const stripped = stripLeadingSilenceFiller(text);
+  if (!stripped || isSilenceLoop(stripped)) return '';
+  const collapsed = collapseRepeats(stripped);
   if (!collapsed || isSilenceLoop(collapsed)) return '';
   return collapsed;
 }

@@ -1,20 +1,25 @@
 import { concatFloat32, rms } from './resample';
 import { cleanTranscript } from './transcriptCleanup';
 
-/** Frame energy that counts as voice activity. */
-export const SPEECH_RMS = 0.012;
-/** Skip Whisper on buffers that are effectively silence/noise. */
-export const MIN_DECODE_RMS = 0.012;
+/** Frame energy that counts as voice activity. Quiet speech still counts. */
+export const SPEECH_RMS = 0.006;
+/**
+ * Skip Whisper only on near-digital-silence.
+ * Prefer a filler false positive over dropping real words or spoken cues.
+ */
+export const MIN_DECODE_RMS = 0.003;
 /** Commit after this much trailing silence. */
 export const SILENCE_MS = 1100;
-/** Resume-after-pause splits so a silence hallucination is not glued to the next sentence. */
-export const GAP_SPLIT_MS = 450;
-/** Keep a short pad so word endings are not clipped; do not send a full silence tail to Whisper. */
-export const SILENCE_PAD_MS = 180;
+/** Keep a pad so word endings are not clipped; do not send a full silence tail to Whisper. */
+export const SILENCE_PAD_MS = 280;
 /** Ignore clicks/pops that never become sustained speech. */
-export const MIN_ONSET_MS = 140;
+export const MIN_ONSET_MS = 60;
+/** Brief dip during onset (e.g. between “new” and “chapter”) must not wipe the first word. */
+export const ONSET_SILENCE_MS = 250;
+/** Typical sentence length. Never use as a commit/skip gate — short cues must land. */
 export const MIN_SPEECH_S = 0.7;
-export const MIN_COMMAND_S = 0.3;
+/** Skip only sub-syllable clicks before Whisper. Cues like “new paragraph” are longer than this. */
+export const MIN_COMMAND_S = 0.12;
 export const MAX_UTTERANCE_S = 12;
 
 export interface ReadyUtterance {
@@ -23,15 +28,18 @@ export interface ReadyUtterance {
   speechMs: number;
   avgRms: number;
   listening: boolean;
-  stale?: boolean;
-}
-
-export function isLikelySilence(u: Pick<ReadyUtterance, 'avgRms' | 'speechMs'>): boolean {
-  return u.avgRms < MIN_DECODE_RMS * 1.4 || (u.avgRms < 0.02 && u.speechMs < MIN_SPEECH_S * 1000);
 }
 
 export function shouldSkipDecode(u: Pick<ReadyUtterance, 'avgRms' | 'speechMs'>): boolean {
   return u.speechMs < MIN_COMMAND_S * 1000 || u.avgRms < MIN_DECODE_RMS;
+}
+
+/** Any cleaned transcript that arrived while listening belongs in the box. */
+export function shouldCommitDecoded(
+  text: string,
+  utt: Pick<ReadyUtterance, 'listening'>,
+): boolean {
+  return Boolean(utt.listening && text.trim());
 }
 
 function takeConcat(chunks: Float32Array[]): Float32Array {
@@ -41,6 +49,7 @@ function takeConcat(chunks: Float32Array[]): Float32Array {
 /**
  * Voice-activity slicer: one mic pipeline, many utterances.
  * Capture is never blocked by an in-flight Whisper job.
+ * Does not split on short pauses — that threw away “new chapter” + the title that followed.
  */
 export class UtteranceSlicer {
   private chunks: Float32Array[] = [];
@@ -77,15 +86,6 @@ export class UtteranceSlicer {
     const out: ReadyUtterance[] = [];
 
     if (energy >= SPEECH_RMS) {
-      const avgRms = this.energyFrames > 0 ? this.energySum / this.energyFrames : 0;
-      const weakPrefix = this.speaking && isLikelySilence({ avgRms, speechMs: this.speechMs });
-      const gapSplit = this.speaking && this.silenceMs >= GAP_SPLIT_MS;
-      const weakToLoud =
-        weakPrefix && this.silenceMs >= 160 && energy >= Math.max(SPEECH_RMS * 2, avgRms * 1.8);
-      if (gapSplit || weakToLoud) {
-        const prev = this.takeSegment(sampleRate);
-        if (prev) out.push(prev);
-      }
       this.pushSpeech(frame, energy, frameMs);
       if (this.speaking && this.speechMs >= MAX_UTTERANCE_S * 1000) {
         const full = this.takeSegment(sampleRate);
@@ -96,8 +96,9 @@ export class UtteranceSlicer {
 
     if (!this.speaking) {
       if (this.onsetMs > 0) {
+        this.onsetChunks.push(frame);
         this.onsetSilenceMs += frameMs;
-        if (this.onsetSilenceMs >= 80) this.resetOnset();
+        if (this.onsetSilenceMs >= ONSET_SILENCE_MS) this.resetOnset();
       }
       return out;
     }
@@ -170,7 +171,8 @@ export interface DecodeQueue {
 
 /**
  * Capture-friendly decode gate: never drops a newer segment while Whisper is busy.
- * Silence-like jobs are skipped when real speech is already queued, and ignored if superseded.
+ * In-flight jobs are never marked stale. Quiet/short-but-real speech is decoded;
+ * `cleanTranscript` drops only pure filler loops after Whisper returns.
  */
 export function createDecodeQueue(opts: {
   transcribe: (samples: Float32Array, sampleRate: number) => Promise<string>;
@@ -180,10 +182,9 @@ export function createDecodeQueue(opts: {
   const pending: ReadyUtterance[] = [];
   let draining = false;
   let drainScheduled = false;
-  let inFlight: ReadyUtterance | null = null;
   let idleWait: (() => void) | null = null;
 
-  const isIdle = () => !draining && !drainScheduled && pending.length === 0 && !inFlight;
+  const isIdle = () => !draining && !drainScheduled && pending.length === 0;
 
   const signalIdle = () => {
     if (isIdle()) {
@@ -209,16 +210,12 @@ export function createDecodeQueue(opts: {
       while (pending.length) {
         const job = pending.shift()!;
         if (shouldSkipDecode(job)) continue;
-        if (isLikelySilence(job) && pending.some((p) => !isLikelySilence(p))) continue;
-        inFlight = job;
         let raw = '';
         try {
           raw = await opts.transcribe(job.samples, job.sampleRate);
         } catch {
           raw = '';
         }
-        inFlight = null;
-        if (job.stale) continue;
         const text = cleanTranscript(raw);
         if (text) opts.onText(text, job);
       }
@@ -236,9 +233,6 @@ export function createDecodeQueue(opts: {
   return {
     submit(utterance: ReadyUtterance): boolean {
       if (shouldSkipDecode(utterance)) return false;
-      if (inFlight && isLikelySilence(inFlight) && !isLikelySilence(utterance)) {
-        inFlight.stale = true;
-      }
       pending.push(utterance);
       if (!draining) scheduleDrain();
       return true;

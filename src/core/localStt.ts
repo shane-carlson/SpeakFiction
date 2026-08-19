@@ -164,7 +164,7 @@ async function transcribeWasm(audio: Float32Array, profile: SttProfile): Promise
 }
 
 export async function transcribePcm(samples: Float32Array, sampleRate: number): Promise<string> {
-  if (samples.length < sampleRate * 0.25) return '';
+  if (samples.length < sampleRate * 0.12) return '';
   if (rms(samples) < MIN_DECODE_RMS) return '';
   const audio = resampleMono(samples, sampleRate, STT_SAMPLE_RATE);
   const profile = await resolveProfile();
