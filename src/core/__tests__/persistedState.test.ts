@@ -13,9 +13,25 @@ import {
 describe('persisted session fields', () => {
   it('keeps dictation drafts keyed by book id', () => {
     expect(normalizeDictationDrafts({ 'bk-1': 'new chapter period', 'bk-2': 9 })).toEqual({
-      'bk-1': 'new chapter period',
+      'bk-1': [{ text: 'new chapter period', struck: false }],
     });
     expect(normalizeDictationDrafts(null)).toEqual({});
+  });
+
+  it('round-trips struck spans in the dictation box and migrates old strings', () => {
+    expect(
+      normalizeDictationDrafts({
+        'bk-1': [
+          { text: 'Hello. ', struck: false },
+          { text: 'World.', struck: true },
+        ],
+      }),
+    ).toEqual({
+      'bk-1': [
+        { text: 'Hello. ', struck: false },
+        { text: 'World.', struck: true },
+      ],
+    });
   });
 
   it('keeps manuscript scroll and caret', () => {

@@ -1,5 +1,9 @@
 import type { GenreId } from './types';
 import { isThemeId, type ThemeId, type ThemeMode } from './theme';
+import {
+  normalizeDictationDraft,
+  type DictationDraft,
+} from './dictationDraft';
 
 export const PERSIST_NAME = 'speakfiction-state-v1';
 export const PERSIST_VERSION = 4;
@@ -20,11 +24,12 @@ export interface ManuscriptPlace {
   selectionEnd?: number;
 }
 
-export function normalizeDictationDrafts(raw: unknown): Record<string, string> {
+export function normalizeDictationDrafts(raw: unknown): Record<string, DictationDraft> {
   if (!raw || typeof raw !== 'object') return {};
-  const out: Record<string, string> = {};
-  for (const [id, text] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof text === 'string') out[id] = text;
+  const out: Record<string, DictationDraft> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    const draft = normalizeDictationDraft(value);
+    if (draft !== null) out[id] = draft;
   }
   return out;
 }

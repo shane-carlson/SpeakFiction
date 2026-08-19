@@ -5,13 +5,24 @@ import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
 import { getPerspective } from '../core/perspective';
 import { cleanupDictationText } from '../core/dictationProcessor';
+import {
+  activeTranscript,
+  appendCueText,
+  draftText,
+  joinDraft,
+  plainDraft,
+  strikeLastSentence,
+  type DictationDraft,
+} from '../core/dictationDraft';
 import { manuscriptStats } from '../core/manuscript';
 import { ManuscriptView } from '../components/ManuscriptView';
+import { DictationTranscript } from '../components/DictationTranscript';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
+import type { DictationCommand } from '../core/voiceCommands';
 
 const SAMPLE =
   "new chapter titled The Oracle's Warning period " +
@@ -23,15 +34,6 @@ const SAMPLE =
   'but kel dros only smiled comma the ashen order be damned period';
 
 const COMMANDS = ['new chapter', 'new scene', 'new section', 'new paragraph', 'period', 'comma', 'question mark', 'open quote', 'close quote'];
-
-function joinDraft(prev: string, next: string): string {
-  if (!prev.trim()) return next;
-  if (!next.trim()) return prev;
-  const a = prev.replace(/\s+$/, '');
-  const b = next.replace(/^\s+/, '');
-  if (/[\u201C"][^\n]*$/.test(a) && /^[\u201C"]/.test(b)) return `${a}\n\n${b}`;
-  return `${a} ${b}`;
-}
 
 function isTypingField(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -55,7 +57,7 @@ export function DictationView({
   const savedProfileLabel = useStore((s) => s.sttProfileLabel);
   const dictateSplit = useStore((s) => s.dictateSplit);
   const setDictateSplit = useStore((s) => s.setDictateSplit);
-  const draft = useStore((s) => s.dictationDrafts[book.id] ?? '');
+  const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
   const setManuscriptPlace = useStore((s) => s.setManuscriptPlace);
@@ -63,8 +65,8 @@ export function DictationView({
   const [showProfile, setShowProfile] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const restoredBook = useRef<string | null>(null);
-  const setDraft = useCallback((value: string | ((prev: string) => string)) => {
-    const prev = useStore.getState().dictationDrafts[book.id] ?? '';
+  const setDraft = useCallback((value: DictationDraft | ((prev: DictationDraft) => DictationDraft)) => {
+    const prev = useStore.getState().dictationDrafts[book.id] ?? [];
     const next = typeof value === 'function' ? value(prev) : value;
     setDictationDraft(book.id, next);
   }, [book.id, setDictationDraft]);
@@ -90,8 +92,8 @@ export function DictationView({
   );
 
   const appendCue = useCallback((cue: string) => {
-    setDraft((d) => `${d}${d && !/[ \n]$/.test(d) ? ' ' : ''}${cue} `);
-  }, []);
+    setDraft((d) => appendCueText(d, cue));
+  }, [setDraft]);
   const handleProfile = useCallback(
     (profile: { label: string }) => {
       rememberSttProfile(profile.label);
@@ -99,8 +101,15 @@ export function DictationView({
     },
     [rememberSttProfile],
   );
+  const handleCommand = useCallback(
+    (command: DictationCommand) => {
+      if (command === 'strikeLastSentence') setDraft(strikeLastSentence);
+    },
+    [setDraft],
+  );
   const speech = useSpeechRecognition(handleFinal, audioSettings, handleProfile, {
     mayDictate: license.mayDictate,
+    onCommand: handleCommand,
   });
   const profileLabel = speech.profileLabel || savedProfileLabel;
 
@@ -115,7 +124,7 @@ export function DictationView({
     if (!el) return;
     restoredBook.current = book.id;
     const saved = useStore.getState().manuscriptPlace[book.id];
-    const hasDraft = Boolean((useStore.getState().dictationDrafts[book.id] ?? '').trim());
+    const hasDraft = Boolean(draftText(useStore.getState().dictationDrafts[book.id] ?? []).trim());
     if (saved?.blockId) {
       const node = el.querySelector(`[data-block-id="${saved.blockId.replace(/"/g, '')}"]`);
       if (node instanceof HTMLElement) {
@@ -190,12 +199,14 @@ export function DictationView({
         : 'Stopped — press the mic to start';
 
   const insert = () => {
-    const text = draft.trim();
+    const text = activeTranscript(draft).trim();
     if (!text) return;
     const result = applyDictation(book.id, text);
     setOutcome(result);
-    setDraft('');
+    setDraft([]);
   };
+  const draftVisible = draftText(draft);
+  const draftActive = activeTranscript(draft);
 
   return (
     <div className="dictate-page">
@@ -300,13 +311,13 @@ export function DictationView({
               )}
               <div className="hint" style={{ marginTop: 4 }}>
                 Say <span className="kbd">start dictation</span> <span className="kbd">pause dictation</span>{' '}
-                <span className="kbd">stop dictation</span>
+                <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>
               </div>
               <div className="hint" style={{ marginTop: 6 }}>
                 While listening: <span className="kbd">Space</span> new paragraph ·{' '}
                 <span className="kbd">Enter</span> new chapter · <span className="kbd">Shift+Space</span> new
                 scene · <span className="kbd">Shift+Enter</span> new section. The next sentence is the
-                title. Editing the box: <span className="kbd">⌘Enter</span> new chapter.
+                title. Editing the dictation box: <span className="kbd">⌘Enter</span> new chapter.
               </div>
               <div className="audio-meter" aria-hidden="true">
                 <span style={{ width: `${speech.session !== 'stopped' || speech.level > 1 ? Math.max(4, speech.level) : 0}%` }} />
@@ -317,13 +328,15 @@ export function DictationView({
 
           <AudioSettingsPanel />
 
-          <textarea
-            className="dictation-transcript"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={14}
-            placeholder="e.g. new chapter kel dros drew sun spar period"
-          />
+          <div className="field">
+            <label htmlFor="dictation-transcription">Transcription</label>
+            <DictationTranscript
+              id="dictation-transcription"
+              value={draft}
+              onChange={setDraft}
+              placeholder="e.g. new chapter kel dros drew sun spar period"
+            />
+          </div>
 
           <div className="row wrap" style={{ margin: '10px 0' }}>
             {COMMANDS.map((c) => (
@@ -331,22 +344,31 @@ export function DictationView({
                 key={c}
                 className="badge"
                 style={{ cursor: 'pointer' }}
-                onClick={() => setDraft((d) => `${d}${d && !d.endsWith(' ') ? ' ' : ''}${c} `)}
+                onClick={() => setDraft((d) => appendCueText(d, c))}
               >
                 + {c}
               </button>
             ))}
+            <button
+              type="button"
+              className="badge"
+              style={{ cursor: 'pointer' }}
+              title="Mark the last sentence in the dictation box as struck. Struck text stays visible and is omitted on insert."
+              onClick={() => setDraft(strikeLastSentence)}
+            >
+              strike last sentence
+            </button>
           </div>
 
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <button className="btn ghost" onClick={() => setDraft(SAMPLE)}>
+            <button className="btn ghost" onClick={() => setDraft(plainDraft(SAMPLE))}>
               Load sample
             </button>
             <div className="row">
-              <button className="btn ghost" onClick={() => setDraft('')} disabled={!draft}>
+              <button className="btn ghost" onClick={() => setDraft([])} disabled={!draftVisible}>
                 Clear
               </button>
-              <button className="btn primary" onClick={insert} disabled={!draft.trim()}>
+              <button className="btn primary" onClick={insert} disabled={!draftActive.trim()}>
                 Insert into manuscript ↵
               </button>
             </div>

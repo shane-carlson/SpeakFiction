@@ -26,4 +26,31 @@ describe('parseVoiceCommand', () => {
       remainder: 'the wind howled',
     });
   });
+
+  it('parses StrikeLastSentence without inserting those words', () => {
+    expect(parseVoiceCommand('strike last sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('scratch last sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('strike that sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('scratch that sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('please strike the last sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('the wind howled strike last sentence')).toEqual({
+      command: 'strikeLastSentence',
+      remainder: 'the wind howled',
+    });
+  });
 });

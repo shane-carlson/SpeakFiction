@@ -32,6 +32,7 @@ import {
 import { sessionStateStorage } from './core/sessionStorage';
 import { uid } from './core/util';
 import type { AppliedCorrection } from './core/nameLibrary';
+import type { DictationDraft } from './core/dictationDraft';
 import {
   EMBER_KING_SERIES,
   EMBER_KING_TITLE,
@@ -70,8 +71,8 @@ interface AppState {
   setDictateSplit: (ratio: number) => void;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
-  dictationDrafts: Record<string, string>;
-  setDictationDraft: (bookId: string, text: string) => void;
+  dictationDrafts: Record<string, DictationDraft>;
+  setDictationDraft: (bookId: string, draft: DictationDraft) => void;
   manuscriptPlace: Record<string, ManuscriptPlace>;
   setManuscriptPlace: (bookId: string, place: ManuscriptPlace) => void;
   lastSeenVersion: string | null;
@@ -175,8 +176,8 @@ export const useStore = create<AppState>()(
       activeTab: 'dictate',
       setActiveTab: (tab) => set({ activeTab: tab }),
       dictationDrafts: {},
-      setDictationDraft: (bookId, text) =>
-        set((s) => ({ dictationDrafts: { ...s.dictationDrafts, [bookId]: text } })),
+      setDictationDraft: (bookId, draft) =>
+        set((s) => ({ dictationDrafts: { ...s.dictationDrafts, [bookId]: draft } })),
       manuscriptPlace: {},
       setManuscriptPlace: (bookId, place) =>
         set((s) => ({ manuscriptPlace: { ...s.manuscriptPlace, [bookId]: place } })),

@@ -8,6 +8,8 @@ export * from './audioCues';
 export * from './manuscript';
 export * from './adaptiveModel';
 export * from './dictationProcessor';
+export * from './dictationDraft';
+export * from './voiceCommands';
 export * from './tense';
 export * from './perspective';
 export * from './proseStructure';

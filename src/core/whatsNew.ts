@@ -135,6 +135,14 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.1.9': [
+    'Quiet stretches no longer dump filler like “no no” into the dictation box, and the next real sentence still lands. Strike last sentence marks text in the box — strikethrough stays visible and is omitted on insert. The box is labeled Transcription.',
+    '',
+    '- Silence-filler loops are dropped without dropping the following sentence',
+    '- Strike last sentence in the dictation box (strikethrough stays visible; omitted on manuscript insert)',
+    '- Transcription label above the dictation box',
+    '- Dictation drafts persist as struck and unstruck spans',
+  ].join('\n'),
   '0.1.8': [
     'What’s New now shows after a real upgrade, including installs that never recorded a last-seen version. Queer lit is a first-class genre with a rainbow palette; YA is brighter, and romance has proper light-mode colors.',
     '',
