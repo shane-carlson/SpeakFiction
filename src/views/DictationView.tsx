@@ -14,7 +14,8 @@ import {
   strikeLastSentence,
   type DictationDraft,
 } from '../core/dictationDraft';
-import { manuscriptStats } from '../core/manuscript';
+import { DICTATION_COMMAND_CHIPS } from '../core/dictationContextMenu';
+import { manuscriptStats, type ManuscriptInsertAt } from '../core/manuscript';
 import { ManuscriptView } from '../components/ManuscriptView';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { AudioSettingsPanel } from '../components/AudioSettings';
@@ -32,8 +33,6 @@ const SAMPLE =
   'open quote you should not have come close quote she said period ' +
   'new paragraph ' +
   'but kel dros only smiled comma the ashen order be damned period';
-
-const COMMANDS = ['new chapter', 'new scene', 'new section', 'new paragraph', 'period', 'comma', 'question mark', 'open quote', 'close quote'];
 
 function isTypingField(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -198,15 +197,30 @@ export function DictationView({
         ? 'Paused — say “start dictation” or press the mic'
         : 'Stopped — press the mic to start';
 
-  const insert = () => {
-    const text = activeTranscript(draft).trim();
-    if (!text) return;
-    const result = applyDictation(book.id, text);
-    setOutcome(result);
-    setDraft([]);
-  };
+  const insertDictation = useCallback(
+    (dest?: ManuscriptInsertAt) => {
+      const text = activeTranscript(draft).trim();
+      if (!text) return;
+      const result = applyDictation(book.id, text, dest);
+      setOutcome(result);
+      setDraft([]);
+    },
+    [applyDictation, book.id, draft, setDraft],
+  );
+  const insertAtManuscriptPlace = useCallback(() => {
+    if (!place?.blockId) {
+      insertDictation();
+      return;
+    }
+    insertDictation({
+      atBlockId: place.blockId,
+      splitOffset: place.selectionStart,
+    });
+  }, [insertDictation, place]);
+  const insert = () => insertDictation();
   const draftVisible = draftText(draft);
   const draftActive = activeTranscript(draft);
+  const canInsertDictation = Boolean(draftActive.trim());
 
   return (
     <div className="dictate-page">
@@ -335,11 +349,13 @@ export function DictationView({
               value={draft}
               onChange={setDraft}
               placeholder="e.g. new chapter kel dros drew sun spar period"
+              canInsertDictation={canInsertDictation}
+              onInsertDictation={insertAtManuscriptPlace}
             />
           </div>
 
           <div className="row wrap" style={{ margin: '10px 0' }}>
-            {COMMANDS.map((c) => (
+            {DICTATION_COMMAND_CHIPS.map((c) => (
               <button
                 key={c}
                 className="badge"
@@ -412,6 +428,8 @@ export function DictationView({
             <ManuscriptView
               book={book}
               place={place}
+              canInsertDictation={canInsertDictation}
+              onInsertDictation={insertDictation}
               onPlaceChange={(next) => {
                 const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
                 setManuscriptPlace(book.id, { ...next, scrollTop });

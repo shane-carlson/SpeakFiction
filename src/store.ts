@@ -10,7 +10,12 @@ import type {
   TenseId,
 } from './core/types';
 import { emptyAdaptiveState } from './core/adaptiveModel';
-import { emptyManuscript, appendSegments, trimEmptyBlocks } from './core/manuscript';
+import {
+  emptyManuscript,
+  insertSegments,
+  trimEmptyBlocks,
+  type ManuscriptInsertAt,
+} from './core/manuscript';
 import { processTranscript } from './core/dictationProcessor';
 import { getGenre } from './core/genres';
 import { DEFAULT_TENSE } from './core/tense';
@@ -92,7 +97,11 @@ interface AppState {
   updateNameEntry: (bookId: string, entry: NameEntry) => void;
   removeNameEntry: (bookId: string, entryId: string) => void;
 
-  applyDictation: (bookId: string, transcript: string) => DictationOutcome;
+  applyDictation: (
+    bookId: string,
+    transcript: string,
+    dest?: ManuscriptInsertAt,
+  ) => DictationOutcome;
   updateBlockText: (bookId: string, blockId: string, text: string) => void;
   deleteBlock: (bookId: string, blockId: string) => void;
   clearManuscript: (bookId: string) => void;
@@ -267,7 +276,7 @@ export const useStore = create<AppState>()(
           })),
         })),
 
-      applyDictation: (bookId, transcript) => {
+      applyDictation: (bookId, transcript, dest) => {
         const book = get().books.find((b) => b.id === bookId);
         if (!book) return { corrections: [], structureAdded: 0, wordsAdded: 0 };
 
@@ -279,7 +288,9 @@ export const useStore = create<AppState>()(
           adaptive: book.adaptive,
         });
 
-        const newBlocks = trimEmptyBlocks(appendSegments(book.manuscript.blocks, result.segments));
+        const newBlocks = trimEmptyBlocks(
+          insertSegments(book.manuscript.blocks, result.segments, dest),
+        );
         const structureAdded = result.segments.filter(
           (s) => s.type === 'structure' && s.event.kind !== 'paragraph',
         ).length;

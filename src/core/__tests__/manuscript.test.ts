@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendSegments, emptyManuscript, manuscriptStats } from '../manuscript';
+import { appendSegments, emptyManuscript, insertSegments, manuscriptStats, resolveInsertIndex } from '../manuscript';
 import type { Segment } from '../audioCues';
 
 describe('appendSegments', () => {
@@ -33,6 +33,45 @@ describe('appendSegments', () => {
     ];
     const blocks = appendSegments([], segments);
     expect(blocks).toHaveLength(2);
+  });
+});
+
+describe('insertSegments', () => {
+  const existing = appendSegments([], [
+    { type: 'text', text: 'Before.' },
+    { type: 'structure', event: { kind: 'scene' } },
+    { type: 'text', text: 'After.' },
+  ]);
+
+  it('appends when no destination is given', () => {
+    const blocks = insertSegments(existing, [{ type: 'text', text: 'Tail.' }]);
+    expect(blocks.at(-1)?.text).toBe('After. Tail.');
+  });
+
+  it('splices before a block index without merging into neighbors', () => {
+    const blocks = insertSegments(
+      existing,
+      [{ type: 'structure', event: { kind: 'chapter', title: 'The Gate' } }, { type: 'text', text: 'Mid.' }],
+      { atIndex: 1 },
+    );
+    expect(blocks.map((b) => b.type)).toEqual(['paragraph', 'chapter', 'paragraph', 'scene', 'paragraph']);
+    expect(blocks[0].text).toBe('Before.');
+    expect(blocks[1].title).toBe('The Gate');
+    expect(blocks[2].text).toBe('Mid.');
+    expect(blocks[3].type).toBe('scene');
+  });
+
+  it('resolves a block id to that index', () => {
+    expect(resolveInsertIndex(existing, { atBlockId: existing[2].id })).toBe(2);
+  });
+
+  it('splits a paragraph at the caret so dictation lands between sentences', () => {
+    const para = appendSegments([], [{ type: 'text', text: 'Hello. World.' }]);
+    const blocks = insertSegments(para, [{ type: 'text', text: 'Inserted.' }], {
+      atIndex: 0,
+      splitOffset: 7,
+    });
+    expect(blocks.map((b) => b.text)).toEqual(['Hello.', 'Inserted.', 'World.']);
   });
 });
 

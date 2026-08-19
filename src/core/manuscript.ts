@@ -42,6 +42,70 @@ export function appendSegments(blocks: Block[], segments: Segment[]): Block[] {
   return out;
 }
 
+/** Where to fold processed dictation into an existing manuscript. */
+export interface ManuscriptInsertAt {
+  atBlockId?: string;
+  atIndex?: number;
+  /** Caret inside a paragraph: split that block and insert between the halves. */
+  splitOffset?: number;
+}
+
+/** Block index to splice at, or `undefined` to append (merge into the last paragraph). */
+export function resolveInsertIndex(
+  blocks: Block[],
+  dest?: Pick<ManuscriptInsertAt, 'atBlockId' | 'atIndex'>,
+): number | undefined {
+  if (dest?.atIndex != null && Number.isFinite(dest.atIndex) && dest.atIndex >= 0) {
+    return Math.min(Math.floor(dest.atIndex), blocks.length);
+  }
+  if (dest?.atBlockId) {
+    const i = blocks.findIndex((b) => b.id === dest.atBlockId);
+    if (i >= 0) return i;
+  }
+  return undefined;
+}
+
+/**
+ * Fold segments into the manuscript at a block index.
+ * Omit dest / past-the-end → same as appendSegments (merge into the last paragraph).
+ * Mid-list splice does not merge into neighboring blocks.
+ */
+export function insertSegments(
+  blocks: Block[],
+  segments: Segment[],
+  dest?: ManuscriptInsertAt,
+): Block[] {
+  const index = resolveInsertIndex(blocks, dest);
+  if (index == null || index >= blocks.length) {
+    return appendSegments(blocks, segments);
+  }
+
+  const target = blocks[index];
+  if (typeof dest?.splitOffset === 'number' && target?.type === 'paragraph') {
+    const text = target.text ?? '';
+    const off = Math.max(0, Math.min(Math.floor(dest.splitOffset), text.length));
+    if (off > 0 && off < text.length) {
+      const left = text.slice(0, off).replace(/\s+$/, '');
+      const right = text.slice(off).replace(/^\s+/, '');
+      const before = blocks.slice(0, index);
+      const after = blocks.slice(index + 1);
+      const leftBlock: Block[] = left ? [{ ...target, text: left }] : [];
+      const rightBlock: Block[] = right ? [{ ...target, id: uid('blk'), text: right }] : [];
+      const inserted = appendSegments([], segments);
+      return [...before, ...leftBlock, ...inserted, ...rightBlock, ...after];
+    }
+    if (off >= text.length) {
+      const before = blocks.slice(0, index + 1);
+      const after = blocks.slice(index + 1);
+      return [...before, ...appendSegments([], segments), ...after];
+    }
+  }
+
+  const before = blocks.slice(0, index);
+  const after = blocks.slice(index);
+  return [...before, ...appendSegments([], segments), ...after];
+}
+
 export interface ManuscriptStats {
   words: number;
   chapters: number;

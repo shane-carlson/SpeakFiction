@@ -89,15 +89,118 @@ function sentenceRanges(text: string): Array<{ start: number; end: number }> {
   return ranges.filter((r) => text.slice(r.start, r.end).trim());
 }
 
+function flattenDraft(draft: DictationDraft): Array<{ ch: string; struck: boolean }> {
+  const chars: Array<{ ch: string; struck: boolean }> = [];
+  for (const span of compactDraft(draft ?? [])) {
+    for (const ch of span.text) chars.push({ ch, struck: span.struck });
+  }
+  return chars;
+}
+
+function unflattenDraft(chars: Array<{ ch: string; struck: boolean }>): DictationDraft {
+  const out: DictationDraft = [];
+  for (const { ch, struck } of chars) {
+    const last = out[out.length - 1];
+    if (last && last.struck === struck) last.text += ch;
+    else out.push({ text: ch, struck });
+  }
+  return out;
+}
+
+export function clampDraftRange(
+  draft: DictationDraft,
+  start: number,
+  end: number,
+): { start: number; end: number } {
+  const n = draftText(draft).length;
+  const a = Math.max(0, Math.min(start, n));
+  const b = Math.max(a, Math.min(end, n));
+  return { start: a, end: b };
+}
+
+/** True when every non-whitespace character in the range is already struck. */
+export function rangeIsStruck(draft: DictationDraft, start: number, end: number): boolean {
+  const { start: a, end: b } = clampDraftRange(draft, start, end);
+  if (a === b) return false;
+  const chars = flattenDraft(draft);
+  let hasContent = false;
+  for (let i = a; i < b; i++) {
+    if (!chars[i]?.ch.trim()) continue;
+    hasContent = true;
+    if (!chars[i].struck) return false;
+  }
+  return hasContent;
+}
+
+export function setRangeStruck(
+  draft: DictationDraft,
+  start: number,
+  end: number,
+  struck: boolean,
+): DictationDraft {
+  const { start: a, end: b } = clampDraftRange(draft, start, end);
+  if (a === b) return compactDraft(draft ?? []);
+  const chars = flattenDraft(draft);
+  for (let i = a; i < b; i++) chars[i].struck = struck;
+  return unflattenDraft(chars);
+}
+
+export function replaceDraftRange(
+  draft: DictationDraft,
+  start: number,
+  end: number,
+  text: string,
+  struck = false,
+): DictationDraft {
+  const { start: a, end: b } = clampDraftRange(draft, start, end);
+  const chars = flattenDraft(draft);
+  const inserted: Array<{ ch: string; struck: boolean }> = [];
+  for (const ch of text) inserted.push({ ch, struck });
+  return unflattenDraft([...chars.slice(0, a), ...inserted, ...chars.slice(b)]);
+}
+
+function paddedInsert(before: string, after: string, piece: string): string {
+  const padBefore = before && !/[ \n]$/.test(before) ? ' ' : '';
+  const padAfter = after ? (/^[ \n]/.test(after) ? '' : ' ') : ' ';
+  return `${padBefore}${piece}${padAfter}`;
+}
+
+/** Insert a spoken cue (new chapter, period, …) at a draft caret offset. */
+export function insertCueAt(draft: DictationDraft, offset: number, cue: string): DictationDraft {
+  const trimmed = cue.trim();
+  if (!trimmed) return compactDraft(draft ?? []);
+  const text = draftText(draft);
+  const o = Math.max(0, Math.min(offset, text.length));
+  const insert = paddedInsert(text.slice(0, o), text.slice(o), trimmed);
+  return replaceDraftRange(draft, o, o, insert, false);
+}
+
+export type TitleKind = 'chapter' | 'scene' | 'section';
+
+/**
+ * Replace the selected draft text with `new {kind} titled {selection}` so
+ * insert-into-manuscript reuses the existing audio-cue title path.
+ */
+export function promoteSelectionAsTitle(
+  draft: DictationDraft,
+  start: number,
+  end: number,
+  kind: TitleKind,
+): DictationDraft {
+  const { start: a, end: b } = clampDraftRange(draft, start, end);
+  const selected = draftText(draft).slice(a, b).trim();
+  if (!selected) return compactDraft(draft ?? []);
+  const text = draftText(draft);
+  const replacement = paddedInsert(text.slice(0, a), text.slice(b), `new ${kind} titled ${selected}`);
+  return replaceDraftRange(draft, a, b, replacement, false);
+}
+
 /**
  * Mark the last active (unstruck) sentence in the dictation box as struck.
  * Empty box / no remaining sentence: no-op.
  */
 export function strikeLastSentence(draft: DictationDraft): DictationDraft {
-  const chars: Array<{ ch: string; struck: boolean }> = [];
-  for (const span of compactDraft(draft ?? [])) {
-    for (const ch of span.text) chars.push({ ch, struck: span.struck });
-  }
+  const chars = flattenDraft(draft);
   if (chars.length === 0) return [];
 
   const text = chars.map((c) => c.ch).join('');
@@ -113,13 +216,7 @@ export function strikeLastSentence(draft: DictationDraft): DictationDraft {
     }
     if (!hasActive) continue;
     for (let j = start; j < end; j++) chars[j].struck = true;
-    const out: DictationDraft = [];
-    for (const { ch, struck } of chars) {
-      const last = out[out.length - 1];
-      if (last && last.struck === struck) last.text += ch;
-      else out.push({ text: ch, struck });
-    }
-    return out;
+    return unflattenDraft(chars);
   }
   return compactDraft(draft);
 }
@@ -186,6 +283,63 @@ export function draftFromElement(root: HTMLElement): DictationDraft {
 
   walk(root, false, true);
   return compactDraft(spans);
+}
+
+/**
+ * Map a DOM range inside the dictation box to character offsets in draftText.
+ * Uses the same walk as draftFromElement (BR / block → newline).
+ */
+export function offsetsFromDomRange(root: HTMLElement, range: Range): { start: number; end: number } {
+  const locate = (container: Node, offset: number): number => {
+    let pos = 0;
+    let started = false;
+    let found: number | null = null;
+
+    const walk = (node: Node, isRoot: boolean) => {
+      if (found != null) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent ?? '';
+        if (node === container) {
+          found = pos + Math.max(0, Math.min(offset, text.length));
+          return;
+        }
+        pos += text.length;
+        started = true;
+        return;
+      }
+      if (node.nodeName === 'BR') {
+        if (node === container) {
+          found = pos;
+          return;
+        }
+        pos += 1;
+        started = true;
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const el = node as HTMLElement;
+      const isBlock = !isRoot && /^(DIV|P|LI)$/i.test(el.tagName);
+      if (isBlock && started) pos += 1;
+      if (node === container) {
+        const children = Array.from(node.childNodes);
+        const n = Math.max(0, Math.min(offset, children.length));
+        for (let i = 0; i < n; i++) walk(children[i], false);
+        if (found == null) found = pos;
+        return;
+      }
+      for (const child of Array.from(el.childNodes)) {
+        walk(child, false);
+        if (found != null) return;
+      }
+    };
+
+    walk(root, true);
+    return found ?? pos;
+  };
+
+  const a = locate(range.startContainer, range.startOffset);
+  const b = locate(range.endContainer, range.endOffset);
+  return a <= b ? { start: a, end: b } : { start: b, end: a };
 }
 
 export function normalizeDictationDraft(value: unknown): DictationDraft | null {
