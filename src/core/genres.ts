@@ -81,6 +81,16 @@ export const GENRES: Record<GenreId, GenreProfile> = {
     useEllipsisGlyph: true,
     sceneBreakGlyph: '❦',
   },
+  'queer-lit': {
+    id: 'queer-lit',
+    name: 'Queer Lit',
+    description: 'Literary cadence, identity-forward fiction. Curly quotes, em-dashes, ellipses.',
+    quoteStyle: 'curly',
+    dashStyle: 'em',
+    oxfordComma: true,
+    useEllipsisGlyph: true,
+    sceneBreakGlyph: '⁂',
+  },
   horror: {
     id: 'horror',
     name: 'Horror',
@@ -94,7 +104,7 @@ export const GENRES: Record<GenreId, GenreProfile> = {
   ya: {
     id: 'ya',
     name: 'Young Adult',
-    description: 'Contemporary voice, curly quotes, em-dashes.',
+    description: 'Contemporary teen voice. Curly quotes, em-dashes, three-dot ellipses.',
     quoteStyle: 'curly',
     dashStyle: 'em',
     oxfordComma: true,

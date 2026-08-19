@@ -2,7 +2,7 @@ import type { AdaptiveModelState, Book, Manuscript, NameEntry, Series } from './
 import { emptyAdaptiveState } from './adaptiveModel';
 import { DEFAULT_TENSE } from './tense';
 import { DEFAULT_PERSPECTIVE } from './perspective';
-import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isThemeId, type ThemeId, type ThemeMode } from './theme';
+import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isGenreId, isThemeId, type ThemeId, type ThemeMode } from './theme';
 import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './audioSettings';
 
 export const BACKUP_KIND_BOOK = 'speakfiction.book' as const;
@@ -126,11 +126,12 @@ function normalizeNameLibrary(raw: unknown): NameEntry[] {
 export function normalizeBook(raw: unknown): Book | null {
   const rec = asRecord(raw);
   if (!rec || typeof rec.id !== 'string' || typeof rec.title !== 'string') return null;
+  const genreId = typeof rec.genreId === 'string' ? rec.genreId : '';
   return {
     id: rec.id,
     title: rec.title,
     seriesId: typeof rec.seriesId === 'string' ? rec.seriesId : undefined,
-    genreId: (typeof rec.genreId === 'string' ? rec.genreId : 'generic') as Book['genreId'],
+    genreId: isGenreId(genreId) ? genreId : 'generic',
     tenseId: (typeof rec.tenseId === 'string' ? rec.tenseId : DEFAULT_TENSE) as Book['tenseId'],
     perspectiveId: (typeof rec.perspectiveId === 'string' ? rec.perspectiveId : DEFAULT_PERSPECTIVE) as Book['perspectiveId'],
     nameLibrary: normalizeNameLibrary(rec.nameLibrary),

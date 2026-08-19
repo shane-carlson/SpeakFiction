@@ -5,6 +5,9 @@ import { getGenre } from '../genres';
 const literary = getGenre('literary');
 const generic = getGenre('generic');
 const thriller = getGenre('thriller');
+const romance = getGenre('romance');
+const queerLit = getGenre('queer-lit');
+const ya = getGenre('ya');
 
 describe('applyPunctuation', () => {
   it('converts spoken punctuation commands', () => {
@@ -52,5 +55,29 @@ describe('applyPunctuation', () => {
     expect(applyPunctuation('red comma green and blue period', thriller)).toBe(
       'Red, green and blue.',
     );
+  });
+
+  it('applies romance curly quotes, em-dash, and ellipsis glyph', () => {
+    const out = applyPunctuation('open quote wait dash please ellipsis close quote', romance);
+    expect(out).toContain('\u201C');
+    expect(out).toContain('\u201D');
+    expect(out).toContain('\u2014');
+    expect(out).toContain('\u2026');
+  });
+
+  it('applies queer-lit literary curly quotes and em-dash', () => {
+    const out = applyPunctuation('open quote wait dash please close quote', queerLit);
+    expect(out).toContain('\u201C');
+    expect(out).toContain('\u201D');
+    expect(out).toContain('\u2014');
+    expect(out).toMatch(/Wait/);
+  });
+
+  it('applies ya curly quotes and keeps three-dot ellipses', () => {
+    const out = applyPunctuation('open quote wait dash please ellipsis close quote', ya);
+    expect(out).toContain('\u201C');
+    expect(out).toContain('\u2014');
+    expect(out).toContain('...');
+    expect(out).not.toContain('\u2026');
   });
 });

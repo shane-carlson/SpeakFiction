@@ -102,4 +102,23 @@ describe('backup serialize/deserialize', () => {
   it('rejects invalid JSON', () => {
     expect(() => parseBackup('not-json')).toThrow(/not valid JSON/);
   });
+
+  it('round-trips romance, queer-lit, and ya genre ids and drops unknown ones', () => {
+    for (const genreId of ['romance', 'queer-lit', 'ya'] as const) {
+      const json = backupToJson(serializeBookBackup({ ...book, genreId }, series));
+      const parsed = parseBackup(json);
+      expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+      if (parsed.kind !== BACKUP_KIND_BOOK) return;
+      expect(parsed.book.genreId).toBe(genreId);
+    }
+    const parsed = parseBackup(
+      JSON.stringify({
+        kind: BACKUP_KIND_BOOK,
+        book: { ...book, genreId: 'not-a-genre' },
+      }),
+    );
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.genreId).toBe('generic');
+  });
 });

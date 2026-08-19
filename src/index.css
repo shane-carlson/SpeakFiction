@@ -85,15 +85,20 @@ html[data-theme='romantasy'] {
   --accent-2: #fb7185;
   --accent-deep: #7e22ce;
 }
+html[data-theme='queer-lit'] {
+  --accent: #ff2d55;
+  --accent-2: #00e5ff;
+  --accent-deep: #5b4dff;
+}
 html[data-theme='horror'] {
   --accent: #ef4444;
   --accent-2: #a8a29e;
   --accent-deep: #991b1b;
 }
 html[data-theme='ya'] {
-  --accent: #fb7185;
-  --accent-2: #38bdf8;
-  --accent-deep: #e11d48;
+  --accent: #ff5a9a;
+  --accent-2: #b8ff2e;
+  --accent-deep: #c44dff;
 }
 html[data-theme='generic'] {
   --accent: #818cf8;
@@ -133,6 +138,79 @@ html[data-mode='light'][data-theme='litrpg'] {
   --accent: #15803d;
   --accent-2: #b45309;
   --accent-deep: #166534;
+}
+html[data-mode='light'][data-theme='romance'] {
+  --accent: #db2777;
+  --accent-2: #e11d48;
+  --accent-deep: #9d174d;
+}
+
+/* Queer lit: rainbow hues on both modes (not mixed from a single accent). */
+html[data-theme='queer-lit'] {
+  --accent-glow: color-mix(in srgb, #ffd400 52%, transparent);
+  --accent-text: #ff7eb6;
+  --accent-soft: color-mix(in srgb, #ff2d55 22%, transparent);
+  --accent-2-soft: color-mix(in srgb, #00e5ff 18%, transparent);
+  --glow-a: 24%;
+  --glow-b: 16%;
+}
+html[data-mode='light'][data-theme='queer-lit'] {
+  --accent: #ff2a6d;
+  --accent-2: #0077ee;
+  --accent-deep: #6d28d9;
+  --accent-glow: color-mix(in srgb, #ff9900 42%, transparent);
+  --accent-text: #c4005c;
+  --accent-soft: color-mix(in srgb, #ff2a6d 18%, transparent);
+  --accent-2-soft: color-mix(in srgb, #0077ee 14%, transparent);
+}
+
+html[data-theme='ya'] {
+  --accent-glow: color-mix(in srgb, #b8ff2e 42%, transparent);
+  --accent-text: #ff9ac8;
+  --accent-soft: color-mix(in srgb, #ff5a9a 22%, transparent);
+  --accent-2-soft: color-mix(in srgb, #b8ff2e 16%, transparent);
+  --glow-a: 24%;
+  --glow-b: 16%;
+}
+html[data-mode='light'][data-theme='ya'] {
+  --accent: #ff2d7b;
+  --accent-2: #0284c7;
+  --accent-deep: #a21caf;
+  --accent-glow: color-mix(in srgb, #ff5a9a 36%, transparent);
+  --accent-text: #c4006a;
+  --accent-soft: color-mix(in srgb, #ff2d7b 18%, transparent);
+  --accent-2-soft: color-mix(in srgb, #0284c7 14%, transparent);
+}
+
+html[data-theme='queer-lit'] .btn.primary,
+html[data-theme='queer-lit'] .mic-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2) 55%, var(--accent-deep));
+}
+html[data-theme='queer-lit'] .badge {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+html[data-theme='queer-lit'] input:focus,
+html[data-theme='queer-lit'] textarea:focus,
+html[data-theme='queer-lit'] select:focus {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+html[data-theme='ya'] .btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+}
+html[data-theme='ya'] .badge {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+html[data-theme='ya'] input:focus,
+html[data-theme='ya'] textarea:focus,
+html[data-theme='ya'] select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 * {

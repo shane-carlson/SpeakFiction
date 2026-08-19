@@ -32,6 +32,7 @@ export type GenreId =
   | 'mystery'
   | 'romance'
   | 'romantasy'
+  | 'queer-lit'
   | 'horror'
   | 'ya'
   | 'generic';

@@ -146,4 +146,20 @@ describe('processTranscript', () => {
     });
     expect(result.adaptive.wordsSeen).toBe(0);
   });
+
+  it.each(['romance', 'queer-lit', 'ya'] as const)(
+    'loads the %s genre model through processTranscript (curly quotes, em-dash)',
+    (genreId) => {
+      const result = processTranscript(
+        'open quote wait dash please close quote she said period',
+        { entries, genre: getGenre(genreId), adaptive: emptyAdaptiveState() },
+      );
+      const prose = result.segments
+        .filter((s) => s.type === 'text')
+        .map((s) => (s.type === 'text' ? s.text : ''))
+        .join(' ');
+      expect(prose).toContain('\u201CWait\u2014please');
+      expect(prose).toMatch(/she said/i);
+    },
+  );
 });
