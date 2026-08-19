@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.1': bullets(
+    'Right-click the transcription box to strike text or turn a selection into a chapter, scene, or section title',
+    'Insert dictation between manuscript blocks so new lines land where you want them',
+    'Structure cues sit at the top of the caret menu so new chapter, scene, and paragraph are one click away',
+  ),
   '0.2.0': bullets(
     'Dictation hears more of what you say, including quiet lines',
     'Spoken cues (new chapter, new scene, new paragraph) reach the box again',
