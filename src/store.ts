@@ -69,6 +69,7 @@ interface AppState {
   setTense: (bookId: string, tenseId: TenseId) => void;
   setPerspective: (bookId: string, perspectiveId: PerspectiveId) => void;
   renameBook: (bookId: string, title: string) => void;
+  setBookSeries: (bookId: string, seriesId?: string) => void;
 
   addNameEntry: (bookId: string, entry: Omit<NameEntry, 'id'>) => void;
   updateNameEntry: (bookId: string, entry: NameEntry) => void;
@@ -201,6 +202,14 @@ export const useStore = create<AppState>()(
 
       renameBook: (bookId, title) =>
         set((s) => ({ books: patchBook(s.books, bookId, (b) => ({ ...b, title })) })),
+
+      setBookSeries: (bookId, seriesId) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            seriesId: seriesId || undefined,
+          })),
+        })),
 
       addNameEntry: (bookId, entry) =>
         set((s) => ({

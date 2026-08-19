@@ -1,44 +1,140 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CATEGORY_LABELS, useStore } from '../store';
 import { GENRE_LIST } from '../core/genres';
 import { TENSE_LIST, getTense } from '../core/tense';
 import { PERSPECTIVE_LIST, getPerspective } from '../core/perspective';
-import type { GenreId, NameCategory, PerspectiveId, TenseId } from '../core/types';
+import type { GenreId, NameCategory, NameEntry, PerspectiveId, TenseId } from '../core/types';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
+function parseAliases(raw: string): string[] {
+  return raw.split(',').map((a) => a.trim()).filter(Boolean);
+}
+
 export function LibraryView() {
   const books = useStore((s) => s.books);
+  const series = useStore((s) => s.series);
   const activeBookId = useStore((s) => s.activeBookId);
   const setActiveBook = useStore((s) => s.setActiveBook);
   const createBook = useStore((s) => s.createBook);
+  const deleteBook = useStore((s) => s.deleteBook);
+  const renameBook = useStore((s) => s.renameBook);
+  const createSeries = useStore((s) => s.createSeries);
+  const setBookSeries = useStore((s) => s.setBookSeries);
   const setGenre = useStore((s) => s.setGenre);
   const setTense = useStore((s) => s.setTense);
   const setPerspective = useStore((s) => s.setPerspective);
   const addNameEntry = useStore((s) => s.addNameEntry);
+  const updateNameEntry = useStore((s) => s.updateNameEntry);
   const removeNameEntry = useStore((s) => s.removeNameEntry);
 
   const book = books.find((b) => b.id === activeBookId) ?? books[0] ?? null;
+  const bookSeriesName = series.find((s) => s.id === book?.seriesId)?.name ?? '';
+
+  const titleRef = useRef<HTMLInputElement>(null);
+  const [focusTitle, setFocusTitle] = useState(false);
 
   const [newTitle, setNewTitle] = useState('');
   const [newGenre, setNewGenre] = useState<GenreId>('fantasy');
+  const [seriesDraft, setSeriesDraft] = useState(bookSeriesName);
 
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [canonical, setCanonical] = useState('');
   const [category, setCategory] = useState<NameCategory>('character');
   const [aliases, setAliases] = useState('');
   const [note, setNote] = useState('');
 
-  const submitName = () => {
-    if (!book || !canonical.trim()) return;
-    addNameEntry(book.id, {
-      canonical: canonical.trim(),
-      category,
-      aliases: aliases.split(',').map((a) => a.trim()).filter(Boolean),
-      note: note.trim() || undefined,
-    });
+  useEffect(() => {
+    setSeriesDraft(bookSeriesName);
+  }, [book?.id, bookSeriesName]);
+
+  useEffect(() => {
+    setEditingNameId(null);
     setCanonical('');
+    setCategory('character');
     setAliases('');
     setNote('');
+  }, [book?.id]);
+
+  useEffect(() => {
+    if (!focusTitle) return;
+    titleRef.current?.focus();
+    titleRef.current?.select();
+    setFocusTitle(false);
+  }, [focusTitle, book?.id]);
+
+  const assignSeries = (bookId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setBookSeries(bookId);
+      setSeriesDraft('');
+      return;
+    }
+    const existing = series.find((s) => s.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      setBookSeries(bookId, existing.id);
+      setSeriesDraft(existing.name);
+      return;
+    }
+    const id = createSeries(trimmed);
+    setBookSeries(bookId, id);
+    setSeriesDraft(trimmed);
+  };
+
+  const confirmDeleteBook = (id: string, title: string) => {
+    const target = books.find((b) => b.id === id);
+    if (!target) return;
+    const blocks = target.manuscript.blocks.length;
+    const names = target.nameLibrary.length;
+    const last = books.length === 1;
+    const extra = last ? ' This is your only book.' : '';
+    if (
+      !window.confirm(
+        `Delete “${title}”? This removes its manuscript (${blocks} blocks) and ${names} trained names.${extra} This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    deleteBook(id);
+  };
+
+  const startEditName = (entry: NameEntry) => {
+    setEditingNameId(entry.id);
+    setCanonical(entry.canonical);
+    setCategory(entry.category);
+    setAliases(entry.aliases.join(', '));
+    setNote(entry.note ?? '');
+  };
+
+  const cancelEditName = () => {
+    setEditingNameId(null);
+    setCanonical('');
+    setCategory('character');
+    setAliases('');
+    setNote('');
+  };
+
+  const submitName = () => {
+    if (!book || !canonical.trim()) return;
+    const payload = {
+      canonical: canonical.trim(),
+      category,
+      aliases: parseAliases(aliases),
+      note: note.trim() || undefined,
+    };
+    if (editingNameId) {
+      updateNameEntry(book.id, { id: editingNameId, ...payload });
+    } else {
+      addNameEntry(book.id, payload);
+    }
+    cancelEditName();
+  };
+
+  const confirmRemoveName = (entry: NameEntry) => {
+    if (!book) return;
+    if (!window.confirm(`Remove “${entry.canonical}” from this book’s name library?`)) return;
+    if (editingNameId === entry.id) cancelEditName();
+    removeNameEntry(book.id, entry.id);
   };
 
   return (
@@ -56,18 +152,11 @@ export function LibraryView() {
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3>Your books</h3>
-          <p className="sub">Select the active book to dictate into.</p>
+          <p className="sub">Select a book to dictate into, or edit its details on the right.</p>
           {books.map((b) => (
-            <button
+            <div
               key={b.id}
-              className={`list-row ${b.id === book?.id ? 'selected' : ''}`}
-              style={{
-                width: '100%',
-                textAlign: 'left',
-                cursor: 'pointer',
-                borderColor: b.id === book?.id ? 'var(--accent)' : undefined,
-                marginBottom: 8,
-              }}
+              className={`list-row clickable ${b.id === book?.id ? 'selected' : ''}`}
               onClick={() => setActiveBook(b.id)}
             >
               <div className="grow">
@@ -79,7 +168,30 @@ export function LibraryView() {
                 </div>
               </div>
               {b.id === book?.id && <span className="badge character">active</span>}
-            </button>
+              <div className="list-row-actions">
+                <button
+                  type="button"
+                  className="btn ghost compact"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveBook(b.id);
+                    setFocusTitle(true);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="btn danger compact"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    confirmDeleteBook(b.id, b.title);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           ))}
 
           <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
@@ -111,12 +223,41 @@ export function LibraryView() {
         </div>
 
         <div className="card">
-          <h3>Genre, tense & perspective</h3>
+          <h3>Book details</h3>
           <p className="sub">
-            Genre shapes quotes and dashes. Tense and perspective shape narration and spoken-tag cleanup.
+            Title, series, genre, tense, and perspective. Genre shapes quotes and dashes; tense and
+            perspective shape narration and spoken-tag cleanup.
           </p>
           {book && (
             <>
+              <div className="field">
+                <label htmlFor="book-title">Title</label>
+                <input
+                  id="book-title"
+                  ref={titleRef}
+                  value={book.title}
+                  onChange={(e) => renameBook(book.id, e.target.value)}
+                  onBlur={() => {
+                    if (!book.title.trim()) renameBook(book.id, 'Untitled book');
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="book-series">Series (optional)</label>
+                <input
+                  id="book-series"
+                  list="existing-series"
+                  value={seriesDraft}
+                  onChange={(e) => setSeriesDraft(e.target.value)}
+                  onBlur={() => assignSeries(book.id, seriesDraft)}
+                  placeholder="Leave blank for a standalone book"
+                />
+                <datalist id="existing-series">
+                  {series.map((s) => (
+                    <option key={s.id} value={s.name} />
+                  ))}
+                </datalist>
+              </div>
               <div className="field">
                 <label htmlFor="book-genre">Genre profile</label>
                 <select
@@ -158,7 +299,10 @@ export function LibraryView() {
               </div>
               <div className="hint" style={{ marginBottom: 16 }}>
                 <p style={{ marginTop: 0 }}>{getTense(book.tenseId).description}</p>
-                <p>{getTense(book.tenseId).narrativeHint} Spoken slips like “he says” vs “he said” follow this; quoted dialogue is left as the character spoke it.</p>
+                <p>
+                  {getTense(book.tenseId).narrativeHint} Spoken slips like “he says” vs “he said”
+                  follow this; quoted dialogue is left as the character spoke it.
+                </p>
               </div>
               <div className="field">
                 <label htmlFor="book-perspective">Perspective</label>
@@ -174,9 +318,18 @@ export function LibraryView() {
                   ))}
                 </select>
               </div>
-              <div className="hint">
+              <div className="hint" style={{ marginBottom: 16 }}>
                 <p style={{ marginTop: 0 }}>{getPerspective(book.perspectiveId).description}</p>
                 <p>{getPerspective(book.perspectiveId).narrativeHint}</p>
+              </div>
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() => confirmDeleteBook(book.id, book.title)}
+                >
+                  Delete book
+                </button>
               </div>
             </>
           )}
@@ -221,16 +374,21 @@ export function LibraryView() {
               </div>
             </div>
           </div>
-          <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 18 }}>
+          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginBottom: 18 }}>
+            {editingNameId && (
+              <button type="button" className="btn ghost" onClick={cancelEditName}>
+                Cancel
+              </button>
+            )}
             <button className="btn primary" onClick={submitName} disabled={!canonical.trim()}>
-              + Add name
+              {editingNameId ? 'Save name' : '+ Add name'}
             </button>
           </div>
 
           <div>
             {book.nameLibrary.length === 0 && <div className="empty">No trained names yet.</div>}
             {book.nameLibrary.map((n) => (
-              <div key={n.id} className="list-row">
+              <div key={n.id} className={`list-row ${editingNameId === n.id ? 'selected' : ''}`}>
                 <span className={`badge ${n.category}`}>{CATEGORY_LABELS[n.category]}</span>
                 <div className="grow">
                   <div className="name">{n.canonical}</div>
@@ -239,9 +397,14 @@ export function LibraryView() {
                     {n.note ? ` · ${n.note}` : ''}
                   </div>
                 </div>
-                <button className="btn danger" onClick={() => removeNameEntry(book.id, n.id)}>
-                  Remove
-                </button>
+                <div className="list-row-actions">
+                  <button type="button" className="btn ghost compact" onClick={() => startEditName(n)}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn danger compact" onClick={() => confirmRemoveName(n)}>
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>

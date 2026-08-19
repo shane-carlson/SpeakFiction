@@ -665,6 +665,10 @@ body.is-resizing iframe {
   color: var(--text);
   background: var(--bg-elev-2);
 }
+.btn.compact {
+  padding: 5px 10px;
+  font-size: 12px;
+}
 .btn.big {
   padding: 12px 18px;
   font-size: 14px;
@@ -1055,6 +1059,17 @@ label {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elev);
+}
+.list-row.clickable {
+  cursor: pointer;
+}
+.list-row.selected {
+  border-color: var(--accent);
+}
+.list-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .list-row + .list-row {
   margin-top: 8px;
