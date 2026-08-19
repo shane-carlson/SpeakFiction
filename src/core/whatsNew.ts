@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.5': bullets(
+    'Drag to reorder chapters, scenes, and paragraphs in the manuscript',
+    'Chapter numbers update to match order; titles stay editable in the manuscript',
+    'Insert a new scene or paragraph from the manuscript',
+  ),
   '0.2.4': bullets(
     'Insert dictation lands in the transcription box at the caret, not the manuscript',
     'Spoken lines stay in the box until you insert them into the manuscript',

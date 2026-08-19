@@ -978,11 +978,38 @@ label {
   align-items: center;
   gap: 10px;
 }
+.ms-chapter-title {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  min-width: 0;
+  width: auto;
+  flex: 1;
+}
+.ms-chapter-title:hover {
+  border-color: var(--border);
+}
+.ms-chapter-title:focus {
+  background: var(--bg-input);
+  box-shadow: none;
+}
 .ms-scene {
   text-align: center;
   color: var(--accent-2);
   letter-spacing: 4px;
   margin: 18px 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ms-scene-label {
+  pointer-events: none;
 }
 .ms-section {
   font-family: var(--font);
@@ -990,10 +1017,14 @@ label {
   color: var(--text-dim);
   margin: 18px 0 6px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .ms-para {
   margin: 0 0 12px;
   position: relative;
+  padding-left: 18px;
 }
 .ms-para textarea {
   font-family: var(--serif);
@@ -1012,6 +1043,44 @@ label {
 .ms-para textarea:focus {
   background: var(--bg-input);
 }
+.ms-drag-handle {
+  flex-shrink: 0;
+  width: 16px;
+  color: var(--text-faint);
+  font-size: 12px;
+  letter-spacing: -2px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  opacity: 0.4;
+}
+.ms-para .ms-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 10px;
+}
+.ms-scene .ms-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  letter-spacing: -2px;
+}
+.ms-chapter:hover .ms-drag-handle,
+.ms-scene:hover .ms-drag-handle,
+.ms-section:hover .ms-drag-handle,
+.ms-para:hover .ms-drag-handle {
+  opacity: 0.9;
+}
+.ms-drag-handle:active {
+  cursor: grabbing;
+}
+.ms-chapter.is-dragging,
+.ms-scene.is-dragging,
+.ms-section.is-dragging,
+.ms-para.is-dragging {
+  opacity: 0.4;
+}
 .ms-insert-gap {
   height: 12px;
   margin: -4px 0;
@@ -1020,6 +1089,18 @@ label {
 }
 .ms-insert-gap:hover {
   background: var(--accent-soft);
+}
+.manuscript.is-dragging .ms-insert-gap {
+  height: 14px;
+  margin: 2px 0;
+}
+.manuscript.is-dragging .ms-insert-gap.is-drop-ok {
+  background: var(--accent-soft);
+  cursor: move;
+}
+.manuscript.is-dragging .ms-insert-gap.is-drop-over {
+  background: var(--accent);
+  height: 6px;
 }
 
 .empty {

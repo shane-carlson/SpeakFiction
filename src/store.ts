@@ -12,9 +12,13 @@ import type {
 import { emptyAdaptiveState } from './core/adaptiveModel';
 import {
   emptyManuscript,
+  insertEmptyStructure,
   insertSegments,
+  moveBlockRange,
+  setBlockTitle,
   trimEmptyBlocks,
   type ManuscriptInsertAt,
+  type ManuscriptInsertKind,
 } from './core/manuscript';
 import { processTranscript } from './core/dictationProcessor';
 import { getGenre } from './core/genres';
@@ -103,7 +107,14 @@ interface AppState {
     dest?: ManuscriptInsertAt,
   ) => DictationOutcome;
   updateBlockText: (bookId: string, blockId: string, text: string) => void;
+  updateBlockTitle: (bookId: string, blockId: string, title: string) => void;
   deleteBlock: (bookId: string, blockId: string) => void;
+  moveManuscriptRange: (bookId: string, fromIndex: number, dropIndex: number) => void;
+  insertManuscriptStructure: (
+    bookId: string,
+    kind: ManuscriptInsertKind,
+    dest?: ManuscriptInsertAt,
+  ) => void;
   clearManuscript: (bookId: string) => void;
 
   importBookBackup: (backup: BookBackup, replaceExisting: boolean) => 'added' | 'replaced' | 'exists';
@@ -322,11 +333,35 @@ export const useStore = create<AppState>()(
           })),
         })),
 
+      updateBlockTitle: (bookId, blockId, title) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: setBlockTitle(b.manuscript.blocks, blockId, title) },
+          })),
+        })),
+
       deleteBlock: (bookId, blockId) =>
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
             manuscript: { blocks: b.manuscript.blocks.filter((blk) => blk.id !== blockId) },
+          })),
+        })),
+
+      moveManuscriptRange: (bookId, fromIndex, dropIndex) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: moveBlockRange(b.manuscript.blocks, fromIndex, dropIndex) },
+          })),
+        })),
+
+      insertManuscriptStructure: (bookId, kind, dest) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: insertEmptyStructure(b.manuscript.blocks, kind, dest) },
           })),
         })),
 
