@@ -15,8 +15,11 @@ const paths = require('../../../electron/paths.cjs') as {
 };
 const ico = require('../../../scripts/make-ico.cjs') as {
   ICO_SIZES: number[];
+  PNG_ICO_MIN: number;
   writeIcoFromRgba: (images: { size: number; rgba: Buffer }[]) => Buffer;
   listIcoSizes: (buf: Buffer) => number[];
+  listIcoEntries: (buf: Buffer) => { size: number; png: boolean; dib: boolean }[];
+  applyRoundedIconAlpha: (size: number, rgba: Buffer) => Buffer;
 };
 
 describe('window icon paths', () => {
@@ -71,7 +74,7 @@ describe('window icon paths', () => {
 });
 
 describe('ICO writer', () => {
-  it('embeds 16 through 256 DIB entries', () => {
+  it('embeds DIB for 16–128 and PNG for 256', () => {
     const images = ico.ICO_SIZES.map((size) => ({
       size,
       rgba: Buffer.alloc(size * size * 4, 255),
@@ -79,7 +82,26 @@ describe('ICO writer', () => {
     const buf = ico.writeIcoFromRgba(images);
     expect(ico.listIcoSizes(buf)).toEqual(ico.ICO_SIZES);
     expect(buf.readUInt16LE(2)).toBe(1);
+    const entries = ico.listIcoEntries(buf);
+    expect(entries.filter((e) => e.size < ico.PNG_ICO_MIN).every((e) => e.dib)).toBe(true);
+    expect(entries.find((e) => e.size === 256)?.png).toBe(true);
     const offset = buf.readUInt32LE(6 + 12);
     expect(buf.readUInt32LE(offset)).toBe(40);
+  });
+
+  it('makes painted black corners transparent without punching the center', () => {
+    const size = 32;
+    const rgba = Buffer.alloc(size * size * 4, 0);
+    for (let i = 3; i < rgba.length; i += 4) rgba[i] = 255;
+    rgba[0] = 80;
+    rgba[1] = 140;
+    rgba[2] = 240;
+    const mid = ((size / 2) * size + size / 2) * 4;
+    rgba[mid] = 10;
+    rgba[mid + 1] = 10;
+    rgba[mid + 2] = 10;
+    const out = ico.applyRoundedIconAlpha(size, rgba);
+    expect(out[3]).toBe(0);
+    expect(out[mid + 3]).toBe(255);
   });
 });

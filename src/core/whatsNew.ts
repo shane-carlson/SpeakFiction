@@ -155,6 +155,7 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.3': bullets('Windows app icon and taskbar show the SpeakFiction logo'),
   '0.2.2': bullets(
     'Insert dictation at the cursor without wiping the transcription box',
     'Struck and unstruck text stay in the box so you can insert again or keep editing',

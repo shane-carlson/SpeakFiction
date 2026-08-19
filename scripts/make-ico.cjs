@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// Build build/icon.ico from public/speakfiction-logo.png (sips + 32-bit DIB ICO).
-// Windows taskbar / rcedit need BMP-style ICO entries, not PNG-in-ICO for 16–128.
+// Build build/icon.ico from public/speakfiction-logo.png.
+// 16–128 must be 32-bit DIB (rcedit / taskbar). 256 must be PNG (Explorer).
+// The source PNG is RGB on black; punch a rounded-rect alpha so corners are not a black box.
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { spawnSync } = require('node:child_process');
 
 const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
+const PNG_ICO_MIN = 256;
 
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'public', 'speakfiction-logo.png');
@@ -100,6 +102,65 @@ function decodePng(buf) {
   return { width, height, rgba };
 }
 
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const typeBuf = Buffer.from(type, 'ascii');
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(zlib.crc32(Buffer.concat([typeBuf, data])) >>> 0);
+  return Buffer.concat([len, typeBuf, data, crc]);
+}
+
+/** Unfiltered RGBA PNG (color type 6) for the 256 ICO entry. */
+function encodePngRgba(width, height, rgba) {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const stride = 1 + width * 4;
+  const raw = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y += 1) {
+    raw[y * stride] = 0;
+    rgba.copy(raw, y * stride + 1, y * width * 4, (y + 1) * width * 4);
+  }
+  return Buffer.concat([
+    sig,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', zlib.deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * Source logo is a squircle composited on black with no alpha. Make pixels
+ * outside a 22.5% rounded rect transparent so Explorer/taskbar are not a black box.
+ */
+function applyRoundedIconAlpha(size, rgba) {
+  const out = Buffer.from(rgba);
+  const max = size - 1;
+  const r = size * 0.225;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = (y * size + x) * 4;
+      const inBand = (x >= r && x <= max - r) || (y >= r && y <= max - r);
+      if (inBand) continue;
+      const cx = x < r ? r : max - r;
+      const cy = y < r ? r : max - r;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d >= r) out[i + 3] = 0;
+      else if (d > r - 1) out[i + 3] = Math.round(out[i + 3] * (r - d));
+    }
+  }
+  return out;
+}
+
+function imageBytes(size, rgba) {
+  if (size >= PNG_ICO_MIN) return encodePngRgba(size, size, rgba);
+  return dibFromRgba(size, rgba);
+}
+
 function dibFromRgba(size, rgba) {
   const xorRow = size * 4;
   const andRow = ((size + 31) >> 5) << 2;
@@ -142,7 +203,7 @@ function writeIcoFromRgba(images) {
   const entries = [];
   const bodies = [];
   for (const { size, rgba } of images) {
-    const buf = dibFromRgba(size, rgba);
+    const buf = imageBytes(size, rgba);
     const entry = Buffer.alloc(16);
     entry.writeUInt8(size >= 256 ? 0 : size, 0);
     entry.writeUInt8(size >= 256 ? 0 : size, 1);
@@ -160,15 +221,24 @@ function writeIcoFromRgba(images) {
 }
 
 function listIcoSizes(buf) {
+  return listIcoEntries(buf).map((e) => e.size);
+}
+
+function listIcoEntries(buf) {
   if (buf.length < 6 || buf.readUInt16LE(0) !== 0 || buf.readUInt16LE(2) !== 1) return [];
   const count = buf.readUInt16LE(4);
-  const sizes = [];
+  const entries = [];
   for (let i = 0; i < count; i += 1) {
     const off = 6 + 16 * i;
     const w = buf[off];
-    sizes.push(w === 0 ? 256 : w);
+    const size = w === 0 ? 256 : w;
+    const bytes = buf.readUInt32LE(off + 8);
+    const imgOff = buf.readUInt32LE(off + 12);
+    const magic = buf.subarray(imgOff, imgOff + 8);
+    const png = magic[0] === 0x89 && magic.toString('ascii', 1, 4) === 'PNG';
+    entries.push({ size, bytes, offset: imgOff, png, dib: !png });
   }
-  return sizes;
+  return entries;
 }
 
 function renderPng(px) {
@@ -194,7 +264,7 @@ function main() {
     if (!png) continue;
     const decoded = decodePng(png);
     if (decoded.width !== size || decoded.height !== size) continue;
-    images.push({ size, rgba: decoded.rgba });
+    images.push({ size, rgba: applyRoundedIconAlpha(size, decoded.rgba) });
   }
   if (!images.length) {
     console.error('Could not render icon PNGs');
@@ -211,9 +281,13 @@ if (require.main === module) main();
 
 module.exports = {
   ICO_SIZES,
+  PNG_ICO_MIN,
   decodePng,
+  encodePngRgba,
+  applyRoundedIconAlpha,
   dibFromRgba,
   writeIcoFromRgba,
   listIcoSizes,
+  listIcoEntries,
   main,
 };
