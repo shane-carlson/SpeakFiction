@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.8': bullets(
+    'Right-click a misspelled word in the manuscript for suggestions and Add to dictionary at the top of the menu',
+    'Dictate from the full-screen editor with a compact strip: mic, transcript, Strike, and Insert — same as the main screen',
+    'Number books in a series so the library lists Book 1, Book 2, and so on',
+  ),
   '0.2.7': bullets(
     'Full-screen manuscript: tools on the left, a wide page on the right, drag the bar between them to resize',
     'Dictation, the transcription box, and insert-into-manuscript fit on the main screen without scrolling',

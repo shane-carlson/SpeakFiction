@@ -47,6 +47,7 @@ export function DictationTranscript({
   onCaretChange,
   onInsertDictation,
   onPromoteToManuscript,
+  className,
 }: {
   id: string;
   value: DictationDraft;
@@ -57,6 +58,7 @@ export function DictationTranscript({
   onCaretChange?: (offset: number) => void;
   onInsertDictation?: (offset: number) => void;
   onPromoteToManuscript?: () => void;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const lastSerialized = useRef<string | null>(null);
@@ -113,13 +115,13 @@ export function DictationTranscript({
       <div
         ref={ref}
         id={id}
-        className={`dictation-transcript${empty ? ' is-empty' : ''}`}
+        className={`dictation-transcript${empty ? ' is-empty' : ''}${className ? ` ${className}` : ''}`}
         contentEditable
         role="textbox"
         aria-multiline="true"
         data-placeholder={placeholder}
         suppressContentEditableWarning
-        spellCheck
+        spellCheck={true}
         onInput={() => {
           const el = ref.current;
           if (!el) return;

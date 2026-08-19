@@ -1,11 +1,11 @@
 import type { Block, InlineMarkKind } from '../core/types';
 import type { ManuscriptInsertKind, StructureHeadingKind } from '../core/manuscript';
 
-const STRUCTURE_BUTTONS: Array<{ kind: ManuscriptInsertKind; label: string }> = [
-  { kind: 'chapter', label: 'New chapter' },
-  { kind: 'scene', label: 'New scene' },
-  { kind: 'section', label: 'New section' },
-  { kind: 'paragraph', label: 'New paragraph' },
+const STRUCTURE_BUTTONS: Array<{ kind: ManuscriptInsertKind; label: string; short: string }> = [
+  { kind: 'chapter', label: 'New chapter', short: 'Chapter' },
+  { kind: 'scene', label: 'New scene', short: 'Scene' },
+  { kind: 'section', label: 'New section', short: 'Section' },
+  { kind: 'paragraph', label: 'New paragraph', short: 'Paragraph' },
 ];
 
 const HEADING_BUTTONS: Array<{ kind: StructureHeadingKind; label: string }> = [
@@ -60,14 +60,14 @@ export function ManuscriptToolbar({
       role="toolbar"
       aria-label="Manuscript editor"
     >
-      <div className="ms-toolbar-group">
+      <div className="ms-toolbar-group ms-toolbar-structure">
         {STRUCTURE_BUTTONS.map((b) => (
           <button key={b.kind} type="button" className="btn compact" onClick={() => onInsertStructure(b.kind)}>
-            {b.label}
+            {layout === 'rail' ? b.short : b.label}
           </button>
         ))}
         <button type="button" className="btn compact" onClick={onInsertImage}>
-          Insert image
+          {layout === 'rail' ? 'Image' : 'Insert image'}
         </button>
       </div>
       <div className="ms-toolbar-group ms-toolbar-format">
@@ -84,11 +84,11 @@ export function ManuscriptToolbar({
           </button>
         ))}
         <button type="button" className="btn compact ghost" disabled={!formatEnabled} onClick={onClearFormat}>
-          Clear format
+          {layout === 'rail' ? 'Clear' : 'Clear format'}
         </button>
       </div>
       <div className="ms-toolbar-group">
-        <span className="ms-toolbar-label">Heading</span>
+        {layout !== 'rail' && <span className="ms-toolbar-label">Heading</span>}
         <div className="ms-toolbar-heading-btns">
           {HEADING_BUTTONS.map((b) => (
             <button
@@ -117,7 +117,7 @@ export function ManuscriptToolbar({
           aria-pressed={editorOpen}
           title={editorOpen ? 'Exit full-screen editor (Esc)' : 'Full-screen manuscript editor'}
         >
-          {editorOpen ? 'Exit editor' : 'Full screen'}
+          {editorOpen ? 'Exit' : 'Full screen'}
         </button>
       </div>
     </div>

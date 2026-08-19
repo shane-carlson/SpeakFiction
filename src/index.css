@@ -1380,9 +1380,9 @@ label {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   overflow: auto;
-  padding: 12px 10px 14px;
+  padding: 8px 8px 10px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1390,22 +1390,29 @@ label {
 .ms-editor-rail .ms-editor-head {
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 2px;
   margin-bottom: 0;
+  flex-shrink: 0;
 }
 .ms-editor-rail .ms-editor-head h2 {
-  font-size: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .ms-editor-rail .hint {
   font-size: 11px;
   line-height: 1.35;
 }
 .ms-toolbar-rail {
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 14px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   border-bottom: none;
@@ -1414,6 +1421,12 @@ label {
 .ms-toolbar-rail .ms-toolbar-group {
   flex-direction: column;
   align-items: stretch;
+  gap: 4px;
+}
+.ms-toolbar-rail .ms-toolbar-structure {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
 }
 .ms-toolbar-rail .ms-toolbar-format,
 .ms-toolbar-rail .ms-toolbar-heading-btns {
@@ -1423,15 +1436,87 @@ label {
 .ms-toolbar-rail .btn {
   width: 100%;
   justify-content: center;
+  padding: 4px 6px;
+  font-size: 11px;
 }
 .ms-toolbar-rail .ms-toolbar-format .btn,
-.ms-toolbar-rail .ms-toolbar-heading-btns .btn {
+.ms-toolbar-rail .ms-toolbar-heading-btns .btn,
+.ms-toolbar-rail .ms-toolbar-structure .btn {
   width: auto;
   flex: 1 1 auto;
 }
 .ms-toolbar-rail .ms-toolbar-end {
   margin-left: 0;
-  margin-top: auto;
+  margin-top: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.ms-toolbar-rail .ms-toolbar-end .btn {
+  width: auto;
+  flex: 1 1 auto;
+}
+.ms-editor-dictate {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.ms-editor-dictate-mic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ms-editor-dictate .mic-btn.compact {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  flex: none;
+  padding: 0;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.ms-editor-dictate-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text-dim);
+}
+.ms-editor-dictate-status .audio-meter {
+  margin-top: 3px;
+  height: 3px;
+}
+.ms-editor-dictate-error {
+  color: var(--warn);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ms-editor-dictate .dictation-transcript,
+.dictation-transcript.is-compact {
+  flex: 1 1 auto;
+  min-height: 4.5em;
+  height: auto;
+  max-height: none;
+  resize: none;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ms-editor-dictate-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.ms-editor-dictate-actions .btn {
+  flex: 1;
+  justify-content: center;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 .ms-editor-canvas {
   flex: 1;
@@ -1655,6 +1740,17 @@ label {
 }
 .list-row + .list-row {
   margin-top: 8px;
+}
+.library-book-group + .library-book-group {
+  margin-top: 10px;
+}
+.library-series-heading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 6px;
 }
 .list-row .grow {
   flex: 1;

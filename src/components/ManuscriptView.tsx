@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import type { Block, Book, InlineMark } from '../core/types';
 import {
@@ -13,7 +13,16 @@ import type { ManuscriptPlace } from '../core/persistedState';
 import { offsetsFromDomRange } from '../core/dictationDraft';
 import { ingestManuscriptImage } from '../core/mediaStore';
 import { mimeFromFile } from '../core/manuscriptMedia';
-import { AppContextMenu, type AppContextMenuItem } from './AppContextMenu';
+import { buildManuscriptContextMenu } from '../core/manuscriptContextMenu';
+import {
+  SPELLCHECK_ADD_ID,
+  manuscriptSpellcheckGate,
+  replaceMisspelledInMarkedText,
+  replaceMisspelledWord,
+  suggestionFromMenuId,
+  type SpellcheckHit,
+} from '../core/spellcheckMenu';
+import { AppContextMenu } from './AppContextMenu';
 import { RichParagraph } from './RichParagraph';
 import { ManuscriptImageFrame } from './ManuscriptImageFrame';
 
@@ -69,20 +78,61 @@ function DragHandle({ label }: { label: string }) {
   );
 }
 
-function manuscriptMenuItems(canInsertDictation: boolean): AppContextMenuItem[] {
-  return [
-    {
-      id: 'insert-dictation-here',
-      label: 'Insert dictation here',
-      group: 'insert',
-      disabled: !canInsertDictation,
-    },
-    { id: 'insert-chapter', label: 'Insert new chapter', group: 'structure' },
-    { id: 'insert-scene', label: 'Insert new scene', group: 'structure' },
-    { id: 'insert-section', label: 'Insert new section', group: 'structure' },
-    { id: 'insert-paragraph', label: 'Insert new paragraph', group: 'structure' },
-    { id: 'insert-image', label: 'Insert image', group: 'media' },
-  ];
+type SpellField = 'text' | 'title' | 'caption' | 'alt';
+
+function spellFieldFromTarget(target: EventTarget | null): SpellField | null {
+  if (!(target instanceof Element)) return null;
+  if (target.closest('.ms-para-editor')) return 'text';
+  if (target.closest('.ms-image-caption')) return 'caption';
+  if (target.closest('.ms-image-alt')) return 'alt';
+  if (target.closest('.ms-chapter-title, .ms-scene-title, .ms-section-title')) return 'title';
+  return null;
+}
+
+function applyManuscriptSpellReplace(
+  bookId: string,
+  dest: ManuscriptInsertAt,
+  field: SpellField | null | undefined,
+  spell: SpellcheckHit | null | undefined,
+  suggestion: string,
+) {
+  const word = spell?.misspelledWord;
+  if (!word) return;
+  const store = useStore.getState();
+  const book = store.books.find((b) => b.id === bookId);
+  const block = dest.atBlockId
+    ? book?.manuscript.blocks.find((b) => b.id === dest.atBlockId)
+    : undefined;
+  if (!block) return;
+  const around = dest.splitOffset;
+  if (field === 'caption' && block.type === 'image') {
+    store.updateImageCaption(
+      bookId,
+      block.id,
+      replaceMisspelledWord(block.image?.caption ?? '', word, suggestion, around),
+    );
+    return;
+  }
+  if (field === 'alt' && block.type === 'image') {
+    store.updateImageAlt(
+      bookId,
+      block.id,
+      replaceMisspelledWord(block.image?.alt ?? '', word, suggestion, around),
+    );
+    return;
+  }
+  if (block.type === 'paragraph' && (field === 'text' || !field)) {
+    const next = replaceMisspelledInMarkedText(block.text ?? '', block.marks, word, suggestion, around);
+    store.updateBlockText(bookId, block.id, next.text, next.marks);
+    return;
+  }
+  if (block.type === 'chapter' || block.type === 'scene' || block.type === 'section') {
+    store.updateBlockTitle(
+      bookId,
+      block.id,
+      replaceMisspelledWord(block.title ?? '', word, suggestion, around),
+    );
+  }
 }
 
 export function ManuscriptView({
@@ -109,12 +159,25 @@ export function ManuscriptView({
   const formatManuscript = useStore((s) => s.formatManuscript);
   const updateImageCaption = useStore((s) => s.updateImageCaption);
   const updateImageAlt = useStore((s) => s.updateImageAlt);
-  const [menu, setMenu] = useState<{ x: number; y: number; dest: ManuscriptInsertAt } | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    dest: ManuscriptInsertAt;
+    field?: SpellField | null;
+    spell?: SpellcheckHit | null;
+  } | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
   const dragFromRef = useRef<number | null>(null);
   const dropOkRef = useRef<Set<number>>(new Set());
+  const menuGen = useRef(0);
   const closeMenu = useCallback(() => setMenu(null), []);
+
+  useEffect(() => {
+    return window.speakfiction?.spellcheck?.onContextMenu?.((hit) => {
+      manuscriptSpellcheckGate.offer(hit);
+    });
+  }, []);
 
   const blocks = book.manuscript.blocks;
   const chapterNoById = useMemo(() => {
@@ -144,7 +207,19 @@ export function ManuscriptView({
     if (dest.atBlockId) {
       report(dest.atBlockId, dest.splitOffset, dest.splitOffset);
     }
-    setMenu({ x: e.clientX, y: e.clientY, dest });
+    const token = ++menuGen.current;
+    const field = spellFieldFromTarget(e.target);
+    const base = { x: e.clientX, y: e.clientY, dest, field };
+    const waitMs = window.speakfiction?.spellcheck?.onContextMenu ? 150 : 0;
+    const immediate = manuscriptSpellcheckGate.takeImmediate();
+    if (immediate || waitMs === 0) {
+      setMenu({ ...base, spell: immediate });
+      return;
+    }
+    void manuscriptSpellcheckGate.take(waitMs).then((spell) => {
+      if (token !== menuGen.current) return;
+      setMenu({ ...base, spell });
+    });
   };
 
   const insertImageAt = async (dest: ManuscriptInsertAt, files: FileList | File[]) => {
@@ -166,6 +241,17 @@ export function ManuscriptView({
 
   const onMenuSelect = (id: string) => {
     if (!menu) return;
+    const suggestion = suggestionFromMenuId(id);
+    if (suggestion) {
+      window.speakfiction?.spellcheck?.replace(suggestion);
+      applyManuscriptSpellReplace(book.id, menu.dest, menu.field, menu.spell, suggestion);
+      return;
+    }
+    if (id === SPELLCHECK_ADD_ID) {
+      const word = menu.spell?.misspelledWord;
+      if (word) window.speakfiction?.spellcheck?.addWord(word);
+      return;
+    }
     if (id === 'insert-dictation-here') {
       onInsertDictation?.(menu.dest);
       return;
@@ -244,7 +330,7 @@ export function ManuscriptView({
     <AppContextMenu
       x={menu.x}
       y={menu.y}
-      items={manuscriptMenuItems(Boolean(canInsertDictation))}
+      items={buildManuscriptContextMenu(Boolean(canInsertDictation), menu.spell)}
       onClose={closeMenu}
       onSelect={onMenuSelect}
     />
@@ -344,6 +430,7 @@ export function ManuscriptView({
                   value={b.title ?? ''}
                   placeholder="Untitled"
                   aria-label={`Chapter ${chapterNo} title`}
+                  spellCheck={true}
                   draggable={false}
                   onChange={(e) => updateBlockTitle(book.id, b.id, e.target.value)}
                   onFocus={(e) => report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)}
@@ -368,6 +455,7 @@ export function ManuscriptView({
                   value={b.title ?? ''}
                   placeholder="* * *"
                   aria-label="Scene title"
+                  spellCheck={true}
                   draggable={false}
                   onChange={(e) => updateBlockTitle(book.id, b.id, e.target.value)}
                   onFocus={(e) => report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)}
@@ -389,6 +477,7 @@ export function ManuscriptView({
                   value={b.title ?? ''}
                   placeholder="Section"
                   aria-label="Section title"
+                  spellCheck={true}
                   draggable={false}
                   onChange={(e) => updateBlockTitle(book.id, b.id, e.target.value)}
                   onFocus={(e) => report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)}

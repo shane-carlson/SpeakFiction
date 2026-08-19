@@ -46,6 +46,7 @@ export function ManuscriptImageFrame({
         value={image.caption ?? ''}
         placeholder="Caption"
         aria-label="Image caption"
+        spellCheck={true}
         onChange={(e) => onCaption(e.target.value)}
       />
       <input
@@ -53,6 +54,7 @@ export function ManuscriptImageFrame({
         value={image.alt ?? ''}
         placeholder="Alt text"
         aria-label="Image alt text"
+        spellCheck={true}
         onChange={(e) => onAlt(e.target.value)}
       />
     </figure>

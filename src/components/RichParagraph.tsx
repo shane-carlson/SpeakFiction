@@ -68,7 +68,7 @@ export function RichParagraph({
       contentEditable
       role="textbox"
       aria-multiline="true"
-      spellCheck
+      spellCheck={true}
       suppressContentEditableWarning
       onInput={() => {
         const el = ref.current;

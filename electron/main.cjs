@@ -24,6 +24,48 @@ function isAudioPermission(permission) {
   return permission === 'media' || permission === 'audioCapture' || permission === 'microphone';
 }
 
+function pickSpellCheckerLanguages(available, locale) {
+  const list = Array.isArray(available) ? available : [];
+  const fallback = 'en-US';
+  const normalized = String(locale || fallback).replace(/_/g, '-');
+  if (list.includes(normalized)) return [normalized];
+  const prefix = normalized.split('-')[0] || fallback;
+  const matches = list.filter((l) => l === prefix || String(l).startsWith(`${prefix}-`));
+  if (matches.includes(fallback)) return [fallback];
+  if (matches.length) return [matches[0]];
+  if (list.includes(fallback)) return [fallback];
+  return list.slice(0, 1);
+}
+
+function setupSpellChecker() {
+  const ses = session.defaultSession;
+  if (typeof ses.setSpellCheckerEnabled === 'function') {
+    ses.setSpellCheckerEnabled(true);
+  }
+  // macOS uses the OS spellchecker and ignores Hunspell language lists.
+  if (process.platform === 'darwin') return;
+  const langs = pickSpellCheckerLanguages(ses.availableSpellCheckerLanguages, app.getLocale());
+  if (!langs.length || typeof ses.setSpellCheckerLanguages !== 'function') return;
+  try {
+    ses.setSpellCheckerLanguages(langs);
+  } catch {
+    try {
+      ses.setSpellCheckerLanguages(['en-US']);
+    } catch {
+      /* Hunspell dictionary may be unavailable offline */
+    }
+  }
+}
+
+ipcMain.on('spellcheck:replace', (event, word) => {
+  if (typeof word !== 'string' || !word) return;
+  event.sender.replaceMisspelling(word);
+});
+ipcMain.on('spellcheck:add-word', (event, word) => {
+  if (typeof word !== 'string' || !word) return;
+  event.sender.session.addWordToSpellCheckerDictionary(word);
+});
+
 function setupAudioPermissions() {
   const ses = session.defaultSession;
 
@@ -209,7 +251,15 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      spellcheck: true,
     },
+  });
+
+  win.webContents.on('context-menu', (_event, params) => {
+    win.webContents.send('spellcheck:context-menu', {
+      misspelledWord: params.misspelledWord || '',
+      dictionarySuggestions: params.dictionarySuggestions || [],
+    });
   });
 
   // Open external links in the user's browser, not inside the app.
@@ -227,6 +277,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   setupAudioPermissions();
+  setupSpellChecker();
   const meta = packageMeta();
   app.setAboutPanelOptions({
     applicationName: 'SpeakFiction',

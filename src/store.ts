@@ -64,6 +64,11 @@ import {
 } from './core/seedManuscript';
 import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './core/audioSettings';
 import type { BookBackup, LibraryBackup } from './core/backup';
+import {
+  applySeriesAssignment,
+  applySeriesBookNumber,
+  normalizeSeriesBookFields,
+} from './core/seriesBooks';
 
 export interface DictationOutcome {
   corrections: AppliedCorrection[];
@@ -111,6 +116,7 @@ interface AppState {
   setPerspective: (bookId: string, perspectiveId: PerspectiveId) => void;
   renameBook: (bookId: string, title: string) => void;
   setBookSeries: (bookId: string, seriesId?: string) => void;
+  setSeriesBookNumber: (bookId: string, value: unknown) => void;
 
   addNameEntry: (bookId: string, entry: Omit<NameEntry, 'id'>) => void;
   updateNameEntry: (bookId: string, entry: NameEntry) => void;
@@ -163,6 +169,7 @@ function seedBook(): { series: Series[]; book: Book } {
     id: uid('bk'),
     title: EMBER_KING_TITLE,
     seriesId,
+    seriesBookNumber: 1,
     genreId: 'fantasy',
     tenseId: DEFAULT_TENSE,
     perspectiveId: DEFAULT_PERSPECTIVE,
@@ -307,10 +314,12 @@ export const useStore = create<AppState>()(
 
       setBookSeries: (bookId, seriesId) =>
         set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({
-            ...b,
-            seriesId: seriesId || undefined,
-          })),
+          books: patchBook(s.books, bookId, (b) => applySeriesAssignment(b, seriesId)),
+        })),
+
+      setSeriesBookNumber: (bookId, value) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => applySeriesBookNumber(b, value)),
         })),
 
       addNameEntry: (bookId, entry) =>
@@ -581,11 +590,13 @@ export const useStore = create<AppState>()(
       }),
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<AppState>;
-        let books = (p.books ?? []).map((b) => ({
-          ...b,
-          tenseId: b.tenseId ?? DEFAULT_TENSE,
-          perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
-        }));
+        let books = (p.books ?? []).map((b) =>
+          normalizeSeriesBookFields({
+            ...b,
+            tenseId: b.tenseId ?? DEFAULT_TENSE,
+            perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
+          }),
+        );
         let series = p.series ?? [];
         if (version < 2) books = reseedTinyEmberKing(books);
         if (version < 3) {
@@ -625,11 +636,13 @@ export const useStore = create<AppState>()(
           // Persist is source of truth. Defaulting to current.lastSeenVersion or the
           // running app version would hide upgrades from installs that never wrote it.
           lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
-          books: (p.books ?? current.books).map((b) => ({
-            ...b,
-            tenseId: b.tenseId ?? DEFAULT_TENSE,
-            perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
-          })),
+          books: (p.books ?? current.books).map((b) =>
+            normalizeSeriesBookFields({
+              ...b,
+              tenseId: b.tenseId ?? DEFAULT_TENSE,
+              perspectiveId: b.perspectiveId ?? DEFAULT_PERSPECTIVE,
+            }),
+          ),
           series: p.series ?? current.series,
         };
       },

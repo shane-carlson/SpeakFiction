@@ -6,6 +6,7 @@ import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isGenreId, isThemeId, type ThemeI
 import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './audioSettings';
 import { isManuscriptImageMime } from './manuscriptMedia';
 import { INLINE_MARK_KINDS } from './richText';
+import { parseSeriesBookNumber, normalizeSeriesBookFields } from './seriesBooks';
 
 export const BACKUP_KIND_BOOK = 'speakfiction.book' as const;
 export const BACKUP_KIND_LIBRARY = 'speakfiction.library' as const;
@@ -201,10 +202,11 @@ export function normalizeBook(raw: unknown): Book | null {
   const rec = asRecord(raw);
   if (!rec || typeof rec.id !== 'string' || typeof rec.title !== 'string') return null;
   const genreId = typeof rec.genreId === 'string' ? rec.genreId : '';
-  return {
+  return normalizeSeriesBookFields({
     id: rec.id,
     title: rec.title,
     seriesId: typeof rec.seriesId === 'string' ? rec.seriesId : undefined,
+    seriesBookNumber: parseSeriesBookNumber(rec.seriesBookNumber),
     genreId: isGenreId(genreId) ? genreId : 'generic',
     tenseId: (typeof rec.tenseId === 'string' ? rec.tenseId : DEFAULT_TENSE) as Book['tenseId'],
     perspectiveId: (typeof rec.perspectiveId === 'string' ? rec.perspectiveId : DEFAULT_PERSPECTIVE) as Book['perspectiveId'],
@@ -213,7 +215,7 @@ export function normalizeBook(raw: unknown): Book | null {
     adaptive: normalizeAdaptive(rec.adaptive),
     createdAt: typeof rec.createdAt === 'number' ? rec.createdAt : Date.now(),
     updatedAt: typeof rec.updatedAt === 'number' ? rec.updatedAt : Date.now(),
-  };
+  });
 }
 
 function normalizeSeries(raw: unknown): Series | null {

@@ -61,4 +61,13 @@ contextBridge.exposeInMainWorld('speakfiction', {
     getPending: () => ipcRenderer.invoke('whatsNew:pending'),
     clearPending: () => ipcRenderer.invoke('whatsNew:clear'),
   },
+  spellcheck: {
+    onContextMenu: (cb) => {
+      const listener = (_event, payload) => cb(payload);
+      ipcRenderer.on('spellcheck:context-menu', listener);
+      return () => ipcRenderer.removeListener('spellcheck:context-menu', listener);
+    },
+    replace: (word) => ipcRenderer.send('spellcheck:replace', word),
+    addWord: (word) => ipcRenderer.send('spellcheck:add-word', word),
+  },
 });

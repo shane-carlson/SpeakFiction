@@ -135,6 +135,8 @@ export interface Book {
   id: string;
   title: string;
   seriesId?: string;
+  /** Position in that series (1, 2, 1.5). Omitted for standalones. */
+  seriesBookNumber?: number;
   genreId: GenreId;
   /** Narrative tense. Defaults to past for fiction. */
   tenseId: TenseId;

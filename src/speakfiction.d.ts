@@ -102,6 +102,17 @@ export interface SpeakFictionWhatsNewBridge {
   clearPending: () => Promise<{ ok: boolean }>;
 }
 
+export interface SpellcheckContextPayload {
+  misspelledWord: string;
+  dictionarySuggestions: string[];
+}
+
+export interface SpeakFictionSpellcheckBridge {
+  onContextMenu: (cb: (payload: SpellcheckContextPayload) => void) => () => void;
+  replace: (word: string) => void;
+  addWord: (word: string) => void;
+}
+
 export interface SpeakFictionBridge {
   platform: string;
   arch?: string;
@@ -115,6 +126,7 @@ export interface SpeakFictionBridge {
   license?: SpeakFictionLicenseBridge;
   updater?: SpeakFictionUpdaterBridge;
   whatsNew?: SpeakFictionWhatsNewBridge;
+  spellcheck?: SpeakFictionSpellcheckBridge;
 }
 
 declare global {

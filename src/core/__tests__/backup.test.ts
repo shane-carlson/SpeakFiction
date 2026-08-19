@@ -21,6 +21,7 @@ const book: Book = {
   id: 'bk-1',
   title: EMBER_KING_TITLE,
   seriesId: series.id,
+  seriesBookNumber: 1,
   genreId: 'fantasy',
   tenseId: DEFAULT_TENSE,
   perspectiveId: DEFAULT_PERSPECTIVE,
@@ -151,5 +152,24 @@ describe('backup serialize/deserialize', () => {
     expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
     if (parsed.kind !== BACKUP_KIND_BOOK) return;
     expect(parsed.book.genreId).toBe('generic');
+  });
+
+  it('round-trips a series book number and drops it for standalones', () => {
+    const numbered = { ...book, seriesBookNumber: 2 };
+    const parsed = parseBackup(backupToJson(serializeBookBackup(numbered, series)));
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.seriesBookNumber).toBe(2);
+
+    const standalone = parseBackup(
+      JSON.stringify({
+        kind: BACKUP_KIND_BOOK,
+        book: { ...book, seriesId: undefined, seriesBookNumber: 9 },
+      }),
+    );
+    expect(standalone.kind).toBe(BACKUP_KIND_BOOK);
+    if (standalone.kind !== BACKUP_KIND_BOOK) return;
+    expect(standalone.book.seriesId).toBeUndefined();
+    expect(standalone.book.seriesBookNumber).toBeUndefined();
   });
 });

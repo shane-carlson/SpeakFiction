@@ -4,6 +4,7 @@ import { GENRE_LIST } from '../core/genres';
 import { TENSE_LIST, getTense } from '../core/tense';
 import { PERSPECTIVE_LIST, getPerspective } from '../core/perspective';
 import type { GenreId, NameCategory, NameEntry, PerspectiveId, TenseId } from '../core/types';
+import { formatSeriesBookNumber, groupLibraryBooks, seriesMembershipLabel } from '../core/seriesBooks';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
@@ -21,6 +22,7 @@ export function LibraryView() {
   const renameBook = useStore((s) => s.renameBook);
   const createSeries = useStore((s) => s.createSeries);
   const setBookSeries = useStore((s) => s.setBookSeries);
+  const setSeriesBookNumber = useStore((s) => s.setSeriesBookNumber);
   const setGenre = useStore((s) => s.setGenre);
   const setTense = useStore((s) => s.setTense);
   const setPerspective = useStore((s) => s.setPerspective);
@@ -37,6 +39,9 @@ export function LibraryView() {
   const [newTitle, setNewTitle] = useState('');
   const [newGenre, setNewGenre] = useState<GenreId>('fantasy');
   const [seriesDraft, setSeriesDraft] = useState(bookSeriesName);
+  const [numberDraft, setNumberDraft] = useState(
+    book?.seriesBookNumber != null ? formatSeriesBookNumber(book.seriesBookNumber) : '',
+  );
 
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [canonical, setCanonical] = useState('');
@@ -46,7 +51,8 @@ export function LibraryView() {
 
   useEffect(() => {
     setSeriesDraft(bookSeriesName);
-  }, [book?.id, bookSeriesName]);
+    setNumberDraft(book?.seriesBookNumber != null ? formatSeriesBookNumber(book.seriesBookNumber) : '');
+  }, [book?.id, bookSeriesName, book?.seriesBookNumber]);
 
   useEffect(() => {
     setEditingNameId(null);
@@ -153,7 +159,15 @@ export function LibraryView() {
         <div className="card">
           <h3>Your books</h3>
           <p className="sub">Select a book to dictate into, or edit its details on the right.</p>
-          {books.map((b) => (
+          {groupLibraryBooks(books, series).map((group) => (
+            <div key={group.id} className="library-book-group">
+              {group.heading && <div className="library-series-heading">{group.heading}</div>}
+              {group.books.map((b) => {
+                const membership = seriesMembershipLabel(
+                  b,
+                  series.find((s) => s.id === b.seriesId)?.name,
+                );
+                return (
             <div
               key={b.id}
               className={`list-row clickable ${b.id === book?.id ? 'selected' : ''}`}
@@ -162,6 +176,7 @@ export function LibraryView() {
               <div className="grow">
                 <div className="name">{b.title}</div>
                 <div className="aliases">
+                  {membership ? `${membership} · ` : ''}
                   {GENRE_LIST.find((g) => g.id === b.genreId)?.name} · {getTense(b.tenseId).name} ·{' '}
                   {getPerspective(b.perspectiveId).name} · {b.nameLibrary.length} names ·{' '}
                   {b.manuscript.blocks.length} blocks
@@ -191,6 +206,9 @@ export function LibraryView() {
                   Delete
                 </button>
               </div>
+            </div>
+                );
+              })}
             </div>
           ))}
 
@@ -258,6 +276,22 @@ export function LibraryView() {
                   ))}
                 </datalist>
               </div>
+              {book.seriesId ? (
+                <div className="field">
+                  <label htmlFor="book-series-number">Book number in series</label>
+                  <input
+                    id="book-series-number"
+                    type="number"
+                    min={1}
+                    step="any"
+                    inputMode="decimal"
+                    value={numberDraft}
+                    onChange={(e) => setNumberDraft(e.target.value)}
+                    onBlur={() => setSeriesBookNumber(book.id, numberDraft)}
+                    placeholder="e.g. 1"
+                  />
+                </div>
+              ) : null}
               <div className="field">
                 <label htmlFor="book-genre">Genre profile</label>
                 <select

@@ -27,6 +27,7 @@ import {
 import { ManuscriptView } from '../components/ManuscriptView';
 import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
+import { EditorDictationStrip } from '../components/EditorDictationStrip';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -292,7 +293,7 @@ export function DictationView({
       if (!meta || e.altKey) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
-      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .dictate-card')) return;
+      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card')) return;
       if (target.closest('.dictation-transcript, .dictate-console')) return;
       if (e.key.toLowerCase() !== 'z') return;
       e.preventDefault();
@@ -411,8 +412,7 @@ export function DictationView({
             left={
               <div className="ms-editor-rail">
                 <div className="ms-editor-head">
-                  <h2>Manuscript</h2>
-                  <span className="hint">{book.title} · Esc to exit</span>
+                  <h2>{book.title}</h2>
                 </div>
                 <ManuscriptToolbar
                   focused={focusedBlock}
@@ -428,6 +428,21 @@ export function DictationView({
                   onSetKind={onSetKind}
                   onUndo={() => undoManuscript(book.id)}
                   onRedo={() => redoManuscript(book.id)}
+                />
+                <EditorDictationStrip
+                  speech={speech}
+                  mayDictate={license.mayDictate}
+                  draft={draft}
+                  onChange={setDraft}
+                  caret={boxCaret}
+                  onCaretChange={(offset) => {
+                    transcriptCaretRef.current = offset;
+                    setBoxCaret(offset);
+                  }}
+                  canInsert={canInsertDictation}
+                  onInsert={promoteAtManuscriptPlace}
+                  onInsertIntoBox={insertIntoTranscript}
+                  onStrikeLast={() => setDraft(strikeLastSentence)}
                 />
                 {imageError && (
                   <div className="hint" style={{ color: 'var(--warn)' }}>
