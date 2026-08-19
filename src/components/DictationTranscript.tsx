@@ -163,6 +163,7 @@ export function DictationTranscript({
             const item = items.find((it) => it.id === id);
             if (!item) return;
             if (item.action.type === 'insertDictation') {
+              // Do not onChange / rebuild innerHTML — insert leaves the box untouched.
               onInsertDictation?.();
               return;
             }

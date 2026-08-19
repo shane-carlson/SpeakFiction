@@ -279,6 +279,7 @@ export const useStore = create<AppState>()(
       applyDictation: (bookId, transcript, dest) => {
         const book = get().books.find((b) => b.id === bookId);
         if (!book) return { corrections: [], structureAdded: 0, wordsAdded: 0 };
+        // Manuscript only — never clears dictationDrafts. The transcription box keeps every span.
 
         const result = processTranscript(transcript, {
           entries: book.nameLibrary,

@@ -10,6 +10,7 @@ import {
   normalizeDictationDraft,
   plainDraft,
   strikeLastSentence,
+  takeInsertTranscript,
 } from '../dictationDraft';
 
 describe('strikeLastSentence', () => {
@@ -55,11 +56,36 @@ describe('strikeLastSentence', () => {
   });
 });
 
-describe('activeTranscript', () => {
-  it('omits struck spans before insert', () => {
-    const draft = strikeLastSentence(plainDraft('Hello. World.'));
-    expect(activeTranscript(draft).trim()).toBe('Hello.');
-    expect(draftText(draft)).toBe('Hello. World.');
+describe('takeInsertTranscript', () => {
+  it('omits struck spans from the manuscript payload and leaves every span in the box', () => {
+    const draft = [
+      { text: 'Hello. ', struck: false },
+      { text: 'World.', struck: true },
+    ];
+    const { transcript, remaining } = takeInsertTranscript(draft);
+    expect(transcript).toBe('Hello.');
+    expect(remaining).toEqual(draft);
+    expect(draftText(remaining)).toBe('Hello. World.');
+  });
+
+  it('does not consume unstruck text around a selection either', () => {
+    const draft = [
+      { text: 'Keep me. ', struck: false },
+      { text: 'Insert me. ', struck: false },
+      { text: 'Struck.', struck: true },
+    ];
+    const { transcript, remaining } = takeInsertTranscript(draft);
+    expect(transcript).toBe('Keep me. Insert me.');
+    expect(draftText(remaining)).toBe('Keep me. Insert me. Struck.');
+    expect(remaining).toEqual([
+      { text: 'Keep me. Insert me. ', struck: false },
+      { text: 'Struck.', struck: true },
+    ]);
+  });
+
+  it('is empty when the box is only struck or blank', () => {
+    expect(takeInsertTranscript([{ text: 'World.', struck: true }]).transcript).toBe('');
+    expect(takeInsertTranscript([]).transcript).toBe('');
   });
 });
 

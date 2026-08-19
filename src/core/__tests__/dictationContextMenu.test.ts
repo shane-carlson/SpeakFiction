@@ -127,6 +127,18 @@ describe('applyDictationMenuAction', () => {
     });
     expect(activeTranscript(next).trim()).toBe('Hello.');
   });
+
+  it('leaves every draft span in place when Insert dictation is chosen', () => {
+    const draft = [
+      { text: 'Keep me. ', struck: false },
+      { text: 'Hello. ', struck: false },
+      { text: 'World.', struck: true },
+    ];
+    const next = applyDictationMenuAction(draft, { type: 'insertDictation' }, { start: 9, end: 16 });
+    expect(next).toEqual(draft);
+    expect(draftText(next)).toBe('Keep me. Hello. World.');
+    expect(activeTranscript(next)).toBe('Keep me. Hello. ');
+  });
 });
 
 describe('offsetsFromDomRange', () => {

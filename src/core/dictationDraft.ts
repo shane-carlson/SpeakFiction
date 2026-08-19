@@ -40,6 +40,18 @@ export function activeTranscript(draft: DictationDraft): string {
     .join('');
 }
 
+/**
+ * Copy unstruck text out for Insert dictation / Insert into manuscript.
+ * The dictation box is never consumed: struck and unstruck spans both stay.
+ */
+export function takeInsertTranscript(draft: DictationDraft): {
+  transcript: string;
+  remaining: DictationDraft;
+} {
+  const remaining = compactDraft(draft ?? []);
+  return { transcript: activeTranscript(remaining).trim(), remaining };
+}
+
 export function serializeDraft(draft: DictationDraft): string {
   return JSON.stringify(compactDraft(draft ?? []));
 }

@@ -161,6 +161,7 @@ export function applyDictationMenuAction(
     case 'strikeLastSentence':
       return strikeLastSentence(draft);
     case 'insertDictation':
+      // View copies unstruck text into the manuscript; the box is left as-is.
       return draft;
   }
 }

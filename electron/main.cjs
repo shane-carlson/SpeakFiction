@@ -174,9 +174,8 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     backgroundColor: '#0e1016',
-    ...(process.platform === 'darwin'
-      ? { titleBarStyle: 'hiddenInset' }
-      : { autoHideMenuBar: true }),
+    // Default macOS chrome: title bar, traffic lights, drag-to-move, double-click zoom.
+    ...(process.platform !== 'darwin' ? { autoHideMenuBar: true } : {}),
     // Windows taskbar uses the window/exe ICO; a PNG NativeImage is ignored there.
     icon: process.platform === 'win32' ? iconFile : icon.isEmpty() ? undefined : icon,
     webPreferences: {

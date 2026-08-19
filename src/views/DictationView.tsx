@@ -6,12 +6,12 @@ import { getTense } from '../core/tense';
 import { getPerspective } from '../core/perspective';
 import { cleanupDictationText } from '../core/dictationProcessor';
 import {
-  activeTranscript,
   appendCueText,
   draftText,
   joinDraft,
   plainDraft,
   strikeLastSentence,
+  takeInsertTranscript,
   type DictationDraft,
 } from '../core/dictationDraft';
 import { DICTATION_COMMAND_CHIPS } from '../core/dictationContextMenu';
@@ -199,13 +199,12 @@ export function DictationView({
 
   const insertDictation = useCallback(
     (dest?: ManuscriptInsertAt) => {
-      const text = activeTranscript(draft).trim();
-      if (!text) return;
-      const result = applyDictation(book.id, text, dest);
+      const { transcript } = takeInsertTranscript(draft);
+      if (!transcript) return;
+      const result = applyDictation(book.id, transcript, dest);
       setOutcome(result);
-      setDraft([]);
     },
-    [applyDictation, book.id, draft, setDraft],
+    [applyDictation, book.id, draft],
   );
   const insertAtManuscriptPlace = useCallback(() => {
     if (!place?.blockId) {
@@ -219,8 +218,7 @@ export function DictationView({
   }, [insertDictation, place]);
   const insert = () => insertDictation();
   const draftVisible = draftText(draft);
-  const draftActive = activeTranscript(draft);
-  const canInsertDictation = Boolean(draftActive.trim());
+  const canInsertDictation = Boolean(takeInsertTranscript(draft).transcript);
 
   return (
     <div className="dictate-page">
@@ -384,7 +382,7 @@ export function DictationView({
               <button className="btn ghost" onClick={() => setDraft([])} disabled={!draftVisible}>
                 Clear
               </button>
-              <button className="btn primary" onClick={insert} disabled={!draftActive.trim()}>
+              <button className="btn primary" onClick={insert} disabled={!canInsertDictation}>
                 Insert into manuscript ↵
               </button>
             </div>
