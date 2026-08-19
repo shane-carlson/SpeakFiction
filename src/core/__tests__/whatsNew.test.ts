@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.2 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.2')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.2',
+      build: 17,
+      pending: {
+        version: '0.2.2',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.2'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Insert dictation at the cursor without wiping the transcription box',
+      'Struck and unstruck text stay in the box so you can insert again or keep editing',
+      'Native Mac title bar with traffic lights, drag-to-move, and double-click zoom',
+    ]);
+  });
+
   it('uses curated 0.2.1 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.1')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

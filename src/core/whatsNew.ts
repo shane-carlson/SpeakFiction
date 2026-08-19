@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.2': bullets(
+    'Insert dictation at the cursor without wiping the transcription box',
+    'Struck and unstruck text stay in the box so you can insert again or keep editing',
+    'Native Mac title bar with traffic lights, drag-to-move, and double-click zoom',
+  ),
   '0.2.1': bullets(
     'Right-click the transcription box to strike text or turn a selection into a chapter, scene, or section title',
     'Insert dictation between manuscript blocks so new lines land where you want them',
