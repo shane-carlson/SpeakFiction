@@ -1,11 +1,11 @@
 import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
 import { resampleMono, rms } from './resample';
+import { MIN_DECODE_RMS } from './speechUtterance';
 import { cleanTranscript } from './transcriptCleanup';
 import { hardwareFromNavigator, pickSttProfile, type SttProfile } from './sttProfile';
 
 export const STT_SAMPLE_RATE = 16_000;
-/** Skip Whisper on buffers that are effectively silence/noise. */
-export const MIN_DECODE_RMS = 0.012;
+export { MIN_DECODE_RMS };
 
 /** fp32: q8 MatMulNBits graphs fail to load in Electron's onnxruntime-web. */
 const STT_DTYPE = 'fp32' as const;

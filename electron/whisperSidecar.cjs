@@ -146,7 +146,7 @@ function nativeArgs(profile, wav) {
     '--temperature-inc',
     '0',
     '--no-speech-thold',
-    '0.6',
+    '0.75',
     '--max-context',
     '0',
     '--prompt',
@@ -254,6 +254,7 @@ function postInference(wav, profile) {
       fileBuf,
       `\r\n--${boundary}\r\nContent-Disposition: form-data; name="temperature"\r\n\r\n0\r\n`,
       `--${boundary}\r\nContent-Disposition: form-data; name="temperature_inc"\r\n\r\n0\r\n`,
+      `--${boundary}\r\nContent-Disposition: form-data; name="no_speech_thold"\r\n\r\n0.75\r\n`,
       `--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\njson\r\n`,
       `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nen\r\n`,
       `--${boundary}--\r\n`,
@@ -292,10 +293,17 @@ function postInference(wav, profile) {
   });
 }
 
+function pcmRms(pcm) {
+  let sum = 0;
+  for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
+  return Math.sqrt(sum / Math.max(1, pcm.length));
+}
+
 async function transcribeNative(payload, profile) {
   const sampleRate = payload?.sampleRate || 16000;
   const pcm = resampleTo16k(samplesFromPayload(payload), sampleRate);
   if (pcm.length < 16000 * 0.2) return '';
+  if (pcmRms(pcm) < 0.012) return '';
   const wav = path.join(os.tmpdir(), `sf-whisper-${process.pid}-${Date.now()}.wav`);
   writeWav16k(wav, pcm);
   try {

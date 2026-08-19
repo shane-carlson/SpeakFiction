@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AudioSettings } from '../store';
 import { openMicrophone } from './useLocalAudio';
-import { concatFloat32, rms } from '../core/resample';
-import { ensureLocalStt, transcribePcm, MIN_DECODE_RMS } from '../core/localStt';
-import { parseVoiceCommand } from '../core/voiceCommands';
+import { rms } from '../core/resample';
+import { ensureLocalStt, transcribePcm } from '../core/localStt';
+import { parseVoiceCommand, type DictationCommand } from '../core/voiceCommands';
 import type { SttProfile } from '../core/sttProfile';
+import {
+  MIN_SPEECH_S,
+  UtteranceSlicer,
+  createDecodeQueue,
+  type DecodeQueue,
+  type ReadyUtterance,
+} from '../core/speechUtterance';
 
 export type DictationSession = 'stopped' | 'listening' | 'paused';
 
@@ -22,12 +29,6 @@ export interface UseSpeechRecognition {
   pause: () => void;
   stop: () => void;
 }
-
-const SPEECH_RMS = 0.012;
-const SILENCE_MS = 1100;
-const MIN_SPEECH_S = 0.7;
-const MIN_COMMAND_S = 0.3;
-const MAX_UTTERANCE_S = 12;
 
 function startMeter(getLevel: () => number, onLevel: (n: number) => void): () => void {
   let raf = 0;
@@ -47,7 +48,7 @@ export function useSpeechRecognition(
   onFinal: (text: string) => void,
   audioSettings: AudioSettings,
   onProfile?: (profile: SttProfile) => void,
-  options?: { mayDictate?: boolean },
+  options?: { mayDictate?: boolean; onCommand?: (command: DictationCommand) => void },
 ): UseSpeechRecognition {
   const [supported] = useState(() => Boolean(navigator.mediaDevices?.getUserMedia));
   const [session, setSession] = useState<DictationSession>('stopped');
@@ -64,6 +65,8 @@ export function useSpeechRecognition(
   onFinalRef.current = onFinal;
   const onProfileRef = useRef(onProfile);
   onProfileRef.current = onProfile;
+  const onCommandRef = useRef(options?.onCommand);
+  onCommandRef.current = options?.onCommand;
   const audioSettingsRef = useRef(audioSettings);
   audioSettingsRef.current = audioSettings;
   const mayDictate = options?.mayDictate !== false;
@@ -77,24 +80,10 @@ export function useSpeechRecognition(
   const ctxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | AudioWorkletNode | null>(null);
   const meterRef = useRef<(() => void) | null>(null);
-  const chunksRef = useRef<Float32Array[]>([]);
-  const speakingRef = useRef(false);
-  const silenceMsRef = useRef(0);
-  const speechMsRef = useRef(0);
   const lastRmsRef = useRef(0);
-  const energySumRef = useRef(0);
-  const energyFramesRef = useRef(0);
-  const flushingRef = useRef(false);
+  const slicerRef = useRef(new UtteranceSlicer());
+  const decodeRef = useRef<DecodeQueue | null>(null);
   const flushRef = useRef<(force?: boolean) => Promise<void>>(async () => undefined);
-
-  const resetUtterance = () => {
-    chunksRef.current = [];
-    speakingRef.current = false;
-    silenceMsRef.current = 0;
-    speechMsRef.current = 0;
-    energySumRef.current = 0;
-    energyFramesRef.current = 0;
-  };
 
   const teardownCapture = useCallback(() => {
     meterRef.current?.();
@@ -106,9 +95,8 @@ export function useSpeechRecognition(
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     captureKeyRef.current = null;
-    resetUtterance();
+    slicerRef.current.reset();
     lastRmsRef.current = 0;
-    flushingRef.current = false;
     framesRef.current = 0;
     setLevel(0);
   }, []);
@@ -129,71 +117,68 @@ export function useSpeechRecognition(
     setSession('stopped');
   }, []);
 
-  const ingestFrame = useCallback((frame: Float32Array, sampleRate: number) => {
-    if (!mountedRef.current || sessionRef.current === 'stopped') return;
-    framesRef.current += 1;
-    const energy = rms(frame);
-    lastRmsRef.current = energy;
-    const frameMs = (frame.length / sampleRate) * 1000;
-
-    if (energy >= SPEECH_RMS) {
-      speakingRef.current = true;
-      silenceMsRef.current = 0;
-      speechMsRef.current += frameMs;
-      energySumRef.current += energy;
-      energyFramesRef.current += 1;
-      chunksRef.current.push(frame);
-      if (sessionRef.current === 'listening') {
-        setInterim((prev) => (prev === '' ? '…' : prev));
-      }
-      if (speechMsRef.current >= MAX_UTTERANCE_S * 1000) {
-        void flushRef.current(true);
-      }
-    } else if (speakingRef.current) {
-      chunksRef.current.push(frame);
-      silenceMsRef.current += frameMs;
-      if (silenceMsRef.current >= SILENCE_MS) {
-        void flushRef.current(false);
-      }
+  const commitDecodedRef = useRef<(text: string, utt: ReadyUtterance) => void>(() => undefined);
+  commitDecodedRef.current = (text, utt) => {
+    const parsed = parseVoiceCommand(text);
+    if (parsed.command === 'stop') {
+      applyCommand('stop');
+      teardownCapture();
+    } else if (parsed.command === 'start' || parsed.command === 'pause') {
+      applyCommand(parsed.command);
+    } else if (parsed.command) {
+      onCommandRef.current?.(parsed.command);
     }
+    const prose = parsed.remainder.trim();
+    if (prose && utt.listening && (parsed.command || utt.speechMs >= MIN_SPEECH_S * 1000)) {
+      onFinalRef.current(prose);
+    }
+    setInterim('');
+  };
+
+  if (!decodeRef.current) {
+    decodeRef.current = createDecodeQueue({
+      transcribe: async (samples, rate) => {
+        try {
+          return await transcribePcm(samples, rate);
+        } catch (e) {
+          if (mountedRef.current) {
+            setError(e instanceof Error ? e.message : 'Transcription failed.');
+          }
+          return '';
+        }
+      },
+      onText: (text, utt) => commitDecodedRef.current(text, utt),
+      onBusy: (busy) => {
+        if (mountedRef.current) setTranscribing(busy);
+      },
+    });
+  }
+
+  const submitUtterance = useCallback((utt: ReadyUtterance | null) => {
+    if (!utt) return;
+    utt.listening = sessionRef.current === 'listening';
+    const queued = decodeRef.current?.submit(utt);
+    if (!queued) setInterim('');
   }, []);
 
+  const ingestFrame = useCallback(
+    (frame: Float32Array, sampleRate: number) => {
+      if (!mountedRef.current || sessionRef.current === 'stopped') return;
+      framesRef.current += 1;
+      lastRmsRef.current = rms(frame);
+      const segments = slicerRef.current.ingest(frame, sampleRate);
+      for (const seg of segments) submitUtterance(seg);
+      if (slicerRef.current.isSpeaking && sessionRef.current === 'listening') {
+        setInterim((prev) => (prev === '' ? '…' : prev));
+      }
+    },
+    [submitUtterance],
+  );
+
   const flushUtterance = useCallback(async () => {
-    const ctx = ctxRef.current;
-    const chunks = chunksRef.current;
-    if (!ctx || chunks.length === 0 || flushingRef.current) return;
-    const samples = concatFloat32(chunks);
-    const seconds = samples.length / ctx.sampleRate;
-    const avgRms = energyFramesRef.current > 0 ? energySumRef.current / energyFramesRef.current : 0;
-    const listeningBefore = sessionRef.current === 'listening';
-    resetUtterance();
-    if (seconds < MIN_COMMAND_S || avgRms < MIN_DECODE_RMS) {
-      setInterim('');
-      return;
-    }
-    flushingRef.current = true;
-    setTranscribing(true);
-    try {
-      const raw = await transcribePcm(samples, ctx.sampleRate);
-      const parsed = parseVoiceCommand(raw);
-      if (parsed.command === 'stop') {
-        applyCommand('stop');
-        teardownCapture();
-      } else if (parsed.command) {
-        applyCommand(parsed.command);
-      }
-      const prose = parsed.remainder.trim();
-      if (prose && listeningBefore && (parsed.command || seconds >= MIN_SPEECH_S)) {
-        onFinalRef.current(prose);
-      }
-      setInterim('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Transcription failed.');
-    } finally {
-      flushingRef.current = false;
-      setTranscribing(false);
-    }
-  }, [applyCommand, teardownCapture]);
+    submitUtterance(slicerRef.current.forceFlush());
+    await decodeRef.current?.idle();
+  }, [submitUtterance]);
   flushRef.current = flushUtterance;
 
   const ensureCapture = useCallback(

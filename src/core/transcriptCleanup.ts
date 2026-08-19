@@ -1,5 +1,32 @@
 const FILLER =
-  /^(thanks for watching\.?|thank you\.?|thanks\.?|thank you for watching\.?|you|yeah\.?|yep\.?|yes\.?|bye\.?|okay\.?|ok\.?|hmm\.?|uh\.?|um\.?|ah\.?|oh\.?|the|a|and|\.|\,)$/i;
+  /^(thanks for watching\.?|thank you\.?|thanks\.?|thank you for watching\.?|you|yeah\.?|yep\.?|yes\.?|no\.?|bye\.?|okay\.?|ok\.?|hmm\.?|uh\.?|um\.?|ah\.?|oh\.?|the|a|and|\.|\,)$/i;
+
+/** Whisper silence tokens that loop during extended quiet. */
+const HALLUCINATION_WORDS = new Set([
+  'no',
+  'yeah',
+  'yep',
+  'yes',
+  'you',
+  'the',
+  'a',
+  'and',
+  'okay',
+  'ok',
+  'hmm',
+  'uh',
+  'um',
+  'ah',
+  'oh',
+  'bye',
+  'thanks',
+  'thank',
+  'watching',
+  'for',
+]);
+
+const SUBTITLE_PHRASE =
+  /^(thanks for watching|thank you for watching|thanks for watching everybody|thank you)[.!?]*$/i;
 
 function tokensOf(text: string): string[] {
   return text
@@ -43,10 +70,25 @@ export function isMostlyOneToken(text: string): boolean {
   return max / tokens.length >= 0.55;
 }
 
+/**
+ * Whole-utterance silence garbage: repeated short tokens or known filler loops.
+ * Mixed prose that happens to contain "no" once is not a loop.
+ */
+export function isSilenceLoop(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (FILLER.test(trimmed) || SUBTITLE_PHRASE.test(trimmed)) return true;
+  const tokens = tokensOf(trimmed).map(norm).filter(Boolean);
+  if (tokens.length === 0) return false;
+  if (tokens.every((t) => t === tokens[0]) && HALLUCINATION_WORDS.has(tokens[0])) return true;
+  if (isMostlyOneToken(trimmed)) return true;
+  return false;
+}
+
 export function cleanTranscript(text: string): string {
-  const collapsed = collapseRepeats(text.trim());
-  if (!collapsed || FILLER.test(collapsed) || isMostlyOneToken(collapsed)) return '';
-  const words = tokensOf(collapsed);
-  if (words.length <= 2 && words.every((w) => FILLER.test(w))) return '';
+  const trimmed = text.trim();
+  if (!trimmed || isSilenceLoop(trimmed)) return '';
+  const collapsed = collapseRepeats(trimmed);
+  if (!collapsed || isSilenceLoop(collapsed)) return '';
   return collapsed;
 }
