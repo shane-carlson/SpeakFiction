@@ -9,10 +9,12 @@ import { Logo } from './components/Logo';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { LicenseBanner } from './components/LicenseBanner';
 import { UpdateBanner } from './components/UpdateBanner';
+import { WhatsNewModal } from './components/WhatsNewModal';
 import { applyDocumentTheme } from './core/theme';
 import type { AppTab } from './core/persistedState';
 import { useLicense } from './hooks/useLicense';
 import { useUpdater } from './hooks/useUpdater';
+import { useWhatsNew } from './hooks/useWhatsNew';
 
 const NAV: Array<{ id: AppTab; label: string; icon: string }> = [
   { id: 'dictate', label: 'Dictate', icon: '🎙️' },
@@ -25,6 +27,7 @@ const NAV: Array<{ id: AppTab; label: string; icon: string }> = [
 export default function App() {
   const license = useLicense();
   const updater = useUpdater();
+  const whatsNew = useWhatsNew();
   const tab = useStore((s) => s.activeTab);
   const setTab = useStore((s) => s.setActiveTab);
   const [dictating, setDictating] = useState(false);
@@ -122,6 +125,13 @@ export default function App() {
           <BackupView book={activeBook} onOpenIntegrations={() => setTab('integrate')} />
         )}
       </main>
+      <WhatsNewModal
+        open={whatsNew.open}
+        version={whatsNew.version}
+        build={whatsNew.build}
+        notes={whatsNew.notes}
+        onDismiss={whatsNew.dismiss}
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, type ThemeId, type ThemeMode } fr
 import {
   isAppTab,
   normalizeDictationDrafts,
+  normalizeLastSeenVersion,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -73,6 +74,8 @@ interface AppState {
   setDictationDraft: (bookId: string, text: string) => void;
   manuscriptPlace: Record<string, ManuscriptPlace>;
   setManuscriptPlace: (bookId: string, place: ManuscriptPlace) => void;
+  lastSeenVersion: string | null;
+  setLastSeenVersion: (version: string) => void;
 
   createSeries: (name: string) => string;
   createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
@@ -177,6 +180,8 @@ export const useStore = create<AppState>()(
       manuscriptPlace: {},
       setManuscriptPlace: (bookId, place) =>
         set((s) => ({ manuscriptPlace: { ...s.manuscriptPlace, [bookId]: place } })),
+      lastSeenVersion: null,
+      setLastSeenVersion: (version) => set({ lastSeenVersion: normalizeLastSeenVersion(version) }),
 
       createSeries: (name) => {
         const id = uid('ser');
@@ -383,6 +388,7 @@ export const useStore = create<AppState>()(
         activeTab: s.activeTab,
         dictationDrafts: s.dictationDrafts,
         manuscriptPlace: s.manuscriptPlace,
+        lastSeenVersion: s.lastSeenVersion,
       }),
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<AppState>;
@@ -404,6 +410,7 @@ export const useStore = create<AppState>()(
           series,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : 'dictate',
         };
       },
@@ -424,6 +431,7 @@ export const useStore = create<AppState>()(
           activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),
+          lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
           books: (p.books ?? current.books).map((b) => ({
             ...b,
             tenseId: b.tenseId ?? DEFAULT_TENSE,

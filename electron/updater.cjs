@@ -1,7 +1,25 @@
 const { app, ipcMain, BrowserWindow } = require('electron');
+const whatsNewStore = require('./whatsNewStore.cjs');
 
 const CHECK_MS = 12 * 60 * 60 * 1000;
 const START_DELAY_MS = 8_000;
+
+function releaseNotesText(info) {
+  const raw = info && info.releaseNotes;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item.note === 'string') return item.note.trim();
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n\n')
+      .trim();
+  }
+  return '';
+}
 
 function emptyStatus() {
   return {
@@ -103,9 +121,18 @@ function setup() {
     setStatus({ state: 'downloading', percent });
   });
   autoUpdater.on('update-downloaded', (info) => {
+    const version = info && info.version ? String(info.version) : status.availableVersion;
+    const notes = releaseNotesText(info);
+    if (version && notes) {
+      whatsNewStore.save({
+        version,
+        notes,
+        name: info && info.releaseName ? String(info.releaseName) : '',
+      });
+    }
     setStatus({
       state: 'ready',
-      availableVersion: info && info.version ? String(info.version) : status.availableVersion,
+      availableVersion: version,
       percent: 100,
       error: null,
     });
@@ -130,6 +157,8 @@ function setup() {
 
 ipcMain.handle('updater:status', () => getStatus());
 ipcMain.handle('updater:check', () => checkForUpdates({ user: true }));
+ipcMain.handle('whatsNew:pending', () => whatsNewStore.load());
+ipcMain.handle('whatsNew:clear', () => whatsNewStore.clear());
 ipcMain.handle('updater:install', () => {
   if (!autoUpdater || status.state !== 'ready') {
     return { ok: false, error: 'No update is ready to install.' };

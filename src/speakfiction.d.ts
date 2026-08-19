@@ -85,6 +85,11 @@ export interface SpeakFictionUpdaterBridge {
   onStatus: (cb: (status: import('./core/update').UpdateStatus) => void) => () => void;
 }
 
+export interface SpeakFictionWhatsNewBridge {
+  getPending: () => Promise<import('./core/whatsNew').PendingWhatsNew | null>;
+  clearPending: () => Promise<{ ok: boolean }>;
+}
+
 export interface SpeakFictionBridge {
   platform: string;
   arch?: string;
@@ -96,6 +101,7 @@ export interface SpeakFictionBridge {
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;
   updater?: SpeakFictionUpdaterBridge;
+  whatsNew?: SpeakFictionWhatsNewBridge;
 }
 
 declare global {

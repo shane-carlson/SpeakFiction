@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isAppTab,
   normalizeDictationDrafts,
+  normalizeLastSeenVersion,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -36,6 +37,8 @@ describe('persisted session fields', () => {
     expect(normalizeThemeId('pastel', 'auto')).toBe('auto');
     expect(isAppTab('dictate')).toBe(true);
     expect(isAppTab('settings')).toBe(false);
+    expect(normalizeLastSeenVersion('0.1.6-b11')).toBe('0.1.6-b11');
+    expect(normalizeLastSeenVersion('')).toBe(null);
   });
 
   it('drops a deleted book from session maps', () => {

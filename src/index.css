@@ -1192,3 +1192,68 @@ label {
   font-size: 11px;
   color: var(--text-dim);
 }
+
+.whats-new-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+}
+.whats-new-dialog {
+  width: min(460px, 100%);
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: var(--shadow);
+}
+.whats-new-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.whats-new-head h3 {
+  margin: 0;
+}
+.whats-new-head .sub {
+  margin: 4px 0 0;
+}
+.whats-new-body {
+  overflow-y: auto;
+  margin: 4px 0 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.whats-new-body h3,
+.whats-new-body h4 {
+  margin: 12px 0 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+.whats-new-body h3:first-child,
+.whats-new-body h4:first-child,
+.whats-new-body p:first-child,
+.whats-new-body ul:first-child {
+  margin-top: 0;
+}
+.whats-new-body p {
+  margin: 0 0 10px;
+}
+.whats-new-body ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.whats-new-body li + li {
+  margin-top: 4px;
+}
+.whats-new-got-it {
+  align-self: flex-end;
+  justify-content: center;
+  min-width: 96px;
+}

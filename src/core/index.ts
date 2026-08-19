@@ -21,3 +21,4 @@ export * from './backup';
 export * from './localFiles';
 export * from './license';
 export * from './persistedState';
+export * from './whatsNew';

@@ -57,6 +57,12 @@ export function normalizeThemeId(value: unknown, fallback: ThemeId): ThemeId {
   return typeof value === 'string' && isThemeId(value) ? value : fallback;
 }
 
+export function normalizeLastSeenVersion(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 export function omitKey<T extends object>(record: T, key: string): T {
   const copy = { ...(record as Record<string, unknown>) };
   delete copy[key];

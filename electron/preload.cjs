@@ -51,4 +51,8 @@ contextBridge.exposeInMainWorld('speakfiction', {
       return () => ipcRenderer.removeListener('updater:event', listener);
     },
   },
+  whatsNew: {
+    getPending: () => ipcRenderer.invoke('whatsNew:pending'),
+    clearPending: () => ipcRenderer.invoke('whatsNew:clear'),
+  },
 });
