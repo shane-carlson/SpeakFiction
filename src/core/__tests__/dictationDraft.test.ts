@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   activeTranscript,
   appendCueText,
+  caretAfterJoin,
   compactDraft,
   draftFromElement,
   draftText,
   draftToHtml,
   joinDraft,
+  joinDraftAt,
   normalizeDictationDraft,
+  offsetsFromDomRange,
   plainDraft,
+  setDomCaretFromOffset,
   strikeLastSentence,
   takeInsertTranscript,
 } from '../dictationDraft';
@@ -57,18 +61,17 @@ describe('strikeLastSentence', () => {
 });
 
 describe('takeInsertTranscript', () => {
-  it('omits struck spans from the manuscript payload and leaves every span in the box', () => {
+  it('omits struck spans from the manuscript payload and clears the box on promote', () => {
     const draft = [
       { text: 'Hello. ', struck: false },
       { text: 'World.', struck: true },
     ];
     const { transcript, remaining } = takeInsertTranscript(draft);
     expect(transcript).toBe('Hello.');
-    expect(remaining).toEqual(draft);
-    expect(draftText(remaining)).toBe('Hello. World.');
+    expect(remaining).toEqual([]);
   });
 
-  it('does not consume unstruck text around a selection either', () => {
+  it('promotes the full unstruck staging buffer and leaves nothing behind', () => {
     const draft = [
       { text: 'Keep me. ', struck: false },
       { text: 'Insert me. ', struck: false },
@@ -76,16 +79,14 @@ describe('takeInsertTranscript', () => {
     ];
     const { transcript, remaining } = takeInsertTranscript(draft);
     expect(transcript).toBe('Keep me. Insert me.');
-    expect(draftText(remaining)).toBe('Keep me. Insert me. Struck.');
-    expect(remaining).toEqual([
-      { text: 'Keep me. Insert me. ', struck: false },
-      { text: 'Struck.', struck: true },
-    ]);
+    expect(remaining).toEqual([]);
   });
 
-  it('is empty when the box is only struck or blank', () => {
-    expect(takeInsertTranscript([{ text: 'World.', struck: true }]).transcript).toBe('');
+  it('does not clear when there is nothing to insert', () => {
+    const struckOnly = [{ text: 'World.', struck: true }];
+    expect(takeInsertTranscript(struckOnly)).toEqual({ transcript: '', remaining: struckOnly });
     expect(takeInsertTranscript([]).transcript).toBe('');
+    expect(takeInsertTranscript([]).remaining).toEqual([]);
   });
 });
 
@@ -101,6 +102,20 @@ describe('joinDraft', () => {
   it('does not insert an empty utterance', () => {
     const prev = plainDraft('Hello.');
     expect(joinDraft(prev, '  ')).toEqual(prev);
+  });
+});
+
+describe('joinDraftAt', () => {
+  it('splices incoming dictation at the caret instead of appending', () => {
+    const next = joinDraftAt(plainDraft('Hello. World.'), 'the wind howled', 7);
+    expect(draftText(next)).toBe('Hello. the wind howled World.');
+    expect(caretAfterJoin(plainDraft('Hello. World.'), next, 7)).toBe('Hello. the wind howled '.length);
+  });
+
+  it('falls back to append when the caret is at the end', () => {
+    expect(draftText(joinDraftAt(plainDraft('Hello.'), 'World.', 6))).toBe(
+      draftText(joinDraft(plainDraft('Hello.'), 'World.')),
+    );
   });
 });
 
@@ -138,5 +153,16 @@ describe('html round-trip', () => {
     const el = document.createElement('div');
     el.innerHTML = draftToHtml(draft);
     expect(draftFromElement(el)).toEqual(draft);
+  });
+
+  it('restores a caret in the middle after rebuilding the box', () => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    el.innerHTML = draftToHtml(plainDraft('Hello. World.'));
+    setDomCaretFromOffset(el, 7);
+    const sel = document.getSelection();
+    expect(sel && sel.rangeCount > 0).toBe(true);
+    expect(offsetsFromDomRange(el, sel!.getRangeAt(0))).toEqual({ start: 7, end: 7 });
+    document.body.removeChild(el);
   });
 });

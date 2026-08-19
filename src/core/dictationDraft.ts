@@ -41,15 +41,19 @@ export function activeTranscript(draft: DictationDraft): string {
 }
 
 /**
- * Copy unstruck text out for Insert dictation / Insert into manuscript.
- * The dictation box is never consumed: struck and unstruck spans both stay.
+ * Promote the staging buffer into a manuscript payload.
+ * Unstruck text is the insert; struck spans are omitted from the manuscript.
+ * After a successful promote the box clears (`remaining` is empty). If there is
+ * nothing to insert (empty / only struck), the draft is left untouched.
  */
 export function takeInsertTranscript(draft: DictationDraft): {
   transcript: string;
   remaining: DictationDraft;
 } {
-  const remaining = compactDraft(draft ?? []);
-  return { transcript: activeTranscript(remaining).trim(), remaining };
+  const compact = compactDraft(draft ?? []);
+  const transcript = activeTranscript(compact).trim();
+  if (!transcript) return { transcript: '', remaining: compact };
+  return { transcript, remaining: [] };
 }
 
 export function serializeDraft(draft: DictationDraft): string {
@@ -66,6 +70,16 @@ function trimTrailingWhitespace(draft: DictationDraft): DictationDraft {
   return spans;
 }
 
+function chunkForInsert(before: string, after: string, next: string): string {
+  const b = next.replace(/^\s+/, '');
+  const a = before.replace(/\s+$/, '');
+  if (/[\u201C"][^\n]*$/.test(a) && /^[\u201C"]/.test(b)) {
+    const padAfter = after ? (/^[ \n]/.test(after) ? '' : ' ') : ' ';
+    return `\n\n${b}${padAfter}`;
+  }
+  return paddedInsert(before, after, b);
+}
+
 /** Join live speech onto the dictation box without touching struck spans. */
 export function joinDraft(prev: DictationDraft, next: string): DictationDraft {
   if (!next.trim()) return compactDraft(prev ?? []);
@@ -77,6 +91,36 @@ export function joinDraft(prev: DictationDraft, next: string): DictationDraft {
   const b = next.replace(/^\s+/, '');
   const joiner = /[\u201C"][^\n]*$/.test(a) && /^[\u201C"]/.test(b) ? '\n\n' : ' ';
   return compactDraft([...trimTrailingWhitespace(prev), { text: `${joiner}${b}`, struck: false }]);
+}
+
+/**
+ * Land incoming dictation in the transcription box at a caret offset.
+ * Falls back to append when `offset` is omitted or at/past the end.
+ */
+export function joinDraftAt(
+  prev: DictationDraft,
+  next: string,
+  offset?: number | null,
+): DictationDraft {
+  if (!next.trim()) return compactDraft(prev ?? []);
+  const text = draftText(prev ?? []);
+  if (!text.trim() || offset == null || !Number.isFinite(offset) || offset >= text.length) {
+    return joinDraft(prev, next);
+  }
+  const o = Math.max(0, Math.min(offset, text.length));
+  return replaceDraftRange(prev, o, o, chunkForInsert(text.slice(0, o), text.slice(o), next), false);
+}
+
+/** Caret to restore after `joinDraftAt` so the next utterance stays at the insert point. */
+export function caretAfterJoin(
+  prev: DictationDraft,
+  next: DictationDraft,
+  offset?: number | null,
+): number {
+  const prevLen = draftText(prev).length;
+  const nextLen = draftText(next).length;
+  const o = offset == null || !Number.isFinite(offset) ? prevLen : Math.max(0, Math.min(offset, prevLen));
+  return o + (nextLen - prevLen);
 }
 
 export function appendCueText(draft: DictationDraft, cue: string): DictationDraft {
@@ -352,6 +396,71 @@ export function offsetsFromDomRange(root: HTMLElement, range: Range): { start: n
   const a = locate(range.startContainer, range.startOffset);
   const b = locate(range.endContainer, range.endOffset);
   return a <= b ? { start: a, end: b } : { start: b, end: a };
+}
+
+/** Place a collapsed caret at a draftText offset after rebuilding contenteditable HTML. */
+export function setDomCaretFromOffset(root: HTMLElement, offset: number): void {
+  const target = Math.max(0, offset);
+  let pos = 0;
+  let started = false;
+  const hit: Array<{ node: Node; offset: number }> = [];
+
+  const walk = (node: Node, isRoot: boolean) => {
+    if (hit[0]) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent ?? '';
+      if (target <= pos + text.length) {
+        hit[0] = { node, offset: Math.max(0, target - pos) };
+        return;
+      }
+      pos += text.length;
+      started = true;
+      return;
+    }
+    if (node.nodeName === 'BR') {
+      if (target <= pos) {
+        hit[0] = { node, offset: 0 };
+        return;
+      }
+      pos += 1;
+      started = true;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el = node as HTMLElement;
+    const isBlock = !isRoot && /^(DIV|P|LI)$/i.test(el.tagName);
+    if (isBlock && started) {
+      if (target <= pos) {
+        hit[0] = { node, offset: 0 };
+        return;
+      }
+      pos += 1;
+    }
+    for (const child of Array.from(el.childNodes)) {
+      walk(child, false);
+      if (hit[0]) return;
+    }
+  };
+
+  walk(root, true);
+  const found = hit[0];
+  const range = document.createRange();
+  if (found) {
+    if (found.node.nodeName === 'BR' || found.node.nodeType === Node.ELEMENT_NODE) {
+      const parent = found.node.parentNode ?? root;
+      const index = Array.from(parent.childNodes).indexOf(found.node as ChildNode);
+      range.setStart(parent, Math.max(0, index));
+    } else {
+      range.setStart(found.node, found.offset);
+    }
+  } else {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
 }
 
 export function normalizeDictationDraft(value: unknown): DictationDraft | null {

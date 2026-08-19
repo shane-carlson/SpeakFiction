@@ -10,18 +10,10 @@ import {
   draftToHtml,
   offsetsFromDomRange,
   serializeDraft,
+  setDomCaretFromOffset,
   type DictationDraft,
 } from '../core/dictationDraft';
 import { AppContextMenu } from './AppContextMenu';
-
-function placeCaretAtEnd(el: HTMLElement) {
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  range.collapse(false);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
-}
 
 function rangeFromPoint(x: number, y: number): Range | null {
   const doc = document as Document & {
@@ -50,18 +42,25 @@ export function DictationTranscript({
   value,
   onChange,
   placeholder,
-  canInsertDictation,
+  caret,
+  canPromoteToManuscript,
+  onCaretChange,
   onInsertDictation,
+  onPromoteToManuscript,
 }: {
   id: string;
   value: DictationDraft;
   onChange: (next: DictationDraft) => void;
   placeholder?: string;
-  canInsertDictation?: boolean;
-  onInsertDictation?: () => void;
+  caret?: number | null;
+  canPromoteToManuscript?: boolean;
+  onCaretChange?: (offset: number) => void;
+  onInsertDictation?: (offset: number) => void;
+  onPromoteToManuscript?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const lastSerialized = useRef<string | null>(null);
+  const caretRef = useRef(caret ?? 0);
   const empty = serializeDraft(value) === '[]';
   const [menu, setMenu] = useState<{
     x: number;
@@ -70,6 +69,8 @@ export function DictationTranscript({
     end: number;
   } | null>(null);
 
+  if (typeof caret === 'number') caretRef.current = caret;
+
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -77,8 +78,25 @@ export function DictationTranscript({
     if (serialized === lastSerialized.current) return;
     el.innerHTML = draftToHtml(value);
     lastSerialized.current = serialized;
-    if (document.activeElement === el) placeCaretAtEnd(el);
+    if (document.activeElement === el) setDomCaretFromOffset(el, caretRef.current);
   }, [value]);
+
+  const reportCaret = useCallback(
+    (offset: number) => {
+      caretRef.current = offset;
+      onCaretChange?.(offset);
+    },
+    [onCaretChange],
+  );
+
+  const readCaret = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || !rangeInside(el, sel.getRangeAt(0))) return;
+    const { start, end } = offsetsFromDomRange(el, sel.getRangeAt(0));
+    reportCaret(sel.isCollapsed ? start : end);
+  }, [reportCaret]);
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
@@ -86,7 +104,7 @@ export function DictationTranscript({
     ? buildDictationContextMenu({
         hasSelection: menu.start !== menu.end,
         selectionStruck: menuSelectionStruck(value, menu),
-        canInsertDictation,
+        canPromoteToManuscript,
       })
     : [];
 
@@ -108,6 +126,7 @@ export function DictationTranscript({
           const next = draftFromElement(el);
           lastSerialized.current = serializeDraft(next);
           onChange(next);
+          readCaret();
         }}
         onPaste={(e) => {
           e.preventDefault();
@@ -115,6 +134,9 @@ export function DictationTranscript({
           if (!text) return;
           document.execCommand('insertText', false, text);
         }}
+        onKeyUp={readCaret}
+        onMouseUp={readCaret}
+        onSelect={readCaret}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
             e.preventDefault();
@@ -143,8 +165,8 @@ export function DictationTranscript({
             }
           }
 
-          const offsets = range ? offsetsFromDomRange(el, range) : { start: 0, end: 0 };
-
+          const offsets = range ? offsetsFromDomRange(el, range) : { start: caretRef.current, end: caretRef.current };
+          reportCaret(offsets.start === offsets.end ? offsets.start : offsets.start);
           setMenu({
             x: e.clientX,
             y: e.clientY,
@@ -162,9 +184,14 @@ export function DictationTranscript({
           onSelect={(id) => {
             const item = items.find((it) => it.id === id);
             if (!item) return;
+            if (item.action.type === 'promoteToManuscript') {
+              onPromoteToManuscript?.();
+              return;
+            }
             if (item.action.type === 'insertDictation') {
-              // Do not onChange / rebuild innerHTML — insert leaves the box untouched.
-              onInsertDictation?.();
+              // Snapshot caret so the menu click does not fall back to append-at-end.
+              reportCaret(menu.start);
+              onInsertDictation?.(menu.start);
               return;
             }
             onChange(applyDictationMenuAction(value, item.action, menu));

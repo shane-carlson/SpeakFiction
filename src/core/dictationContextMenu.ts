@@ -5,6 +5,7 @@
 
 import {
   insertCueAt,
+  joinDraftAt,
   promoteSelectionAsTitle,
   rangeIsStruck,
   setRangeStruck,
@@ -56,7 +57,8 @@ export type DictationMenuAction =
   | { type: 'strikeSelection' }
   | { type: 'unstrikeSelection' }
   | { type: 'strikeLastSentence' }
-  | { type: 'insertDictation' };
+  | { type: 'insertDictation'; chunk?: string }
+  | { type: 'promoteToManuscript' };
 
 export interface DictationMenuItem {
   id: string;
@@ -69,17 +71,22 @@ export interface DictationMenuItem {
 export interface DictationMenuOptions {
   hasSelection: boolean;
   selectionStruck?: boolean;
-  canInsertDictation?: boolean;
+  canPromoteToManuscript?: boolean;
 }
 
 export function buildDictationContextMenu(opts: DictationMenuOptions): DictationMenuItem[] {
-  const canInsert = Boolean(opts.canInsertDictation);
   const insertItem: DictationMenuItem = {
     id: 'insert-dictation',
     label: 'Insert dictation',
     group: 'insert',
     action: { type: 'insertDictation' },
-    disabled: !canInsert,
+  };
+  const promoteItem: DictationMenuItem = {
+    id: 'insert-into-manuscript',
+    label: 'Insert into manuscript',
+    group: 'insert',
+    action: { type: 'promoteToManuscript' },
+    disabled: !opts.canPromoteToManuscript,
   };
 
   if (opts.hasSelection) {
@@ -112,6 +119,7 @@ export function buildDictationContextMenu(opts: DictationMenuOptions): Dictation
         action: { type: 'insertCue' as const, cue: s.cue },
       })),
       insertItem,
+      promoteItem,
     ];
   }
 
@@ -123,6 +131,7 @@ export function buildDictationContextMenu(opts: DictationMenuOptions): Dictation
       action: { type: 'insertCue' as const, cue: s.cue },
     })),
     insertItem,
+    promoteItem,
     {
       id: 'strike-last-sentence',
       label: 'Strike last sentence',
@@ -143,7 +152,7 @@ export interface DraftRange {
   end: number;
 }
 
-/** Apply a draft-mutating menu action. Insert dictation is handled by the view. */
+/** Apply a draft-mutating menu action. Promote-to-manuscript is handled by the view. */
 export function applyDictationMenuAction(
   draft: DictationDraft,
   action: DictationMenuAction,
@@ -161,7 +170,10 @@ export function applyDictationMenuAction(
     case 'strikeLastSentence':
       return strikeLastSentence(draft);
     case 'insertDictation':
-      // View copies unstruck text into the manuscript; the box is left as-is.
+      // Land in the transcription box at the snapshotted caret. No manuscript write.
+      if (!action.chunk?.trim()) return draft;
+      return joinDraftAt(draft, action.chunk, range.start);
+    case 'promoteToManuscript':
       return draft;
   }
 }

@@ -7,8 +7,10 @@ import { getPerspective } from '../core/perspective';
 import { cleanupDictationText } from '../core/dictationProcessor';
 import {
   appendCueText,
+  caretAfterJoin,
   draftText,
-  joinDraft,
+  insertCueAt,
+  joinDraftAt,
   plainDraft,
   strikeLastSentence,
   takeInsertTranscript,
@@ -75,6 +77,9 @@ export function DictationView({
   const stats = useMemo(() => manuscriptStats(book.manuscript), [book.manuscript]);
 
   const audioSettings = useStore((s) => s.audioSettings);
+  const transcriptCaretRef = useRef<number | null>(null);
+  const [boxCaret, setBoxCaret] = useState<number | null>(null);
+
   const handleFinal = useCallback(
     (text: string) => {
       const cleaned = cleanupDictationText(text, {
@@ -85,14 +90,26 @@ export function DictationView({
         adaptive: book.adaptive,
       });
       if (!cleaned) return;
-      setDraft((d) => joinDraft(d, cleaned));
+      const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+      const at = transcriptCaretRef.current;
+      const next = joinDraftAt(prev, cleaned, at);
+      const caret = caretAfterJoin(prev, next, at);
+      transcriptCaretRef.current = caret;
+      setBoxCaret(caret);
+      setDictationDraft(book.id, next);
     },
-    [book.adaptive, book.nameLibrary, book.perspectiveId, book.tenseId, genre, setDraft],
+    [book.adaptive, book.id, book.nameLibrary, book.perspectiveId, book.tenseId, genre, setDictationDraft],
   );
 
   const appendCue = useCallback((cue: string) => {
-    setDraft((d) => appendCueText(d, cue));
-  }, [setDraft]);
+    const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+    const at = transcriptCaretRef.current;
+    const next = at == null ? appendCueText(prev, cue) : insertCueAt(prev, at, cue);
+    const caret = caretAfterJoin(prev, next, at ?? draftText(prev).length);
+    transcriptCaretRef.current = caret;
+    setBoxCaret(caret);
+    setDictationDraft(book.id, next);
+  }, [book.id, setDictationDraft]);
   const handleProfile = useCallback(
     (profile: { label: string }) => {
       rememberSttProfile(profile.label);
@@ -197,26 +214,33 @@ export function DictationView({
         ? 'Paused — say “start dictation” or press the mic'
         : 'Stopped — press the mic to start';
 
-  const insertDictation = useCallback(
+  const promoteToManuscript = useCallback(
     (dest?: ManuscriptInsertAt) => {
-      const { transcript } = takeInsertTranscript(draft);
+      const { transcript, remaining } = takeInsertTranscript(draft);
       if (!transcript) return;
       const result = applyDictation(book.id, transcript, dest);
       setOutcome(result);
+      setDraft(remaining);
+      transcriptCaretRef.current = 0;
+      setBoxCaret(0);
     },
-    [applyDictation, book.id, draft],
+    [applyDictation, book.id, draft, setDraft],
   );
-  const insertAtManuscriptPlace = useCallback(() => {
+  const insertIntoTranscript = useCallback((offset: number) => {
+    transcriptCaretRef.current = offset;
+    setBoxCaret(offset);
+  }, []);
+  const promoteAtManuscriptPlace = useCallback(() => {
     if (!place?.blockId) {
-      insertDictation();
+      promoteToManuscript();
       return;
     }
-    insertDictation({
+    promoteToManuscript({
       atBlockId: place.blockId,
       splitOffset: place.selectionStart,
     });
-  }, [insertDictation, place]);
-  const insert = () => insertDictation();
+  }, [promoteToManuscript, place]);
+  const insert = () => promoteToManuscript();
   const draftVisible = draftText(draft);
   const canInsertDictation = Boolean(takeInsertTranscript(draft).transcript);
 
@@ -347,8 +371,14 @@ export function DictationView({
               value={draft}
               onChange={setDraft}
               placeholder="e.g. new chapter kel dros drew sun spar period"
-              canInsertDictation={canInsertDictation}
-              onInsertDictation={insertAtManuscriptPlace}
+              caret={boxCaret}
+              canPromoteToManuscript={canInsertDictation}
+              onCaretChange={(offset) => {
+                transcriptCaretRef.current = offset;
+                setBoxCaret(offset);
+              }}
+              onInsertDictation={insertIntoTranscript}
+              onPromoteToManuscript={promoteAtManuscriptPlace}
             />
           </div>
 
@@ -358,7 +388,7 @@ export function DictationView({
                 key={c}
                 className="badge"
                 style={{ cursor: 'pointer' }}
-                onClick={() => setDraft((d) => appendCueText(d, c))}
+                onClick={() => appendCue(c)}
               >
                 + {c}
               </button>
@@ -427,7 +457,7 @@ export function DictationView({
               book={book}
               place={place}
               canInsertDictation={canInsertDictation}
-              onInsertDictation={insertDictation}
+              onInsertDictation={promoteToManuscript}
               onPlaceChange={(next) => {
                 const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
                 setManuscriptPlace(book.id, { ...next, scrollTop });

@@ -64,14 +64,15 @@ describe('promoteSelectionAsTitle', () => {
 });
 
 describe('buildDictationContextMenu', () => {
-  it('puts structure cues and insert dictation at the top when the caret is empty', () => {
-    const items = buildDictationContextMenu({ hasSelection: false, canInsertDictation: true });
+  it('puts structure cues, insert dictation, and promote at the top when the caret is empty', () => {
+    const items = buildDictationContextMenu({ hasSelection: false, canPromoteToManuscript: true });
     expect(items.map((i) => i.label)).toEqual([
       'New chapter',
       'New scene',
       'New paragraph',
       'New section',
       'Insert dictation',
+      'Insert into manuscript',
       'Strike last sentence',
       'Period',
       'Comma',
@@ -85,7 +86,7 @@ describe('buildDictationContextMenu', () => {
     const items = buildDictationContextMenu({
       hasSelection: true,
       selectionStruck: false,
-      canInsertDictation: true,
+      canPromoteToManuscript: true,
     });
     expect(items.map((i) => i.label)).toEqual([
       'Strike through',
@@ -97,17 +98,19 @@ describe('buildDictationContextMenu', () => {
       'New paragraph',
       'New section',
       'Insert dictation',
+      'Insert into manuscript',
     ]);
   });
 
-  it('switches to Unstrike when the selection is already struck', () => {
+  it('disables Insert into manuscript when there is nothing to promote', () => {
     const items = buildDictationContextMenu({
       hasSelection: true,
       selectionStruck: true,
-      canInsertDictation: false,
+      canPromoteToManuscript: false,
     });
     expect(items[0]).toMatchObject({ id: 'unstrike-selection', label: 'Unstrike' });
-    expect(items.find((i) => i.id === 'insert-dictation')?.disabled).toBe(true);
+    expect(items.find((i) => i.id === 'insert-dictation')?.disabled).toBeFalsy();
+    expect(items.find((i) => i.id === 'insert-into-manuscript')?.disabled).toBe(true);
   });
 });
 
@@ -128,7 +131,17 @@ describe('applyDictationMenuAction', () => {
     expect(activeTranscript(next).trim()).toBe('Hello.');
   });
 
-  it('leaves every draft span in place when Insert dictation is chosen', () => {
+  it('splices Insert dictation into the transcription box at the caret', () => {
+    const draft = plainDraft('Hello. World.');
+    const next = applyDictationMenuAction(
+      draft,
+      { type: 'insertDictation', chunk: 'the wind howled' },
+      { start: 7, end: 7 },
+    );
+    expect(draftText(next)).toBe('Hello. the wind howled World.');
+  });
+
+  it('does not copy Insert dictation into the box when there is no incoming chunk', () => {
     const draft = [
       { text: 'Keep me. ', struck: false },
       { text: 'Hello. ', struck: false },
@@ -136,8 +149,11 @@ describe('applyDictationMenuAction', () => {
     ];
     const next = applyDictationMenuAction(draft, { type: 'insertDictation' }, { start: 9, end: 16 });
     expect(next).toEqual(draft);
-    expect(draftText(next)).toBe('Keep me. Hello. World.');
-    expect(activeTranscript(next)).toBe('Keep me. Hello. ');
+  });
+
+  it('does not mutate the transcription box when promoting to the manuscript', () => {
+    const draft = plainDraft('Hello. World.');
+    expect(applyDictationMenuAction(draft, { type: 'promoteToManuscript' }, { start: 7, end: 7 })).toEqual(draft);
   });
 });
 
