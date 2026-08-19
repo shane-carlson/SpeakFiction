@@ -78,6 +78,32 @@ function DragHandle({ label }: { label: string }) {
   );
 }
 
+function ChapterRemoveControl({
+  open,
+  onOpen,
+}: {
+  open: boolean;
+  onOpen: (x: number, y: number) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="btn ghost ms-block-remove"
+      aria-label="Chapter remove options"
+      aria-haspopup="menu"
+      aria-expanded={open}
+      title="Remove chapter"
+      onClick={(e) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        onOpen(rect.right - 8, rect.bottom + 4);
+      }}
+    >
+      ✕
+    </button>
+  );
+}
+
 type SpellField = 'text' | 'title' | 'caption' | 'alt';
 
 function spellFieldFromTarget(target: EventTarget | null): SpellField | null {
@@ -153,12 +179,20 @@ export function ManuscriptView({
   const updateBlockText = useStore((s) => s.updateBlockText);
   const updateBlockTitle = useStore((s) => s.updateBlockTitle);
   const deleteBlock = useStore((s) => s.deleteBlock);
+  const unwrapHeading = useStore((s) => s.unwrapHeading);
+  const deleteBlockRange = useStore((s) => s.deleteBlockRange);
   const moveManuscriptRange = useStore((s) => s.moveManuscriptRange);
   const insertManuscriptStructure = useStore((s) => s.insertManuscriptStructure);
   const insertManuscriptImage = useStore((s) => s.insertManuscriptImage);
   const formatManuscript = useStore((s) => s.formatManuscript);
   const updateImageCaption = useStore((s) => s.updateImageCaption);
   const updateImageAlt = useStore((s) => s.updateImageAlt);
+  const updateTableCell = useStore((s) => s.updateTableCell);
+  const [chapterMenu, setChapterMenu] = useState<{
+    x: number;
+    y: number;
+    blockId: string;
+  } | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -438,6 +472,10 @@ export function ManuscriptView({
                     report(b.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.selectionEnd ?? 0)
                   }
                 />
+                <ChapterRemoveControl
+                  open={chapterMenu?.blockId === b.id}
+                  onOpen={(x, y) => setChapterMenu({ x, y, blockId: b.id })}
+                />
               </div>
             );
           } else if (b.type === 'scene') {
@@ -511,10 +549,63 @@ export function ManuscriptView({
                   onAlt={(alt) => updateImageAlt(book.id, b.id, alt)}
                 />
                 <button
-                  className="btn ghost"
-                  style={{ position: 'absolute', right: 0, top: 0, padding: '2px 8px', fontSize: 11 }}
+                  className="btn ghost ms-block-remove is-absolute"
                   onClick={() => deleteBlock(book.id, b.id)}
                   aria-label="Delete image"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          } else if (b.type === 'table' && b.table) {
+            const cols = Math.max(0, ...b.table.rows.map((r) => r.length));
+            body = (
+              <div
+                className={dragging ? 'ms-table-block is-dragging' : 'ms-table-block'}
+                data-block-id={b.id}
+                draggable
+                onDragStart={(e) => beginDrag(e, i, b)}
+                onClick={() => report(b.id)}
+              >
+                <span
+                  className="ms-drag-handle"
+                  draggable
+                  aria-label="Move table"
+                  title="Move table"
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    beginDrag(e, i, b);
+                  }}
+                >
+                  ⋮⋮
+                </span>
+                <table className="ms-table">
+                  <tbody>
+                    {b.table.rows.map((row, ri) => (
+                      <tr key={ri}>
+                        {Array.from({ length: cols }, (_, ci) => (
+                          <td key={ci}>
+                            <input
+                              className="ms-table-cell"
+                              value={row[ci]?.text ?? ''}
+                              aria-label={`Table cell row ${ri + 1} column ${ci + 1}`}
+                              spellCheck={true}
+                              draggable={false}
+                              onChange={(e) => updateTableCell(book.id, b.id, ri, ci, e.target.value)}
+                              onFocus={(e) =>
+                                report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button
+                  className="btn ghost ms-block-remove is-absolute"
+                  onClick={() => deleteBlock(book.id, b.id)}
+                  aria-label="Delete table"
                 >
                   ✕
                 </button>
@@ -550,8 +641,7 @@ export function ManuscriptView({
                   }}
                 />
                 <button
-                  className="btn ghost"
-                  style={{ position: 'absolute', right: 0, top: 0, padding: '2px 8px', fontSize: 11 }}
+                  className="btn ghost ms-block-remove is-absolute"
                   onClick={() => deleteBlock(book.id, b.id)}
                   aria-label="Delete paragraph"
                 >
@@ -569,6 +659,25 @@ export function ManuscriptView({
         })}
       </div>
       {insertMenu}
+      {chapterMenu && (
+        <AppContextMenu
+          x={chapterMenu.x}
+          y={chapterMenu.y}
+          items={[
+            { id: 'unwrap-header', label: 'Remove chapter header', group: 'chapter' },
+            { id: 'delete-chapter', label: 'Delete chapter', group: 'chapter' },
+          ]}
+          onClose={() => setChapterMenu(null)}
+          onSelect={(id) => {
+            const blockId = chapterMenu.blockId;
+            if (id === 'unwrap-header') unwrapHeading(book.id, blockId);
+            if (id === 'delete-chapter') {
+              const ok = window.confirm('Delete this chapter and all of its content?');
+              if (ok) deleteBlockRange(book.id, blockId);
+            }
+          }}
+        />
+      )}
     </>
   );
 }

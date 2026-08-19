@@ -2,17 +2,25 @@ import { describe, expect, it } from 'vitest';
 import {
   appendSegments,
   chapterOrder,
+  deleteMovableRange,
   emptyManuscript,
+  emptyTable,
   formatParagraph,
   insertEmptyStructure,
   insertImageBlock,
   insertSegments,
+  insertTableBlock,
   manuscriptStats,
   movableRange,
   moveBlockRange,
   resolveInsertIndex,
   setBlockKind,
   setBlockTitle,
+  TABLE_MAX_COLS,
+  TABLE_MAX_ROWS,
+  TABLE_MIN_COLS,
+  TABLE_MIN_ROWS,
+  unwrapHeading,
   validDropIndices,
 } from '../manuscript';
 import type { Segment } from '../audioCues';
@@ -325,5 +333,63 @@ describe('insertImageBlock', () => {
     expect(next[4].type).toBe('scene');
     expect(next[5].text).toBe('Two sentries crossed their spears.');
     expect(next).toHaveLength(blocks.length + 1);
+  });
+});
+
+describe('unwrapHeading vs deleteMovableRange', () => {
+  it('removes only the chapter heading and leaves the body behind', () => {
+    const blocks = sampleBook();
+    const next = unwrapHeading(blocks, blocks[0].id);
+    expect(next.map((b) => b.type)).toEqual([
+      'scene',
+      'paragraph',
+      'scene',
+      'paragraph',
+      'chapter',
+      'scene',
+      'paragraph',
+    ]);
+    expect(next[0].title).toBe('The Ridge');
+    expect(next[1].text).toBe('Kaeldros crested the ridge.');
+    expect(chapterOrder(next)).toEqual([
+      { id: blocks[5].id, number: 1, title: "The Oracle's Warning" },
+    ]);
+  });
+
+  it('deletes a chapter heading and its body range', () => {
+    const blocks = sampleBook();
+    const next = deleteMovableRange(blocks, blocks[0].id);
+    expect(next.map((b) => b.type)).toEqual(['chapter', 'scene', 'paragraph']);
+    expect(next[0].title).toBe("The Oracle's Warning");
+    expect(chapterOrder(next)).toEqual([
+      { id: blocks[5].id, number: 1, title: "The Oracle's Warning" },
+    ]);
+  });
+
+  it('renumbers remaining chapters from visual order after unwrap', () => {
+    const blocks = sampleBook();
+    const next = unwrapHeading(blocks, blocks[5].id);
+    expect(chapterOrder(next).map((c) => c.title)).toEqual(['The Exile Returns']);
+    expect(chapterOrder(next).map((c) => c.number)).toEqual([1]);
+    expect(next.at(-1)?.text).toBe('Aelith waited on the lowest step.');
+  });
+});
+
+describe('insertTableBlock', () => {
+  it('inserts a 2x2 table and clamps to 2×2 … 4×8', () => {
+    const blocks = sampleBook();
+    const twoByTwo = insertTableBlock(blocks, 2, 2, { atIndex: 3 });
+    expect(twoByTwo[3].type).toBe('table');
+    expect(twoByTwo[3].table?.rows).toHaveLength(2);
+    expect(twoByTwo[3].table?.rows[0]).toHaveLength(2);
+
+    expect(emptyTable(1, 1).rows).toHaveLength(TABLE_MIN_ROWS);
+    expect(emptyTable(1, 1).rows[0]).toHaveLength(TABLE_MIN_COLS);
+    expect(emptyTable(10, 20).rows).toHaveLength(TABLE_MAX_ROWS);
+    expect(emptyTable(10, 20).rows[0]).toHaveLength(TABLE_MAX_COLS);
+
+    const fourByEight = insertTableBlock([], 4, 8);
+    expect(fourByEight[0].table?.rows).toHaveLength(4);
+    expect(fourByEight[0].table?.rows[0]).toHaveLength(8);
   });
 });

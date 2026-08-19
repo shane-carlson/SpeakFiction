@@ -19,18 +19,29 @@ import {
   insertEmptyStructure,
   insertImageBlock,
   insertSegments,
+  insertTableBlock,
   moveBlockRange,
   setBlockKind,
   setBlockTitle,
   setImageAlt,
   setImageCaption,
   setParagraphContent,
+  setTableCellText,
   trimEmptyBlocks,
+  unwrapHeading,
+  deleteMovableRange,
+  blocksInMovableRange,
   type ManuscriptInsertAt,
   type ManuscriptInsertKind,
   type StructureHeadingKind,
 } from './core/manuscript';
 import { removeMedia } from './core/mediaStore';
+import {
+  cloneDraft,
+  popVoiceCommandSnapshot,
+  pushVoiceCommandSnapshot,
+  type VoiceCommandSnapshot,
+} from './core/voiceCommandUndo';
 import { processTranscript } from './core/dictationProcessor';
 import { getGenre } from './core/genres';
 import { DEFAULT_TENSE } from './core/tense';
@@ -106,6 +117,8 @@ interface AppState {
   lastSeenVersion: string | null;
   setLastSeenVersion: (version: string) => void;
   manuscriptHistory: Record<string, { past: Book['manuscript']['blocks'][]; future: Book['manuscript']['blocks'][] }>;
+  /** Session-only snapshots taken before spoken/chip dictation commands. Not persisted. */
+  voiceCommandUndo: Record<string, VoiceCommandSnapshot[]>;
 
   createSeries: (name: string) => string;
   createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
@@ -130,6 +143,8 @@ interface AppState {
   updateBlockText: (bookId: string, blockId: string, text: string, marks?: InlineMark[]) => void;
   updateBlockTitle: (bookId: string, blockId: string, title: string) => void;
   deleteBlock: (bookId: string, blockId: string) => void;
+  deleteBlockRange: (bookId: string, blockId: string) => void;
+  unwrapHeading: (bookId: string, blockId: string) => void;
   moveManuscriptRange: (bookId: string, fromIndex: number, dropIndex: number) => void;
   insertManuscriptStructure: (
     bookId: string,
@@ -137,6 +152,8 @@ interface AppState {
     dest?: ManuscriptInsertAt,
   ) => void;
   insertManuscriptImage: (bookId: string, image: ManuscriptImage, dest?: ManuscriptInsertAt) => void;
+  insertManuscriptTable: (bookId: string, rows: number, cols: number, dest?: ManuscriptInsertAt) => void;
+  updateTableCell: (bookId: string, blockId: string, row: number, col: number, text: string) => void;
   formatManuscript: (
     bookId: string,
     blockId: string,
@@ -149,6 +166,8 @@ interface AppState {
   undoManuscript: (bookId: string) => void;
   redoManuscript: (bookId: string) => void;
   clearManuscript: (bookId: string) => void;
+  captureVoiceCommand: (bookId: string) => void;
+  undoLastVoiceCommand: (bookId: string) => boolean;
 
   importBookBackup: (backup: BookBackup, replaceExisting: boolean) => 'added' | 'replaced' | 'exists';
   importLibraryBackup: (backup: LibraryBackup, mode: 'merge' | 'replace') => void;
@@ -259,6 +278,7 @@ export const useStore = create<AppState>()(
       lastSeenVersion: null,
       setLastSeenVersion: (version) => set({ lastSeenVersion: normalizeLastSeenVersion(version) }),
       manuscriptHistory: {},
+      voiceCommandUndo: {},
 
       createSeries: (name) => {
         const id = uid('ser');
@@ -294,6 +314,7 @@ export const useStore = create<AppState>()(
             dictationDrafts: omitKey(s.dictationDrafts, id),
             manuscriptPlace: omitKey(s.manuscriptPlace, id),
             manuscriptHistory: omitKey(s.manuscriptHistory, id),
+            voiceCommandUndo: omitKey(s.voiceCommandUndo, id),
             activeBookId: s.activeBookId === id ? books[0]?.id ?? null : s.activeBookId,
           };
         }),
@@ -412,6 +433,28 @@ export const useStore = create<AppState>()(
           };
         }),
 
+      unwrapHeading: (bookId, blockId) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: unwrapHeading(b.manuscript.blocks, blockId) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        })),
+
+      deleteBlockRange: (bookId, blockId) =>
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          if (book) dropImageMedia(blocksInMovableRange(book.manuscript.blocks, blockId));
+          return {
+            books: patchBook(s.books, bookId, (b) => ({
+              ...b,
+              manuscript: { blocks: deleteMovableRange(b.manuscript.blocks, blockId) },
+            })),
+            manuscriptHistory: pushHistory(s, bookId),
+          };
+        }),
+
       moveManuscriptRange: (bookId, fromIndex, dropIndex) =>
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
@@ -437,6 +480,23 @@ export const useStore = create<AppState>()(
             manuscript: { blocks: insertImageBlock(b.manuscript.blocks, image, dest) },
           })),
           manuscriptHistory: pushHistory(s, bookId),
+        })),
+
+      insertManuscriptTable: (bookId, rows, cols, dest) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: insertTableBlock(b.manuscript.blocks, rows, cols, dest) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        })),
+
+      updateTableCell: (bookId, blockId, row, col, text) =>
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: setTableCellText(b.manuscript.blocks, blockId, row, col, text) },
+          })),
         })),
 
       formatManuscript: (bookId, blockId, range, action) =>
@@ -516,8 +576,40 @@ export const useStore = create<AppState>()(
           return {
             books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: emptyManuscript() })),
             manuscriptHistory: pushHistory(s, bookId),
+            voiceCommandUndo: omitKey(s.voiceCommandUndo, bookId),
           };
         }),
+
+      captureVoiceCommand: (bookId) =>
+        set((s) => {
+          const book = s.books.find((b) => b.id === bookId);
+          if (!book) return s;
+          const snap: VoiceCommandSnapshot = {
+            draft: cloneDraft(s.dictationDrafts[bookId] ?? []),
+            blocks: book.manuscript.blocks,
+          };
+          return {
+            voiceCommandUndo: {
+              ...s.voiceCommandUndo,
+              [bookId]: pushVoiceCommandSnapshot(s.voiceCommandUndo[bookId] ?? [], snap),
+            },
+          };
+        }),
+
+      undoLastVoiceCommand: (bookId) => {
+        const s = get();
+        const { stack, snap } = popVoiceCommandSnapshot(s.voiceCommandUndo[bookId] ?? []);
+        if (!snap) return false;
+        set({
+          voiceCommandUndo: { ...s.voiceCommandUndo, [bookId]: stack },
+          dictationDrafts: { ...s.dictationDrafts, [bookId]: snap.draft },
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: snap.blocks },
+          })),
+        });
+        return true;
+      },
 
       importBookBackup: (backup, replaceExisting) => {
         const incoming = { ...backup.book, updatedAt: Date.now() };
@@ -644,6 +736,7 @@ export const useStore = create<AppState>()(
             }),
           ),
           series: p.series ?? current.series,
+          voiceCommandUndo: current.voiceCommandUndo,
         };
       },
     },

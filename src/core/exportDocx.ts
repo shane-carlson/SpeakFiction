@@ -5,8 +5,12 @@ import {
   ImageRun,
   Packer,
   Paragraph,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
   UnderlineType,
+  WidthType,
 } from 'docx';
 import type { Manuscript } from './types';
 import type { ExportContext } from './export';
@@ -79,9 +83,32 @@ function imageParagraphs(info: ExportImageBytes, fallback: string): Paragraph[] 
   return out;
 }
 
+function docxTable(block: Manuscript['blocks'][number]): Table | null {
+  const rows = block.table?.rows ?? [];
+  if (!rows.length) return null;
+  const cols = Math.max(0, ...rows.map((r) => r.length));
+  if (cols === 0) return null;
+  const width = Math.max(720, Math.floor(9360 / cols));
+  return new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    rows: rows.map(
+      (row) =>
+        new TableRow({
+          children: Array.from({ length: cols }, (_, i) => {
+            const text = row[i]?.text ?? '';
+            return new TableCell({
+              width: { size: width, type: WidthType.DXA },
+              children: [new Paragraph({ children: [new TextRun(text)] })],
+            });
+          }),
+        }),
+    ),
+  });
+}
+
 /** Build a Word-compatible .docx Document from the manuscript. */
 export function buildDocx(m: Manuscript, ctx: ExportContext): Document {
-  const children: Paragraph[] = [
+  const children: Array<Paragraph | Table> = [
     new Paragraph({ text: ctx.title, heading: HeadingLevel.TITLE }),
   ];
   if (ctx.author) {
@@ -139,6 +166,11 @@ export function buildDocx(m: Manuscript, ctx: ExportContext): Document {
             }),
           );
         }
+        break;
+      }
+      case 'table': {
+        const table = docxTable(b);
+        if (table) children.push(table);
         break;
       }
     }

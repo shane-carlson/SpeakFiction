@@ -5,6 +5,8 @@ import type {
   InlineMarkKind,
   Manuscript,
   ManuscriptImage,
+  ManuscriptTable,
+  TableCell,
 } from './types';
 import type { Segment } from './audioCues';
 import {
@@ -147,7 +149,33 @@ const STRUCTURE_RANK: Record<BlockType, number> = {
   section: 1,
   paragraph: 2,
   image: 2,
+  table: 2,
 };
+
+const HEADING_TYPES = new Set<BlockType>(['chapter', 'scene', 'section']);
+
+export const TABLE_MIN_ROWS = 2;
+export const TABLE_MAX_ROWS = 4;
+export const TABLE_MIN_COLS = 2;
+export const TABLE_MAX_COLS = 8;
+
+function clampTableDim(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+/** Empty rectangular table. Dimensions clamp to 2×2 … 4×8. */
+export function emptyTable(rows: number, cols: number): ManuscriptTable {
+  const r = clampTableDim(rows, TABLE_MIN_ROWS, TABLE_MAX_ROWS);
+  const c = clampTableDim(cols, TABLE_MIN_COLS, TABLE_MAX_COLS);
+  const grid: TableCell[][] = [];
+  for (let i = 0; i < r; i++) {
+    const row: TableCell[] = [];
+    for (let j = 0; j < c; j++) row.push({ text: '' });
+    grid.push(row);
+  }
+  return { rows: grid };
+}
 
 export interface BlockRange {
   start: number;
@@ -164,6 +192,30 @@ export function movableRange(blocks: Block[], index: number): BlockRange | null 
     end++;
   }
   return { start: index, end };
+}
+
+/** Delete only a heading block; following body stays and belongs to whatever precedes. */
+export function unwrapHeading(blocks: Block[], blockId: string): Block[] {
+  const index = blocks.findIndex((b) => b.id === blockId);
+  if (index < 0) return blocks;
+  if (!HEADING_TYPES.has(blocks[index].type)) return blocks;
+  return [...blocks.slice(0, index), ...blocks.slice(index + 1)];
+}
+
+/** Remove the movable range of a block (heading plus body until next same-or-higher rank). */
+export function deleteMovableRange(blocks: Block[], blockId: string): Block[] {
+  const index = blocks.findIndex((b) => b.id === blockId);
+  const range = movableRange(blocks, index);
+  if (!range) return blocks;
+  return [...blocks.slice(0, range.start), ...blocks.slice(range.end)];
+}
+
+/** Blocks that `deleteMovableRange` would drop (for image media cleanup). */
+export function blocksInMovableRange(blocks: Block[], blockId: string): Block[] {
+  const index = blocks.findIndex((b) => b.id === blockId);
+  const range = movableRange(blocks, index);
+  if (!range) return [];
+  return blocks.slice(range.start, range.end);
 }
 
 /**
@@ -253,13 +305,45 @@ export function insertImageBlock(
   return [...before, ...incoming, ...after];
 }
 
+export function insertTableBlock(
+  blocks: Block[],
+  rows: number,
+  cols: number,
+  dest?: ManuscriptInsertAt,
+): Block[] {
+  const incoming: Block[] = [{ id: uid('blk'), type: 'table', table: emptyTable(rows, cols) }];
+  const { before, after, append } = spliceAround(blocks, dest);
+  if (append) return [...blocks, ...incoming];
+  return [...before, ...incoming, ...after];
+}
+
+export function setTableCellText(
+  blocks: Block[],
+  blockId: string,
+  row: number,
+  col: number,
+  text: string,
+): Block[] {
+  return blocks.map((b) => {
+    if (b.id !== blockId || b.type !== 'table' || !b.table) return b;
+    const rows = b.table.rows;
+    if (row < 0 || row >= rows.length) return b;
+    const cells = rows[row];
+    if (col < 0 || col >= cells.length) return b;
+    const nextRows = rows.map((r, ri) =>
+      ri !== row ? r : r.map((cell, ci) => (ci !== col ? cell : { ...cell, text })),
+    );
+    return { ...b, table: { rows: nextRows } };
+  });
+}
+
 /** Heading levels map onto manuscript structure, not a parallel HTML heading system. */
 export type StructureHeadingKind = 'chapter' | 'scene' | 'section' | 'paragraph';
 
 export function setBlockKind(blocks: Block[], blockId: string, kind: StructureHeadingKind): Block[] {
   return blocks.map((b) => {
     if (b.id !== blockId) return b;
-    if (b.type === 'image') return b;
+    if (b.type === 'image' || b.type === 'table') return b;
     if (b.type === kind) return b;
     if (kind === 'paragraph') {
       const text = (b.title || b.text || '').trim();
@@ -344,6 +428,7 @@ export interface ManuscriptStats {
   sections: number;
   paragraphs: number;
   images: number;
+  tables: number;
 }
 
 export function manuscriptStats(m: Manuscript): ManuscriptStats {
@@ -354,6 +439,7 @@ export function manuscriptStats(m: Manuscript): ManuscriptStats {
     sections: 0,
     paragraphs: 0,
     images: 0,
+    tables: 0,
   };
   for (const b of m.blocks) {
     switch (b.type) {
@@ -372,6 +458,12 @@ export function manuscriptStats(m: Manuscript): ManuscriptStats {
         break;
       case 'image':
         stats.images++;
+        break;
+      case 'table':
+        stats.tables++;
+        for (const row of b.table?.rows ?? []) {
+          for (const cell of row) stats.words += countWords(cell.text ?? '');
+        }
         break;
     }
   }

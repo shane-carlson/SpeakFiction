@@ -1,4 +1,4 @@
-import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage, NameEntry, Series } from './types';
+import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage, ManuscriptTable, NameEntry, Series, TableCell } from './types';
 import { emptyAdaptiveState } from './adaptiveModel';
 import { DEFAULT_TENSE } from './tense';
 import { DEFAULT_PERSPECTIVE } from './perspective';
@@ -154,7 +154,28 @@ function normalizeImage(raw: unknown): ManuscriptImage | undefined {
   };
 }
 
-const BLOCK_TYPES = new Set(['chapter', 'scene', 'section', 'paragraph', 'image']);
+const BLOCK_TYPES = new Set(['chapter', 'scene', 'section', 'paragraph', 'image', 'table']);
+
+function normalizeTable(raw: unknown): ManuscriptTable | undefined {
+  const rec = asRecord(raw);
+  const rowsRaw = rec && Array.isArray(rec.rows) ? rec.rows : Array.isArray(raw) ? raw : null;
+  if (!rowsRaw || !rowsRaw.length) return undefined;
+  const rows: TableCell[][] = [];
+  for (const row of rowsRaw) {
+    if (!Array.isArray(row)) continue;
+    const cells: TableCell[] = [];
+    for (const cell of row) {
+      if (typeof cell === 'string') {
+        cells.push({ text: cell });
+        continue;
+      }
+      const item = asRecord(cell);
+      cells.push({ text: typeof item?.text === 'string' ? item.text : '' });
+    }
+    if (cells.length) rows.push(cells);
+  }
+  return rows.length ? { rows } : undefined;
+}
 
 function normalizeManuscript(raw: unknown): Manuscript {
   const rec = asRecord(raw);
@@ -178,6 +199,10 @@ function normalizeManuscript(raw: unknown): Manuscript {
         if (type === 'image') {
           const image = normalizeImage(b.image);
           if (image) block.image = image;
+        }
+        if (type === 'table') {
+          const table = normalizeTable(b.table);
+          if (table) block.table = table;
         }
         return block;
       }),

@@ -24,6 +24,7 @@ import {
   type ManuscriptInsertKind,
   type StructureHeadingKind,
 } from '../core/manuscript';
+import { containsStructureCue } from '../core/audioCues';
 import { ManuscriptView } from '../components/ManuscriptView';
 import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
@@ -84,10 +85,13 @@ export function DictationView({
   const setManuscriptPlace = useStore((s) => s.setManuscriptPlace);
   const insertManuscriptStructure = useStore((s) => s.insertManuscriptStructure);
   const insertManuscriptImage = useStore((s) => s.insertManuscriptImage);
+  const insertManuscriptTable = useStore((s) => s.insertManuscriptTable);
   const formatManuscript = useStore((s) => s.formatManuscript);
   const setManuscriptBlockKind = useStore((s) => s.setManuscriptBlockKind);
   const undoManuscript = useStore((s) => s.undoManuscript);
   const redoManuscript = useStore((s) => s.redoManuscript);
+  const captureVoiceCommand = useStore((s) => s.captureVoiceCommand);
+  const undoLastVoiceCommand = useStore((s) => s.undoLastVoiceCommand);
   const canUndo = useStore((s) => (s.manuscriptHistory[book.id]?.past.length ?? 0) > 0);
   const canRedo = useStore((s) => (s.manuscriptHistory[book.id]?.future.length ?? 0) > 0);
   const [outcome, setOutcome] = useState<DictationOutcome | null>(null);
@@ -121,6 +125,7 @@ export function DictationView({
       });
       if (!cleaned) return;
       const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+      if (containsStructureCue(cleaned)) captureVoiceCommand(book.id);
       const at = transcriptCaretRef.current;
       const next = joinDraftAt(prev, cleaned, at);
       const caret = caretAfterJoin(prev, next, at);
@@ -128,10 +133,11 @@ export function DictationView({
       setBoxCaret(caret);
       setDictationDraft(book.id, next);
     },
-    [book.adaptive, book.id, book.nameLibrary, book.perspectiveId, book.tenseId, genre, setDictationDraft],
+    [book.adaptive, book.id, book.nameLibrary, book.perspectiveId, book.tenseId, captureVoiceCommand, genre, setDictationDraft],
   );
 
   const appendCue = useCallback((cue: string) => {
+    captureVoiceCommand(book.id);
     const prev = useStore.getState().dictationDrafts[book.id] ?? [];
     const at = transcriptCaretRef.current;
     const next = at == null ? appendCueText(prev, cue) : insertCueAt(prev, at, cue);
@@ -139,7 +145,7 @@ export function DictationView({
     transcriptCaretRef.current = caret;
     setBoxCaret(caret);
     setDictationDraft(book.id, next);
-  }, [book.id, setDictationDraft]);
+  }, [book.id, captureVoiceCommand, setDictationDraft]);
   const handleProfile = useCallback(
     (profile: { label: string }) => {
       rememberSttProfile(profile.label);
@@ -149,9 +155,16 @@ export function DictationView({
   );
   const handleCommand = useCallback(
     (command: DictationCommand) => {
-      if (command === 'strikeLastSentence') setDraft(strikeLastSentence);
+      if (command === 'undoLastCommand') {
+        undoLastVoiceCommand(book.id);
+        return;
+      }
+      if (command === 'strikeLastSentence') {
+        captureVoiceCommand(book.id);
+        setDraft(strikeLastSentence);
+      }
     },
-    [setDraft],
+    [book.id, captureVoiceCommand, setDraft, undoLastVoiceCommand],
   );
   const speech = useSpeechRecognition(handleFinal, audioSettings, handleProfile, {
     mayDictate: license.mayDictate,
@@ -248,13 +261,14 @@ export function DictationView({
     (dest?: ManuscriptInsertAt) => {
       const { transcript, remaining } = takeInsertTranscript(draft);
       if (!transcript) return;
+      captureVoiceCommand(book.id);
       const result = applyDictation(book.id, transcript, dest);
       setOutcome(result);
       setDraft(remaining);
       transcriptCaretRef.current = 0;
       setBoxCaret(0);
     },
-    [applyDictation, book.id, draft, setDraft],
+    [applyDictation, book.id, captureVoiceCommand, draft, setDraft],
   );
   const insertIntoTranscript = useCallback((offset: number) => {
     transcriptCaretRef.current = offset;
@@ -364,6 +378,7 @@ export function DictationView({
       onToggleEditor={() => setEditorOpen((open) => !open)}
       onInsertStructure={onInsertStructure}
       onInsertImage={() => void pickImage()}
+      onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}
       onFormat={onFormat}
       onClearFormat={onClearFormat}
       onSetKind={onSetKind}
@@ -423,6 +438,7 @@ export function DictationView({
                   onToggleEditor={() => setEditorOpen((open) => !open)}
                   onInsertStructure={onInsertStructure}
                   onInsertImage={() => void pickImage()}
+                  onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}
                   onFormat={onFormat}
                   onClearFormat={onClearFormat}
                   onSetKind={onSetKind}
@@ -442,7 +458,10 @@ export function DictationView({
                   canInsert={canInsertDictation}
                   onInsert={promoteAtManuscriptPlace}
                   onInsertIntoBox={insertIntoTranscript}
-                  onStrikeLast={() => setDraft(strikeLastSentence)}
+                  onStrikeLast={() => {
+                    captureVoiceCommand(book.id);
+                    setDraft(strikeLastSentence);
+                  }}
                 />
                 {imageError && (
                   <div className="hint" style={{ color: 'var(--warn)' }}>
@@ -561,7 +580,8 @@ export function DictationView({
               )}
               <div className="hint dictate-keys">
                 Say <span className="kbd">start dictation</span> <span className="kbd">pause dictation</span>{' '}
-                <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>
+                <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>{' '}
+                <span className="kbd">undo last command</span>
               </div>
               <div className="hint dictate-keys">
                 While listening: <span className="kbd">Space</span> new paragraph ·{' '}
@@ -612,7 +632,10 @@ export function DictationView({
               className="badge"
               style={{ cursor: 'pointer' }}
               title="Mark the last sentence in the dictation box as struck. Struck text stays visible and is omitted on insert."
-              onClick={() => setDraft(strikeLastSentence)}
+              onClick={() => {
+                captureVoiceCommand(book.id);
+                setDraft(strikeLastSentence);
+              }}
             >
               strike last sentence
             </button>

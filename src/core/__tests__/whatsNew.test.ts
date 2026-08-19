@@ -159,6 +159,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.9 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.9')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.9',
+      build: 24,
+      pending: {
+        version: '0.2.9',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.9'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Right-click a chapter heading to drop just the header and keep the body, or delete the whole chapter after you confirm',
+      'Say “undo last command” (or last voice, audio, or verbal command) to take back the last spoken cue',
+      'Insert a picture from the icon next to Bold, Italic, Underline, and Strikethrough',
+      'Insert a table from the toolbar — pick 2×2 through 4×8 — and export it with the manuscript',
+    ]);
+  });
+
   it('uses curated 0.2.8 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.8')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

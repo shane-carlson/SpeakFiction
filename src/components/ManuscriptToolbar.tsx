@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { Block, InlineMarkKind } from '../core/types';
 import type { ManuscriptInsertKind, StructureHeadingKind } from '../core/manuscript';
+import { TableGridPicker } from './TableGridPicker';
 
 const STRUCTURE_BUTTONS: Array<{ kind: ManuscriptInsertKind; label: string; short: string }> = [
   { kind: 'chapter', label: 'New chapter', short: 'Chapter' },
@@ -22,6 +24,49 @@ const FORMAT_BUTTONS: Array<{ kind: InlineMarkKind; label: string; hint: string 
   { kind: 'strike', label: 'S', hint: 'Strikethrough' },
 ];
 
+function ImageGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="11"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+      />
+      <circle cx="5.4" cy="6.1" r="1.15" fill="currentColor" />
+      <path
+        d="M2.2 12.2l3.6-3.7 2.2 2.1 2.6-3.1 3.2 4.7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TableGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="11"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+      />
+      <path d="M1.5 8h13M8 2.5v11" fill="none" stroke="currentColor" strokeWidth="1.35" />
+    </svg>
+  );
+}
+
 export function ManuscriptToolbar({
   focused,
   canUndo,
@@ -31,6 +76,7 @@ export function ManuscriptToolbar({
   onToggleEditor,
   onInsertStructure,
   onInsertImage,
+  onInsertTable,
   onFormat,
   onClearFormat,
   onSetKind,
@@ -45,14 +91,16 @@ export function ManuscriptToolbar({
   onToggleEditor: () => void;
   onInsertStructure: (kind: ManuscriptInsertKind) => void;
   onInsertImage: () => void;
+  onInsertTable: (rows: number, cols: number) => void;
   onFormat: (kind: InlineMarkKind) => void;
   onClearFormat: () => void;
   onSetKind: (kind: StructureHeadingKind) => void;
   onUndo: () => void;
   onRedo: () => void;
 }) {
-  const heading = focused && focused.type !== 'image' ? focused.type : null;
+  const heading = focused && focused.type !== 'image' && focused.type !== 'table' ? focused.type : null;
   const formatEnabled = focused?.type === 'paragraph';
+  const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
 
   return (
     <div
@@ -66,9 +114,6 @@ export function ManuscriptToolbar({
             {layout === 'rail' ? b.short : b.label}
           </button>
         ))}
-        <button type="button" className="btn compact" onClick={onInsertImage}>
-          {layout === 'rail' ? 'Image' : 'Insert image'}
-        </button>
       </div>
       <div className="ms-toolbar-group ms-toolbar-format">
         {FORMAT_BUTTONS.map((b) => (
@@ -83,6 +128,29 @@ export function ManuscriptToolbar({
             {b.label}
           </button>
         ))}
+        <button
+          type="button"
+          className="btn compact ms-format-icon"
+          title="Insert image"
+          aria-label="Insert image"
+          onClick={onInsertImage}
+        >
+          <ImageGlyph />
+        </button>
+        <button
+          type="button"
+          className="btn compact ms-format-icon"
+          title="Insert table"
+          aria-label="Insert table"
+          aria-haspopup="dialog"
+          aria-expanded={Boolean(tableMenu)}
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setTableMenu({ x: rect.left, y: rect.bottom + 4 });
+          }}
+        >
+          <TableGlyph />
+        </button>
         <button type="button" className="btn compact ghost" disabled={!formatEnabled} onClick={onClearFormat}>
           {layout === 'rail' ? 'Clear' : 'Clear format'}
         </button>
@@ -95,7 +163,7 @@ export function ManuscriptToolbar({
               key={b.kind}
               type="button"
               className={`btn compact${heading === b.kind ? ' primary' : ''}`}
-              disabled={!focused || focused.type === 'image'}
+              disabled={!focused || focused.type === 'image' || focused.type === 'table'}
               onClick={() => onSetKind(b.kind)}
             >
               {b.label}
@@ -120,6 +188,17 @@ export function ManuscriptToolbar({
           {editorOpen ? 'Exit' : 'Full screen'}
         </button>
       </div>
+      {tableMenu && (
+        <TableGridPicker
+          x={tableMenu.x}
+          y={tableMenu.y}
+          onClose={() => setTableMenu(null)}
+          onSelect={(rows, cols) => {
+            setTableMenu(null);
+            onInsertTable(rows, cols);
+          }}
+        />
+      )}
     </div>
   );
 }

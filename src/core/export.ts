@@ -51,6 +51,29 @@ function imageMarkdown(block: Block, ctx: ExportContext): string {
   return caption && caption !== alt ? `${figure}\n\n*${caption}*` : figure;
 }
 
+function escapeMdCell(text: string): string {
+  return text.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim();
+}
+
+function tableMarkdown(block: Block): string | null {
+  const rows = block.table?.rows ?? [];
+  if (!rows.length) return null;
+  const cols = Math.max(0, ...rows.map((r) => r.length));
+  if (cols === 0) return null;
+  const line = (row: (typeof rows)[number]) =>
+    `| ${Array.from({ length: cols }, (_, i) => escapeMdCell(row[i]?.text ?? '')).join(' | ')} |`;
+  const header = line(rows[0]);
+  const sep = `| ${Array.from({ length: cols }, () => '---').join(' | ')} |`;
+  const body = rows.slice(1).map(line);
+  return [header, sep, ...body].join('\n');
+}
+
+function tablePlain(block: Block): string | null {
+  const rows = block.table?.rows ?? [];
+  if (!rows.length) return null;
+  return rows.map((row) => row.map((c) => (c.text ?? '').replace(/\n/g, ' ')).join('\t')).join('\n');
+}
+
 /** Markdown export. Chapters/sections use headings; scenes use a break glyph. */
 export function toMarkdown(m: Manuscript, ctx: ExportContext): string {
   const lines: string[] = [`# ${ctx.title}`];
@@ -78,6 +101,11 @@ export function toMarkdown(m: Manuscript, ctx: ExportContext): string {
       case 'image':
         lines.push('', imageMarkdown(b, ctx), '');
         break;
+      case 'table': {
+        const md = tableMarkdown(b);
+        if (md) lines.push('', md, '');
+        break;
+      }
     }
   }
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
@@ -107,6 +135,11 @@ export function toPlainText(m: Manuscript, ctx: ExportContext): string {
       case 'image':
         lines.push('', `[image: ${imageLabel(b, b.image ? ctx.images?.[b.image.mediaId] : undefined)}]`, '');
         break;
+      case 'table': {
+        const grid = tablePlain(b);
+        if (grid) lines.push('', grid, '');
+        break;
+      }
     }
   }
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
@@ -121,6 +154,20 @@ function rtfEscape(text: string): string {
     else out += ch;
   }
   return out;
+}
+
+function rtfTable(block: Block): string | null {
+  const rows = block.table?.rows ?? [];
+  if (!rows.length) return null;
+  const cols = Math.max(0, ...rows.map((r) => r.length));
+  if (cols === 0) return null;
+  const cellW = Math.max(720, Math.floor(9360 / cols));
+  const cellx = Array.from({ length: cols }, (_, i) => `\\cellx${(i + 1) * cellW}`).join('');
+  const body = rows.map((row) => {
+    const cells = Array.from({ length: cols }, (_, i) => `${rtfEscape(row[i]?.text ?? '')}\\intbl\\cell`);
+    return `\\trowd\\trgaph70${cellx}${cells.join('')}\\row`;
+  });
+  return `${body.join('\n')}\\pard\\par`;
 }
 
 function rtfSplitDelimiter(): string {
@@ -209,6 +256,11 @@ export function toRtf(
         else parts.push(`\\pard\\qc ${rtfEscape(`[image: ${label}]`)}\\par\\pard\\ql`);
         const caption = info?.caption?.trim() || b.image?.caption?.trim();
         if (caption) parts.push(`\\pard\\qc{\\i ${rtfEscape(caption)}\\par}\\pard\\ql`);
+        break;
+      }
+      case 'table': {
+        const grid = rtfTable(b);
+        if (grid) parts.push(grid);
         break;
       }
     }

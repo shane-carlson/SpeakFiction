@@ -21,6 +21,7 @@ export function liveInsertIsEmpty(manuscript: Manuscript): boolean {
     stats.chapters === 0 &&
     stats.scenes === 0 &&
     stats.sections === 0 &&
-    stats.images === 0
+    stats.images === 0 &&
+    stats.tables === 0
   );
 }

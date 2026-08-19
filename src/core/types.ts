@@ -78,7 +78,7 @@ export interface GenreProfile {
   sceneBreakGlyph: string;
 }
 
-export type BlockType = 'chapter' | 'scene' | 'section' | 'paragraph' | 'image';
+export type BlockType = 'chapter' | 'scene' | 'section' | 'paragraph' | 'image' | 'table';
 
 /** Inline formatting on a paragraph. Offsets are into `text` (plain string). */
 export type InlineMarkKind = 'bold' | 'italic' | 'underline' | 'strike';
@@ -103,6 +103,17 @@ export interface ManuscriptImage {
   height?: number;
 }
 
+/** One cell in a manuscript table. Plain text; marks are optional. */
+export interface TableCell {
+  text: string;
+  marks?: InlineMark[];
+}
+
+/** First-class table: a rectangular grid of cells. */
+export interface ManuscriptTable {
+  rows: TableCell[][];
+}
+
 /** One node in the linear manuscript model. */
 export interface Block {
   id: string;
@@ -115,6 +126,8 @@ export interface Block {
   marks?: InlineMark[];
   /** Present when `type` is `image`. */
   image?: ManuscriptImage;
+  /** Present when `type` is `table`. */
+  table?: ManuscriptTable;
 }
 
 export interface Manuscript {

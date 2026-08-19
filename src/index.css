@@ -1173,7 +1173,8 @@ label {
 .ms-scene:hover .ms-drag-handle,
 .ms-section:hover .ms-drag-handle,
 .ms-para:hover .ms-drag-handle,
-.ms-image-block:hover .ms-drag-handle {
+.ms-image-block:hover .ms-drag-handle,
+.ms-table-block:hover .ms-drag-handle {
   opacity: 0.9;
 }
 .ms-drag-handle:active {
@@ -1183,7 +1184,8 @@ label {
 .ms-scene.is-dragging,
 .ms-section.is-dragging,
 .ms-para.is-dragging,
-.ms-image-block.is-dragging {
+.ms-image-block.is-dragging,
+.ms-table-block.is-dragging {
   opacity: 0.4;
 }
 .ms-insert-gap {
@@ -1250,6 +1252,86 @@ label {
 }
 .ms-format-strike {
   text-decoration: line-through;
+}
+.ms-format-icon {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.ms-format-icon svg {
+  display: block;
+}
+.ms-block-remove {
+  padding: 2px 8px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.ms-block-remove.is-absolute {
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+.ms-table-block {
+  position: relative;
+  padding-left: 18px;
+  margin: 12px 0 18px;
+}
+.ms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font);
+  font-size: 13px;
+}
+.ms-table td {
+  border: 1px solid var(--border);
+  padding: 0;
+  vertical-align: top;
+}
+.ms-table-cell {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 6px 8px;
+  min-width: 4rem;
+}
+.ms-table-cell:hover {
+  background: var(--bg-input);
+}
+.ms-table-cell:focus {
+  outline: none;
+  background: var(--bg-input);
+}
+.ms-table-picker {
+  position: fixed;
+  z-index: 80;
+  padding: 8px;
+  min-width: 0;
+}
+.ms-table-picker-grid {
+  display: grid;
+  gap: 3px;
+}
+.ms-table-picker-cell {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev-2);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.ms-table-picker-cell.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.ms-table-picker-label {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-align: center;
 }
 .ms-para-editor {
   font-family: var(--serif);
@@ -1545,7 +1627,8 @@ label {
 .ms-editor-canvas .ms-para-editor,
 .ms-editor-canvas .ms-chapter,
 .ms-editor-canvas .ms-section,
-.ms-editor-canvas .ms-image-block {
+.ms-editor-canvas .ms-image-block,
+.ms-editor-canvas .ms-table-block {
   width: 100%;
   max-width: none;
   box-sizing: border-box;

@@ -53,4 +53,42 @@ describe('parseVoiceCommand', () => {
       remainder: 'the wind howled',
     });
   });
+
+  it('parses undo last command phrases and strips Whisper punctuation', () => {
+    expect(parseVoiceCommand('undo last command')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('undo last voice command')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('undo last audio command')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('undo last verbal command')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('please undo the last command')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('undo last command period')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+    expect(parseVoiceCommand('undo last command.')).toEqual({
+      command: 'undoLastCommand',
+      remainder: '',
+    });
+  });
+
+  it('leaves following prose after undo last command', () => {
+    expect(parseVoiceCommand('undo last command new paragraph the wind howled')).toEqual({
+      command: 'undoLastCommand',
+      remainder: 'new paragraph the wind howled',
+    });
+  });
 });

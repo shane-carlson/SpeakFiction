@@ -1,4 +1,9 @@
-export type DictationCommand = 'start' | 'pause' | 'stop' | 'strikeLastSentence';
+export type DictationCommand =
+  | 'start'
+  | 'pause'
+  | 'stop'
+  | 'strikeLastSentence'
+  | 'undoLastCommand';
 
 export interface ParsedVoiceCommand {
   command: DictationCommand | null;
@@ -22,6 +27,16 @@ const STOP_IN = /\b(?:stop|end)\s+(?:dictation|listening)\b|\bstop listening\b/i
 const STRIKE_IN =
   /\b(?:please\s+)?(?:strike|scratch)(?:\s+(?:the|that))?\s+last\s+sentence\b\.?|\b(?:please\s+)?(?:strike|scratch)\s+that\s+sentence\b\.?/i;
 
+const UNDO_TAIL = '(?:\\s+(?:period|full stop))?[.!?]?';
+const UNDO_LAST = new RegExp(
+  `^(?:please\\s+)?undo(?:\\s+the)?\\s+last\\s+(?:(?:voice|audio|verbal)\\s+)?command${UNDO_TAIL}$`,
+  'i',
+);
+const UNDO_LAST_IN = new RegExp(
+  `\\b(?:please\\s+)?undo(?:\\s+the)?\\s+last\\s+(?:(?:voice|audio|verbal)\\s+)?command\\b${UNDO_TAIL}`,
+  'i',
+);
+
 function stripMatch(text: string, match: RegExpMatchArray): string {
   const start = match.index ?? 0;
   return `${text.slice(0, start)} ${text.slice(start + match[0].length)}`
@@ -30,10 +45,10 @@ function stripMatch(text: string, match: RegExpMatchArray): string {
 }
 
 /**
- * Detect start/pause/stop and StrikeLastSentence commands. Whole-utterance
- * matches win so that prose like "he hit pause on the tape" is not treated as
- * a command. StrikeLastSentence acts on the dictation box (not the manuscript)
- * and is stripped from the remainder so the spoken words are not inserted.
+ * Detect start/pause/stop, StrikeLastSentence, and undo-last-command.
+ * Whole-utterance matches win so that prose like "he hit pause on the tape"
+ * is not treated as a command. StrikeLastSentence and undo act on the
+ * dictation box (not inserted as prose) and are stripped from the remainder.
  */
 export function parseVoiceCommand(raw: string): ParsedVoiceCommand {
   const text = raw.trim();
@@ -45,7 +60,10 @@ export function parseVoiceCommand(raw: string): ParsedVoiceCommand {
   if (STRIKE.test(text) || STRIKE_THAT.test(text)) {
     return { command: 'strikeLastSentence', remainder: '' };
   }
+  if (UNDO_LAST.test(text)) return { command: 'undoLastCommand', remainder: '' };
 
+  const undo = text.match(UNDO_LAST_IN);
+  if (undo) return { command: 'undoLastCommand', remainder: stripMatch(text, undo) };
   const stop = text.match(STOP_IN);
   if (stop) return { command: 'stop', remainder: stripMatch(text, stop) };
   const pause = text.match(PAUSE_IN);

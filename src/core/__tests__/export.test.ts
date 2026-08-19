@@ -122,4 +122,36 @@ describe('exporters', () => {
     expect(rtf).not.toContain('\\pngblip');
     expect(rtf).toContain('[image: Banner]');
   });
+
+  it('exports a basic table in markdown, plain text, RTF, and docx', () => {
+    const withTable: Manuscript = {
+      blocks: [
+        {
+          id: 'tbl-1',
+          type: 'table',
+          table: {
+            rows: [
+              [{ text: 'Name' }, { text: 'Role' }],
+              [{ text: 'Kaeldros' }, { text: 'Exile' }],
+            ],
+          },
+        },
+      ],
+    };
+    const md = toMarkdown(withTable, ctx);
+    expect(md).toContain('| Name | Role |');
+    expect(md).toContain('| --- | --- |');
+    expect(md).toContain('| Kaeldros | Exile |');
+
+    const txt = toPlainText(withTable, ctx);
+    expect(txt).toContain('Name\tRole');
+    expect(txt).toContain('Kaeldros\tExile');
+
+    const rtf = toRtf(withTable, ctx);
+    expect(rtf).toContain('\\trowd');
+    expect(rtf).toContain('Kaeldros');
+    expect(rtf).toContain('\\cell');
+
+    expect(buildDocx(withTable, ctx)).toBeTruthy();
+  });
 });

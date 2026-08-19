@@ -135,6 +135,30 @@ describe('backup serialize/deserialize', () => {
     expect(parsed.media).toEqual(media);
   });
 
+  it('round-trips a table block', () => {
+    const withTable: Book = {
+      ...book,
+      manuscript: {
+        blocks: [
+          {
+            id: 'tbl-1',
+            type: 'table',
+            table: {
+              rows: [
+                [{ text: 'Name' }, { text: 'Role' }],
+                [{ text: 'Kaeldros' }, { text: 'Exile' }],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    const parsed = parseBackup(backupToJson(serializeBookBackup(withTable, series)));
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.manuscript.blocks[0]).toEqual(withTable.manuscript.blocks[0]);
+  });
+
   it('round-trips romance, queer-lit, and ya genre ids and drops unknown ones', () => {
     for (const genreId of ['romance', 'queer-lit', 'ya'] as const) {
       const json = backupToJson(serializeBookBackup({ ...book, genreId }, series));

@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.9': bullets(
+    'Right-click a chapter heading to drop just the header and keep the body, or delete the whole chapter after you confirm',
+    'Say “undo last command” (or last voice, audio, or verbal command) to take back the last spoken cue',
+    'Insert a picture from the icon next to Bold, Italic, Underline, and Strikethrough',
+    'Insert a table from the toolbar — pick 2×2 through 4×8 — and export it with the manuscript',
+  ),
   '0.2.8': bullets(
     'Right-click a misspelled word in the manuscript for suggestions and Add to dictionary at the top of the menu',
     'Dictate from the full-screen editor with a compact strip: mic, transcript, Strike, and Insert — same as the main screen',
