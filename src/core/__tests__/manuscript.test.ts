@@ -13,6 +13,7 @@ import {
   manuscriptStats,
   movableRange,
   moveBlockRange,
+  nearestValidDropIndex,
   resolveInsertIndex,
   setBlockKind,
   setBlockTitle,
@@ -238,6 +239,20 @@ describe('validDropIndices', () => {
     const blocks = sampleBook();
     expect(validDropIndices(blocks, 0)).toEqual([8]);
     expect(validDropIndices(blocks, 5)).toEqual([0]);
+  });
+});
+
+describe('nearestValidDropIndex', () => {
+  it('picks the closest valid gap to the pointer', () => {
+    const gaps = [
+      { index: 0, y: 10 },
+      { index: 3, y: 80 },
+      { index: 8, y: 200 },
+    ];
+    expect(nearestValidDropIndex(70, gaps, [0, 3, 8])).toBe(3);
+    expect(nearestValidDropIndex(190, gaps, [0, 8])).toBe(8);
+    expect(nearestValidDropIndex(40, gaps, [8])).toBe(8);
+    expect(nearestValidDropIndex(40, gaps, [])).toBeNull();
   });
 });
 

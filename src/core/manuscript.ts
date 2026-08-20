@@ -269,6 +269,51 @@ export function validDropIndices(blocks: Block[], fromIndex: number): number[] {
   return gaps;
 }
 
+/** Closest valid insert-gap to a pointer Y, using each gap's vertical center. */
+export function nearestValidDropIndex(
+  pointerY: number,
+  gaps: Array<{ index: number; y: number }>,
+  valid: Iterable<number>,
+): number | null {
+  const ok = valid instanceof Set ? valid : new Set(valid);
+  let best: number | null = null;
+  let bestDist = Infinity;
+  for (const gap of gaps) {
+    if (!ok.has(gap.index) || !Number.isFinite(gap.y)) continue;
+    const dist = Math.abs(gap.y - pointerY);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = gap.index;
+    }
+  }
+  return best;
+}
+
+export function dragPreviewLabel(block: Block, chapterNo?: number): string {
+  if (block.type === 'chapter') {
+    const n = chapterNo ?? 0;
+    const title = block.title?.trim();
+    return title ? `Chapter ${n} · ${title}` : `Chapter ${n}`;
+  }
+  if (block.type === 'scene') return block.title?.trim() || 'Scene';
+  if (block.type === 'section') return block.title?.trim() || 'Section';
+  if (block.type === 'image') return block.image?.caption?.trim() || 'Image';
+  if (block.type === 'table') return 'Table';
+  const text = (block.text ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return 'Paragraph';
+  return text.length > 42 ? `${text.slice(0, 41)}…` : text;
+}
+
+export function dropPlaceLabel(block: Block | undefined): string {
+  if (!block) return 'Drop here';
+  if (block.type === 'chapter') return 'Drop chapter here';
+  if (block.type === 'scene') return 'Drop scene here';
+  if (block.type === 'section') return 'Drop section here';
+  if (block.type === 'image') return 'Drop image here';
+  if (block.type === 'table') return 'Drop table here';
+  return 'Drop paragraph here';
+}
+
 /** Visual chapter numbers follow list order; titles stay on the block. */
 export function chapterOrder(
   blocks: Block[],

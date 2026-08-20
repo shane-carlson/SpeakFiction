@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.11': bullets(
+    'Grab the dotted handle on a chapter, scene, or paragraph to move it. Legal landing spots light up as you drag',
+    'A Drop here marker follows the pointer, so you are not hunting for a tiny gap',
+    'The manuscript scrolls when you drag near the edge, so a chapter can travel the whole book',
+  ),
   '0.2.10': bullets(
     'The window comes back where you left it — size, place, zoom, and maximized — even after an update, and it stays on a visible screen',
     'Dictation and manuscript splitters, the last tab you were on, and full-screen editor stay where you set them',

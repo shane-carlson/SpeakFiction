@@ -4,7 +4,10 @@ import type { Block, Book, InlineMark } from '../core/types';
 import {
   chapterOrder,
   destFromPlace,
+  dragPreviewLabel,
+  dropPlaceLabel,
   movableRange,
+  nearestValidDropIndex,
   validDropIndices,
   type ManuscriptInsertAt,
   type ManuscriptInsertKind,
@@ -71,12 +74,51 @@ function destFromEvent(
   return { atIndex: blocks.length };
 }
 
-function DragHandle({ label }: { label: string }) {
+function DragHandle({
+  label,
+  onDragStart,
+}: {
+  label: string;
+  onDragStart: (e: React.DragEvent) => void;
+}) {
   return (
-    <span className="ms-drag-handle" draggable={false} aria-hidden="true" title={label}>
-      ⋮⋮
+    <span
+      className="ms-drag-handle"
+      draggable
+      role="button"
+      aria-label={label}
+      title={label}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        onDragStart(e);
+      }}
+    >
+      <span className="ms-drag-handle__dots" aria-hidden="true" />
     </span>
   );
+}
+
+function setMovePreview(e: React.DragEvent, label: string) {
+  const el = document.createElement('div');
+  el.className = 'ms-drag-preview';
+  el.textContent = label;
+  document.body.appendChild(el);
+  e.dataTransfer.setDragImage(el, 12, 16);
+  requestAnimationFrame(() => el.remove());
+}
+
+function scrollManuscriptNearEdge(clientY: number, root: HTMLElement) {
+  const scroller =
+    root.closest('.dictate-ms-scroll, .ms-editor-canvas') ?? root.parentElement;
+  if (!(scroller instanceof HTMLElement)) return;
+  const box = scroller.getBoundingClientRect();
+  const zone = 56;
+  const max = 22;
+  if (clientY < box.top + zone) {
+    scroller.scrollTop -= Math.ceil(max * ((box.top + zone - clientY) / zone));
+  } else if (clientY > box.bottom - zone) {
+    scroller.scrollTop += Math.ceil(max * ((clientY - (box.bottom - zone)) / zone));
+  }
 }
 
 type SpellField = 'text' | 'title' | 'caption' | 'alt';
@@ -174,6 +216,7 @@ export function ManuscriptView({
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropOver, setDropOver] = useState<number | null>(null);
   const dragFromRef = useRef<number | null>(null);
+  const dropOverRef = useRef<number | null>(null);
   const dropOkRef = useRef<Set<number>>(new Set());
   const menuGen = useRef(0);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -302,7 +345,10 @@ export function ManuscriptView({
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData(DRAG_MIME, JSON.stringify({ id: block.id, index }));
     e.dataTransfer.setData('text/plain', block.title || block.text || block.type);
+    const chapterNo = block.type === 'chapter' ? chapterNoById.get(block.id) : undefined;
+    setMovePreview(e, dragPreviewLabel(block, chapterNo));
     dragFromRef.current = index;
+    dropOverRef.current = null;
     dropOkRef.current = new Set(validDropIndices(blocks, index));
     requestAnimationFrame(() => {
       setDragFrom(index);
@@ -312,22 +358,40 @@ export function ManuscriptView({
 
   const endDrag = () => {
     dragFromRef.current = null;
+    dropOverRef.current = null;
     dropOkRef.current = new Set();
     setDragFrom(null);
     setDropOver(null);
+  };
+
+  const setHoverGap = (atIndex: number | null) => {
+    if (dropOverRef.current === atIndex) return;
+    dropOverRef.current = atIndex;
+    setDropOver(atIndex);
   };
 
   const allowGapDrop = (e: React.DragEvent, atIndex: number) => {
     if (e.dataTransfer.types.includes('Files')) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      if (dropOver !== atIndex) setDropOver(atIndex);
+      setHoverGap(atIndex);
       return;
     }
     if (dragFromRef.current == null || !dropOkRef.current.has(atIndex)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dropOver !== atIndex) setDropOver(atIndex);
+    setHoverGap(atIndex);
+  };
+
+  const pickGapUnderPointer = (e: React.DragEvent) => {
+    const root = e.currentTarget as HTMLElement;
+    const gaps = [...root.querySelectorAll<HTMLElement>('[data-insert-index]')].map((el) => {
+      const box = el.getBoundingClientRect();
+      return { index: Number(el.dataset.insertIndex), y: box.top + box.height / 2 };
+    });
+    const next = nearestValidDropIndex(e.clientY, gaps, dropOkRef.current);
+    setHoverGap(next);
+    scrollManuscriptNearEdge(e.clientY, root);
   };
 
   const dropOnGap = (e: React.DragEvent, atIndex: number) => {
@@ -368,15 +432,15 @@ export function ManuscriptView({
     return classes.join(' ');
   };
 
+  const dropHint = dropPlaceLabel(dragFrom != null ? blocks[dragFrom] : undefined);
+
   const insertGap = (atIndex: number) => (
     <div
       className={gapClass(atIndex)}
       data-insert-index={atIndex}
+      data-drop-label={dropOver === atIndex ? dropHint : undefined}
       onDragOver={(e) => allowGapDrop(e, atIndex)}
       onDragEnter={(e) => allowGapDrop(e, atIndex)}
-      onDragLeave={() => {
-        if (dropOver === atIndex) setDropOver(null);
-      }}
       onDrop={(e) => dropOnGap(e, atIndex)}
     />
   );
@@ -424,12 +488,31 @@ export function ManuscriptView({
         onContextMenu={openInsertMenu}
         onDragEnd={endDrag}
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            return;
+          }
+          if (dragFromRef.current == null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          pickGapUnderPointer(e);
         }}
         onDrop={(e) => {
-          if (!e.dataTransfer.files?.length) return;
+          if (e.dataTransfer.files?.length) {
+            e.preventDefault();
+            void insertImageAt(destFromEvent(e, blocks), e.dataTransfer.files);
+            endDrag();
+            return;
+          }
+          const from = dragFromRef.current;
+          const at = dropOverRef.current;
+          if (from == null || at == null || !dropOkRef.current.has(at)) {
+            endDrag();
+            return;
+          }
           e.preventDefault();
-          void insertImageAt(destFromEvent(e, blocks), e.dataTransfer.files);
+          moveManuscriptRange(book.id, from, at);
+          endDrag();
         }}
       >
         {insertGap(0)}
@@ -442,11 +525,9 @@ export function ManuscriptView({
               <div
                 className={dragging ? 'ms-chapter is-dragging' : 'ms-chapter'}
                 data-block-id={b.id}
-                draggable
-                onDragStart={(e) => beginDrag(e, i, b)}
                 onClick={() => report(b.id)}
               >
-                <DragHandle label="Move chapter" />
+                <DragHandle label="Move chapter" onDragStart={(e) => beginDrag(e, i, b)} />
                 <span className="badge chapter">CHAPTER {chapterNo}</span>
                 <input
                   className="ms-chapter-title"
@@ -475,11 +556,9 @@ export function ManuscriptView({
               <div
                 className={dragging ? 'ms-scene is-dragging' : 'ms-scene'}
                 data-block-id={b.id}
-                draggable
-                onDragStart={(e) => beginDrag(e, i, b)}
                 onClick={() => report(b.id)}
               >
-                <DragHandle label="Move scene" />
+                <DragHandle label="Move scene" onDragStart={(e) => beginDrag(e, i, b)} />
                 <input
                   className="ms-scene-title"
                   value={b.title ?? ''}
@@ -497,11 +576,9 @@ export function ManuscriptView({
               <div
                 className={dragging ? 'ms-section is-dragging' : 'ms-section'}
                 data-block-id={b.id}
-                draggable
-                onDragStart={(e) => beginDrag(e, i, b)}
                 onClick={() => report(b.id)}
               >
-                <DragHandle label="Move section" />
+                <DragHandle label="Move section" onDragStart={(e) => beginDrag(e, i, b)} />
                 <input
                   className="ms-section-title"
                   value={b.title ?? ''}
@@ -519,22 +596,9 @@ export function ManuscriptView({
               <div
                 className={dragging ? 'ms-image-block is-dragging' : 'ms-image-block'}
                 data-block-id={b.id}
-                draggable
-                onDragStart={(e) => beginDrag(e, i, b)}
                 onClick={() => report(b.id)}
               >
-                <span
-                  className="ms-drag-handle"
-                  draggable
-                  aria-label="Move image"
-                  title="Move image"
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    beginDrag(e, i, b);
-                  }}
-                >
-                  ⋮⋮
-                </span>
+                <DragHandle label="Move image" onDragStart={(e) => beginDrag(e, i, b)} />
                 <ManuscriptImageFrame
                   image={b.image}
                   onCaption={(caption) => updateImageCaption(book.id, b.id, caption)}
@@ -555,22 +619,9 @@ export function ManuscriptView({
               <div
                 className={dragging ? 'ms-table-block is-dragging' : 'ms-table-block'}
                 data-block-id={b.id}
-                draggable
-                onDragStart={(e) => beginDrag(e, i, b)}
                 onClick={() => report(b.id)}
               >
-                <span
-                  className="ms-drag-handle"
-                  draggable
-                  aria-label="Move table"
-                  title="Move table"
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    beginDrag(e, i, b);
-                  }}
-                >
-                  ⋮⋮
-                </span>
+                <DragHandle label="Move table" onDragStart={(e) => beginDrag(e, i, b)} />
                 <table className="ms-table">
                   <tbody>
                     {b.table.rows.map((row, ri) => (
@@ -610,18 +661,7 @@ export function ManuscriptView({
                 data-block-id={b.id}
                 title="Click to edit"
               >
-                <span
-                  className="ms-drag-handle"
-                  draggable
-                  aria-label="Move paragraph"
-                  title="Move paragraph"
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    beginDrag(e, i, b);
-                  }}
-                >
-                  ⋮⋮
-                </span>
+                <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
                 <RichParagraph
                   value={b.text ?? ''}
                   marks={b.marks}
