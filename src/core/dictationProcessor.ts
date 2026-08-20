@@ -1,6 +1,7 @@
 import type { AdaptiveModelState, GenreProfile, NameEntry, PerspectiveId, TenseId } from './types';
 import { parseAudioCues, type Segment } from './audioCues';
 import { correctNames, type AppliedCorrection } from './nameLibrary';
+import { extractNewCharacterCues, type SpokenCharacter } from './newCharacterCue';
 import { applyPunctuation } from './punctuation';
 import { recordCorrection, recordProse, vocabularyBoost } from './adaptiveModel';
 import { applyTenseCleanup, DEFAULT_TENSE } from './tense';
@@ -28,6 +29,7 @@ export interface ProcessResult {
   segments: Segment[];
   corrections: AppliedCorrection[];
   adaptive: AdaptiveModelState;
+  newCharacters: SpokenCharacter[];
 }
 
 /**
@@ -71,16 +73,21 @@ function runProsePipeline(
 export function cleanupDictationText(
   transcript: string,
   options: Omit<ProcessOptions, 'adaptive' | 'learn'> & { adaptive?: AdaptiveModelState },
-): string {
-  const { text } = runProsePipeline(transcript, options);
+): { text: string; newCharacters: SpokenCharacter[] } {
+  const pulled = extractNewCharacterCues(transcript);
+  const { text } = runProsePipeline(pulled.remainder, options);
   const paragraphed = splitSpeakerParagraphs(text);
-  return paragraphed.replace(new RegExp(`\\s*${PARA_MARK}\\s*`, 'g'), '\n\n').trim();
+  return {
+    text: paragraphed.replace(new RegExp(`\\s*${PARA_MARK}\\s*`, 'g'), '\n\n').trim(),
+    newCharacters: pulled.characters,
+  };
 }
 
 export function processTranscript(transcript: string, options: ProcessOptions): ProcessResult {
   const { adaptive } = options;
   const learn = options.learn ?? true;
-  const normalized = transcript.replace(/\n+/g, ` ${PARA_MARK} `);
+  const pulled = extractNewCharacterCues(transcript);
+  const normalized = pulled.remainder.replace(/\n+/g, ` ${PARA_MARK} `);
   const { text: voiced, corrections } = runProsePipeline(normalized, options);
   const paragraphed = splitSpeakerParagraphs(voiced);
   const segments = explodeParagraphMarks(parseAudioCues(paragraphed));
@@ -93,9 +100,17 @@ export function processTranscript(transcript: string, options: ProcessOptions): 
     for (const c of corrections) {
       nextAdaptive = recordCorrection(nextAdaptive, c.from, c.to);
     }
+    for (const ch of pulled.characters) {
+      nextAdaptive = recordProse(nextAdaptive, ch.canonical);
+      for (const alias of ch.aliases) {
+        if (alias.toLowerCase() !== ch.canonical.toLowerCase()) {
+          nextAdaptive = recordCorrection(nextAdaptive, alias, ch.canonical);
+        }
+      }
+    }
   }
 
-  return { segments, corrections, adaptive: nextAdaptive };
+  return { segments, corrections, adaptive: nextAdaptive, newCharacters: pulled.characters };
 }
 
 /** Process without mutating the adaptive model — handy for live previews. */

@@ -32,6 +32,7 @@ const book: Book = {
       category: 'character',
       aliases: ['kaldros'],
       note: 'exiled swordmaster',
+      originBookId: 'bk-1',
     },
   ],
   manuscript: {
@@ -58,6 +59,18 @@ describe('backup serialize/deserialize', () => {
     if (parsed.kind !== BACKUP_KIND_BOOK) return;
     expect(parsed.book).toEqual(book);
     expect(parsed.series).toEqual(series);
+    expect(parsed.book.nameLibrary[0]?.originBookId).toBe('bk-1');
+  });
+
+  it('omits originBookId when a name was never tagged', () => {
+    const legacy = {
+      ...book,
+      nameLibrary: [{ id: 'n-1', canonical: 'Kaeldros', category: 'character' as const, aliases: ['kaldros'] }],
+    };
+    const parsed = parseBackup(backupToJson(serializeBookBackup(legacy, series)));
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.nameLibrary[0]?.originBookId).toBeUndefined();
   });
 
   it('names the file from the title', () => {

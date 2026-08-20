@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.12': bullets(
+    'Say “New Character” then the name twice to train it — the cue never lands in the transcription box or the manuscript',
+    'The two repeats teach pronunciation, so later mishearings rewrite to the canonical spelling',
+    'Name libraries are shared across a series, labeled with the book where each name was first trained',
+  ),
   '0.2.11': bullets(
     'Grab the dotted handle on a chapter, scene, or paragraph to move it. Legal landing spots light up as you drag',
     'A Drop here marker follows the pointer, so you are not hunting for a tiny gap',

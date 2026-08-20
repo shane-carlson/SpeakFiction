@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.12 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.12')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.12',
+      build: 27,
+      pending: {
+        version: '0.2.12',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.12'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Say “New Character” then the name twice to train it — the cue never lands in the transcription box or the manuscript',
+      'The two repeats teach pronunciation, so later mishearings rewrite to the canonical spelling',
+      'Name libraries are shared across a series, labeled with the book where each name was first trained',
+    ]);
+  });
+
   it('uses curated 0.2.11 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.11')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

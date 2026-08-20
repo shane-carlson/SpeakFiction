@@ -220,6 +220,7 @@ function normalizeNameLibrary(raw: unknown): NameEntry[] {
       category: (typeof n.category === 'string' ? n.category : 'other') as NameEntry['category'],
       aliases: Array.isArray(n.aliases) ? n.aliases.map(String) : [],
       note: typeof n.note === 'string' ? n.note : undefined,
+      originBookId: typeof n.originBookId === 'string' && n.originBookId ? n.originBookId : undefined,
     }));
 }
 

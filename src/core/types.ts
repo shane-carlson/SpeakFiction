@@ -21,6 +21,8 @@ export interface NameEntry {
   aliases: string[];
   /** Optional note shown in the library UI (e.g. "villain, book 2"). */
   note?: string;
+  /** Book where this name was first trained. Used for series-wide libraries. */
+  originBookId?: string;
 }
 
 export type GenreId =

@@ -5,6 +5,7 @@ import { TENSE_LIST, getTense } from '../core/tense';
 import { PERSPECTIVE_LIST, getPerspective } from '../core/perspective';
 import type { GenreId, NameCategory, NameEntry, PerspectiveId, TenseId } from '../core/types';
 import { formatSeriesBookNumber, groupLibraryBooks, seriesMembershipLabel } from '../core/seriesBooks';
+import { seriesNameViews } from '../core/seriesNames';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
@@ -32,6 +33,7 @@ export function LibraryView() {
 
   const book = books.find((b) => b.id === activeBookId) ?? books[0] ?? null;
   const bookSeriesName = series.find((s) => s.id === book?.seriesId)?.name ?? '';
+  const nameViews = book ? seriesNameViews(books, book) : [];
 
   const titleRef = useRef<HTMLInputElement>(null);
   const [focusTitle, setFocusTitle] = useState(false);
@@ -136,9 +138,13 @@ export function LibraryView() {
     cancelEditName();
   };
 
-  const confirmRemoveName = (entry: NameEntry) => {
+  const confirmRemoveName = (entry: NameEntry, originBookTitle: string, fromThisBook: boolean) => {
     if (!book) return;
-    if (!window.confirm(`Remove “${entry.canonical}” from this book’s name library?`)) return;
+    const where =
+      book.seriesId && !fromThisBook
+        ? `“${entry.canonical}” from ${originBookTitle}? Names are shared across this series.`
+        : `“${entry.canonical}” from this book’s name library?`;
+    if (!window.confirm(`Remove ${where}`)) return;
     if (editingNameId === entry.id) cancelEditName();
     removeNameEntry(book.id, entry.id);
   };
@@ -374,8 +380,9 @@ export function LibraryView() {
         <div className="card">
           <h3>Name library — {book.title}</h3>
           <p className="sub">
-            Trained proper nouns. Aliases are the ways speech-to-text mishears them; SpeakFiction
-            rewrites any close match to the canonical spelling.
+            {book.seriesId
+              ? 'Trained proper nouns for every book in this series. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Each name shows the book it was first trained in. Say “New Character” then the name twice while dictating to add one.'
+              : 'Trained proper nouns. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Say “New Character” then the name twice while dictating to add one.'}
           </p>
 
           <div className="grid cols-2" style={{ marginBottom: 16 }}>
@@ -420,22 +427,27 @@ export function LibraryView() {
           </div>
 
           <div>
-            {book.nameLibrary.length === 0 && <div className="empty">No trained names yet.</div>}
-            {book.nameLibrary.map((n) => (
-              <div key={n.id} className={`list-row ${editingNameId === n.id ? 'selected' : ''}`}>
-                <span className={`badge ${n.category}`}>{CATEGORY_LABELS[n.category]}</span>
+            {nameViews.length === 0 && <div className="empty">No trained names yet.</div>}
+            {nameViews.map((view) => (
+              <div key={view.entry.id} className={`list-row ${editingNameId === view.entry.id ? 'selected' : ''}`}>
+                <span className={`badge ${view.entry.category}`}>{CATEGORY_LABELS[view.entry.category]}</span>
                 <div className="grow">
-                  <div className="name">{n.canonical}</div>
+                  <div className="name">{view.entry.canonical}</div>
                   <div className="aliases">
-                    {n.aliases.length ? `hears: ${n.aliases.join(', ')}` : 'no aliases'}
-                    {n.note ? ` · ${n.note}` : ''}
+                    {view.entry.aliases.length ? `hears: ${view.entry.aliases.join(', ')}` : 'no aliases'}
+                    {view.entry.note ? ` · ${view.entry.note}` : ''}
+                    {book.seriesId ? ` · from ${view.originBookTitle}` : ''}
                   </div>
                 </div>
                 <div className="list-row-actions">
-                  <button type="button" className="btn ghost compact" onClick={() => startEditName(n)}>
+                  <button type="button" className="btn ghost compact" onClick={() => startEditName(view.entry)}>
                     Edit
                   </button>
-                  <button type="button" className="btn danger compact" onClick={() => confirmRemoveName(n)}>
+                  <button
+                    type="button"
+                    className="btn danger compact"
+                    onClick={() => confirmRemoveName(view.entry, view.originBookTitle, view.fromThisBook)}
+                  >
                     Remove
                   </button>
                 </div>

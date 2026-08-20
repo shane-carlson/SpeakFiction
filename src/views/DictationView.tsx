@@ -5,6 +5,7 @@ import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
 import { getPerspective } from '../core/perspective';
 import { cleanupDictationText } from '../core/dictationProcessor';
+import { mergeSeriesNameLibrary } from '../core/seriesNames';
 import {
   appendCueText,
   caretAfterJoin,
@@ -73,6 +74,7 @@ export function DictationView({
   const books = useStore((s) => s.books);
   const setActiveBook = useStore((s) => s.setActiveBook);
   const applyDictation = useStore((s) => s.applyDictation);
+  const addNameEntry = useStore((s) => s.addNameEntry);
   const rememberSttProfile = useStore((s) => s.rememberSttProfile);
   const savedProfileLabel = useStore((s) => s.sttProfileLabel);
   const dictateSplit = useStore((s) => s.dictateSplit);
@@ -110,6 +112,7 @@ export function DictationView({
   const tense = getTense(book.tenseId);
   const perspective = getPerspective(book.perspectiveId);
   const stats = useMemo(() => manuscriptStats(book.manuscript), [book.manuscript]);
+  const seriesNames = useMemo(() => mergeSeriesNameLibrary(books, book), [books, book]);
 
   const audioSettings = useStore((s) => s.audioSettings);
   const transcriptCaretRef = useRef<number | null>(null);
@@ -117,16 +120,24 @@ export function DictationView({
 
   const handleFinal = useCallback(
     (text: string) => {
-      const cleaned = cleanupDictationText(text, {
-        entries: book.nameLibrary,
+      const { text: cleaned, newCharacters } = cleanupDictationText(text, {
+        entries: seriesNames,
         genre,
         tense: book.tenseId,
         perspective: book.perspectiveId,
         adaptive: book.adaptive,
       });
+      if (newCharacters.length || containsStructureCue(cleaned)) captureVoiceCommand(book.id);
+      for (const ch of newCharacters) {
+        addNameEntry(book.id, {
+          canonical: ch.canonical,
+          category: 'character',
+          aliases: ch.aliases,
+          originBookId: book.id,
+        });
+      }
       if (!cleaned) return;
       const prev = useStore.getState().dictationDrafts[book.id] ?? [];
-      if (containsStructureCue(cleaned)) captureVoiceCommand(book.id);
       const at = transcriptCaretRef.current;
       const next = joinDraftAt(prev, cleaned, at);
       const caret = caretAfterJoin(prev, next, at);
@@ -134,7 +145,17 @@ export function DictationView({
       setBoxCaret(caret);
       setDictationDraft(book.id, next);
     },
-    [book.adaptive, book.id, book.nameLibrary, book.perspectiveId, book.tenseId, captureVoiceCommand, genre, setDictationDraft],
+    [
+      addNameEntry,
+      book.adaptive,
+      book.id,
+      book.perspectiveId,
+      book.tenseId,
+      captureVoiceCommand,
+      genre,
+      seriesNames,
+      setDictationDraft,
+    ],
   );
 
   const appendCue = useCallback((cue: string) => {
@@ -521,7 +542,7 @@ export function DictationView({
           <div className="l">Scenes</div>
         </div>
         <div className="stat">
-          <div className="n">{book.nameLibrary.length}</div>
+          <div className="n">{seriesNames.length}</div>
           <div className="l">Trained names</div>
         </div>
       </div>
@@ -583,6 +604,10 @@ export function DictationView({
                 Say <span className="kbd">start dictation</span> <span className="kbd">pause dictation</span>{' '}
                 <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>{' '}
                 <span className="kbd">undo last command</span>
+              </div>
+              <div className="hint dictate-keys">
+                Say <span className="kbd">new character</span> then the name twice to train it. That cue
+                does not go into the transcription box or the manuscript.
               </div>
               <div className="hint dictate-keys">
                 While listening: <span className="kbd">Space</span> new paragraph ·{' '}

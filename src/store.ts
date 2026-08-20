@@ -65,6 +65,8 @@ import { sessionStateStorage } from './core/sessionStorage';
 import { DICTATE_SPLIT_DEFAULT, MANUSCRIPT_SPLIT_DEFAULT, normalizeDictateSplit, normalizeManuscriptSplit } from './core/splitRatio';
 import { uid } from './core/util';
 import type { AppliedCorrection } from './core/nameLibrary';
+import { bookIdOwningName, mergeSeriesNameLibrary } from './core/seriesNames';
+import type { SpokenCharacter } from './core/newCharacterCue';
 import type { DictationDraft } from './core/dictationDraft';
 import {
   EMBER_KING_SERIES,
@@ -209,6 +211,65 @@ function patchBook(books: Book[], id: string, fn: (b: Book) => Book): Book[] {
   return books.map((b) => (b.id === id ? { ...fn(b), updatedAt: Date.now() } : b));
 }
 
+function uniqueAliases(existing: string[], incoming: string[]): string[] {
+  const aliases = [...existing];
+  for (const alias of incoming) {
+    if (!aliases.some((a) => a.toLowerCase() === alias.toLowerCase())) aliases.push(alias);
+  }
+  return aliases;
+}
+
+function upsertNameOnBook(books: Book[], originBookId: string, payload: Omit<NameEntry, 'id'>): Book[] {
+  const origin = books.find((b) => b.id === originBookId);
+  if (!origin) return books;
+  const merged = mergeSeriesNameLibrary(books, origin);
+  const existing = merged.find(
+    (n) =>
+      n.category === (payload.category ?? 'character') &&
+      n.canonical.toLowerCase() === payload.canonical.toLowerCase(),
+  );
+  if (existing) {
+    const ownerId = bookIdOwningName(books, existing.id) ?? originBookId;
+    return patchBook(books, ownerId, (b) => ({
+      ...b,
+      nameLibrary: b.nameLibrary.map((n) =>
+        n.id === existing.id
+          ? {
+              ...n,
+              aliases: uniqueAliases(n.aliases, payload.aliases),
+              note: n.note || payload.note,
+              originBookId: n.originBookId || originBookId,
+            }
+          : n,
+      ),
+    }));
+  }
+  return patchBook(books, originBookId, (b) => ({
+    ...b,
+    nameLibrary: [
+      ...b.nameLibrary,
+      {
+        ...payload,
+        id: uid('n'),
+        originBookId: payload.originBookId || originBookId,
+      },
+    ],
+  }));
+}
+
+function upsertSpokenCharacters(books: Book[], originBookId: string, spoken: SpokenCharacter[]): Book[] {
+  let next = books;
+  for (const ch of spoken) {
+    next = upsertNameOnBook(next, originBookId, {
+      canonical: ch.canonical,
+      category: 'character',
+      aliases: ch.aliases,
+      originBookId,
+    });
+  }
+  return next;
+}
+
 /** Expand the original one-paragraph Ember King sample; leave user-created books alone. */
 function reseedTinyEmberKing(books: Book[]): Book[] {
   if (books.length !== 1 || !isTinyEmberKingSeed(books[0])) return books;
@@ -350,27 +411,32 @@ export const useStore = create<AppState>()(
 
       addNameEntry: (bookId, entry) =>
         set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({
-            ...b,
-            nameLibrary: [...b.nameLibrary, { ...entry, id: uid('n') }],
-          })),
+          books: upsertNameOnBook(s.books, bookId, { ...entry, originBookId: entry.originBookId || bookId }),
         })),
 
       updateNameEntry: (bookId, entry) =>
-        set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({
-            ...b,
-            nameLibrary: b.nameLibrary.map((n) => (n.id === entry.id ? entry : n)),
-          })),
-        })),
+        set((s) => {
+          const ownerId = bookIdOwningName(s.books, entry.id) ?? bookId;
+          return {
+            books: patchBook(s.books, ownerId, (b) => ({
+              ...b,
+              nameLibrary: b.nameLibrary.map((n) =>
+                n.id === entry.id ? { ...entry, originBookId: n.originBookId || ownerId } : n,
+              ),
+            })),
+          };
+        }),
 
       removeNameEntry: (bookId, entryId) =>
-        set((s) => ({
-          books: patchBook(s.books, bookId, (b) => ({
-            ...b,
-            nameLibrary: b.nameLibrary.filter((n) => n.id !== entryId),
-          })),
-        })),
+        set((s) => {
+          const ownerId = bookIdOwningName(s.books, entryId) ?? bookId;
+          return {
+            books: patchBook(s.books, ownerId, (b) => ({
+              ...b,
+              nameLibrary: b.nameLibrary.filter((n) => n.id !== entryId),
+            })),
+          };
+        }),
 
       applyDictation: (bookId, transcript, dest) => {
         const book = get().books.find((b) => b.id === bookId);
@@ -378,7 +444,7 @@ export const useStore = create<AppState>()(
         // Manuscript only. The view clears the transcription staging buffer after a successful promote.
 
         const result = processTranscript(transcript, {
-          entries: book.nameLibrary,
+          entries: mergeSeriesNameLibrary(get().books, book),
           genre: getGenre(book.genreId),
           tense: book.tenseId ?? DEFAULT_TENSE,
           perspective: book.perspectiveId ?? DEFAULT_PERSPECTIVE,
@@ -395,13 +461,15 @@ export const useStore = create<AppState>()(
           .filter((s) => s.type === 'text')
           .reduce((acc, s) => acc + (s.type === 'text' ? s.text.trim().split(/\s+/).filter(Boolean).length : 0), 0);
 
-        set((state) => ({
-          books: patchBook(state.books, bookId, (b) => ({
+        set((state) => {
+          let books = patchBook(state.books, bookId, (b) => ({
             ...b,
             manuscript: { blocks: newBlocks },
             adaptive: result.adaptive,
-          })),
-        }));
+          }));
+          books = upsertSpokenCharacters(books, bookId, result.newCharacters);
+          return { books };
+        });
 
         return { corrections: result.corrections, structureAdded, wordsAdded };
       },

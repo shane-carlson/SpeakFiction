@@ -48,8 +48,29 @@ describe('processTranscript', () => {
       entries,
       genre,
     });
-    expect(out).toMatch(/\u201CYou should not have come,/);
-    expect(out).toMatch(/she said/);
+    expect(out.text).toMatch(/\u201CYou should not have come,/);
+    expect(out.text).toMatch(/she said/);
+    expect(out.newCharacters).toEqual([]);
+  });
+
+  it('strips New Character plus a repeated name from the transcription box', () => {
+    const out = cleanupDictationText('New Character. Andreos. Andreos. the wind howled period', {
+      entries,
+      genre,
+    });
+    expect(out.text).toMatch(/wind howled/i);
+    expect(out.text).not.toMatch(/new character/i);
+    expect(out.text).not.toMatch(/Andreos/i);
+    expect(out.newCharacters).toEqual([{ canonical: 'Andreos', aliases: [] }]);
+  });
+
+  it('returns new characters even when the remainder is empty', () => {
+    const out = cleanupDictationText('New Character. Mara Vale. Mara Vale.', {
+      entries,
+      genre,
+    });
+    expect(out.text).toBe('');
+    expect(out.newCharacters[0]?.canonical).toBe('Mara Vale');
   });
 
   it('uses the following sentence as the chapter title and not as a paragraph', () => {
@@ -177,4 +198,30 @@ describe('processTranscript', () => {
       expect(prose).toMatch(/she said/i);
     },
   );
+
+  it('strips New Character plus a repeated name from manuscript segments', () => {
+    const result = processTranscript('New Character. Andreos. Andreos. the wind howled period', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+    });
+    expect(result.newCharacters).toEqual([{ canonical: 'Andreos', aliases: [] }]);
+    const prose = result.segments
+      .filter((s) => s.type === 'text')
+      .map((s) => (s.type === 'text' ? s.text : ''))
+      .join(' ');
+    expect(prose).toMatch(/wind howled/i);
+    expect(prose).not.toMatch(/new character/i);
+    expect(prose).not.toMatch(/Andreos/i);
+  });
+
+  it('returns new characters with empty segments when the utterance is only the cue', () => {
+    const result = processTranscript('New Character. Kael. Kael.', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+    });
+    expect(result.newCharacters[0]?.canonical).toBe('Kael');
+    expect(result.segments.filter((s) => s.type === 'text')).toEqual([]);
+  });
 });
