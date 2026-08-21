@@ -1,8 +1,8 @@
 {
   "name": "speakfiction",
   "productName": "SpeakFiction",
-  "version": "0.2.14",
-  "buildNumber": 29,
+  "version": "0.2.15",
+  "buildNumber": 31,
   "description": "Dictation for fiction writers: per-book name libraries, genre-aware punctuation, audio-cue chapter/scene markers, and an adaptive on-device model. Native desktop app (Electron) for macOS and Windows, with guided integration into Scrivener, Word, and Google Docs.",
   "author": "SpeakFiction",
   "license": "MIT",
