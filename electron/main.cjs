@@ -241,6 +241,7 @@ ipcMain.handle('handoff:status', () => handoff.getStatus());
 ipcMain.handle('handoff:request', () => handoff.requestAccess());
 ipcMain.handle('handoff:open-privacy', () => handoff.openAccessibilitySettings());
 ipcMain.handle('handoff:send', (_event, appId, payload) => handoff.sendToApp(appId, payload));
+ipcMain.handle('handoff:relaunch', () => handoff.relaunchToApplyAccess());
 
 function createWindow() {
   const iconFile = windowIconPath();
@@ -305,8 +306,10 @@ app.whenReady().then(() => {
   createWindow();
   updater.setup();
   require('./appMenu.cjs').installAppMenu(() => updater.checkForUpdates({ user: true }));
+  app.on('browser-window-focus', () => handoff.pushStatus());
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else handoff.pushStatus();
   });
 });
 

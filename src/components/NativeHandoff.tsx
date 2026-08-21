@@ -15,10 +15,10 @@ function nativeHandoff() {
   return window.speakfiction?.handoff;
 }
 
-function reasonMessage(result: HandoffSendResult): string {
+function reasonMessage(result: HandoffSendResult, clientName: string): string {
   switch (result.reason) {
     case 'no-accessibility':
-      return 'macOS Accessibility is off for SpeakFiction. Enable it, then send again.';
+      return `macOS Accessibility is off for ${clientName}. Enable it, then send again.`;
     case 'not-installed':
       return 'That app is not installed in Applications.';
     case 'empty':
@@ -42,6 +42,8 @@ export function NativeHandoff({ book }: { book: Book }) {
   const empty = liveInsertIsEmpty(book.manuscript);
   const genre = getGenre(book.genreId);
   const [payload, setPayload] = useState({ text: '', rtf: '' });
+
+  const [askedAccess, setAskedAccess] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -67,10 +69,12 @@ export function NativeHandoff({ book }: { book: Book }) {
   useEffect(() => {
     void refresh();
     if (!bridge) return;
+    const off = bridge.onStatus?.((next) => setStatus(next));
     const onFocus = () => void refresh();
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
+      off?.();
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
@@ -99,6 +103,7 @@ export function NativeHandoff({ book }: { book: Book }) {
   }
 
   const trusted = Boolean(status?.trusted);
+  const clientName = status?.clientName || 'SpeakFiction';
   const targets = status?.targets ?? [
     { id: 'scrivener' as const, name: 'Scrivener', installed: false, running: false },
     { id: 'word' as const, name: 'Microsoft Word', installed: false, running: false },
@@ -119,7 +124,7 @@ export function NativeHandoff({ book }: { book: Book }) {
             : `Pasted into ${label} at the cursor.`,
         );
       } else {
-        setMessage(reasonMessage(result));
+        setMessage(reasonMessage(result, clientName));
       }
     } finally {
       setBusy(null);
@@ -128,14 +133,14 @@ export function NativeHandoff({ book }: { book: Book }) {
 
   const enable = async () => {
     setMessage(null);
+    setAskedAccess(true);
     const next = await bridge.requestAccess();
     setStatus(next);
-    if (!next.trusted) {
-      await bridge.openPrivacySettings();
-      setMessage(
-        'Toggle SpeakFiction on in Privacy & Security → Accessibility. If it is already on, turn it off and on again, then return here.',
-      );
-    }
+    if (next.trusted) return;
+    await bridge.openPrivacySettings();
+    setMessage(
+      `Toggle ${next.clientName || 'SpeakFiction'} on in Privacy & Security → Accessibility. If it is already on, turn it off and on again. macOS often applies the change only after SpeakFiction restarts.`,
+    );
   };
 
   return (
@@ -158,7 +163,18 @@ export function NativeHandoff({ book }: { book: Book }) {
           <button className="btn ghost" type="button" onClick={() => void bridge.openPrivacySettings()}>
             Open Privacy settings
           </button>
+          {askedAccess && bridge.relaunch && (
+            <button className="btn ghost" type="button" onClick={() => void bridge.relaunch()}>
+              Restart SpeakFiction
+            </button>
+          )}
         </div>
+      )}
+      {!trusted && (
+        <p className="sub" style={{ marginTop: 0, marginBottom: 12 }}>
+          macOS lists this process as {clientName}. If the toggle is already on, restart so the
+          grant can apply.
+        </p>
       )}
       <div className="handoff-targets">
         {targets.map((t) => (
@@ -176,7 +192,7 @@ export function NativeHandoff({ book }: { book: Book }) {
             <button
               className="btn primary"
               type="button"
-              disabled={!trusted || !t.installed || empty || busy != null}
+              disabled={!t.installed || empty || busy != null}
               onClick={() => void send(t.id)}
             >
               {busy === t.id ? 'Sending…' : `Send to ${handoffAppLabel(t.id)}`}

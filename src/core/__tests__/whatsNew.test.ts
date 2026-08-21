@@ -159,6 +159,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.19 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.19')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.19',
+      build: 35,
+      pending: {
+        version: '0.2.19',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.19'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Live send checks Accessibility with the live macOS prompt, not a stale silent flag',
+      'Send still works if the badge has not caught up yet; a successful paste clears it',
+      'If macOS has the toggle on but SpeakFiction still says needed, Restart SpeakFiction applies it',
+      'Development builds ask you to enable Electron in Accessibility, not SpeakFiction',
+    ]);
+  });
+
   it('uses curated 0.2.18 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.18')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

@@ -40,7 +40,13 @@ contextBridge.exposeInMainWorld('speakfiction', {
     getStatus: () => ipcRenderer.invoke('handoff:status'),
     requestAccess: () => ipcRenderer.invoke('handoff:request'),
     openPrivacySettings: () => ipcRenderer.invoke('handoff:open-privacy'),
+    relaunch: () => ipcRenderer.invoke('handoff:relaunch'),
     send: (appId, payload) => ipcRenderer.invoke('handoff:send', appId, payload),
+    onStatus: (cb) => {
+      const listener = (_event, next) => cb(next);
+      ipcRenderer.on('handoff:status', listener);
+      return () => ipcRenderer.removeListener('handoff:status', listener);
+    },
   },
   license: {
     getStatus: () => ipcRenderer.invoke('license:status'),

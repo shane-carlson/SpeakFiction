@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.19': bullets(
+    'Live send checks Accessibility with the live macOS prompt, not a stale silent flag',
+    'Send still works if the badge has not caught up yet; a successful paste clears it',
+    'If macOS has the toggle on but SpeakFiction still says needed, Restart SpeakFiction applies it',
+    'Development builds ask you to enable Electron in Accessibility, not SpeakFiction',
+  ),
   '0.2.18': bullets(
     'If you deleted the example book, Library can add Example: The Ember King back',
     'The restored sample includes the chapter outline, scenes, and trained names',

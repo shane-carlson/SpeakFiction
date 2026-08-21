@@ -30,6 +30,8 @@ export interface HandoffTargetStatus {
 export interface HandoffStatus {
   available: boolean;
   trusted: boolean;
+  /** Name shown in Privacy & Security → Accessibility for this process. */
+  clientName?: string;
   targets: HandoffTargetStatus[];
 }
 
@@ -46,10 +48,12 @@ export interface SpeakFictionHandoffBridge {
   getStatus: () => Promise<HandoffStatus>;
   requestAccess: () => Promise<HandoffStatus>;
   openPrivacySettings: () => Promise<void>;
+  relaunch: () => Promise<void>;
   send: (
     appId: 'scrivener' | 'word' | 'libreoffice',
     payload: { text: string; rtf?: string },
   ) => Promise<HandoffSendResult>;
+  onStatus: (cb: (status: HandoffStatus) => void) => () => void;
 }
 
 export interface SpeakFictionStateBridge {

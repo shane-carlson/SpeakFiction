@@ -1,9 +1,11 @@
-const { app, clipboard, shell, systemPreferences } = require('electron');
+const { app, clipboard, shell, systemPreferences, BrowserWindow } = require('electron');
 const { execFile, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { promisify } = require('node:util');
+
+const { systemEventsDenied } = require('./accessibilityTrust.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -42,38 +44,34 @@ function isDarwin() {
   return process.platform === 'darwin';
 }
 
-function readElectronTrust(prompt) {
-  if (typeof systemPreferences.isTrustedAccessibilityClient !== 'function') return false;
-  return Boolean(systemPreferences.isTrustedAccessibilityClient(prompt));
-}
-
-/** Same path live paste uses. Electron's silent AX check often stays false after a grant. */
-function probeSystemEvents() {
+function accessibilityClientName() {
   try {
-    execFileSync(
-      '/usr/bin/osascript',
-      ['-e', 'tell application "System Events" to count UI elements of process "Finder"'],
-      { timeout: 2500, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    return true;
+    if (app && app.isPackaged === false) return 'Electron';
   } catch {
-    return false;
+    /* app not ready */
   }
+  return 'SpeakFiction';
 }
 
-function isTrusted(prompt = false) {
+function readElectronTrust() {
+  if (typeof systemPreferences.isTrustedAccessibilityClient !== 'function') return false;
+  // Always pass true. The silent false check is a documented stale false-negative,
+  // and calling false first can suppress Apple's Enable dialog afterward.
+  return Boolean(systemPreferences.isTrustedAccessibilityClient(true));
+}
+
+function isTrusted() {
   if (!isDarwin()) return false;
   if (knownTrusted) return true;
-  // Apple may suppress the Enable prompt if we silently check false first.
-  if (prompt && readElectronTrust(true)) {
-    knownTrusted = true;
-    return true;
-  }
-  if (probeSystemEvents()) {
+  if (readElectronTrust()) {
     knownTrusted = true;
     return true;
   }
   return false;
+}
+
+function markTrusted() {
+  knownTrusted = true;
 }
 
 function openAccessibilitySettings() {
@@ -137,22 +135,27 @@ function isRunning(target) {
   }
 }
 
+function emptyStatus(trusted) {
+  const targets = TARGETS.map((t) => ({
+    id: t.id,
+    name: t.name,
+    installed: false,
+    running: false,
+  }));
+  return {
+    available: false,
+    trusted: Boolean(trusted),
+    clientName: accessibilityClientName(),
+    targets,
+  };
+}
+
 function getStatus() {
-  if (!isDarwin()) {
-    return {
-      available: false,
-      trusted: false,
-      targets: TARGETS.map((t) => ({
-        id: t.id,
-        name: t.name,
-        installed: false,
-        running: false,
-      })),
-    };
-  }
+  if (!isDarwin()) return emptyStatus(false);
   return {
     available: true,
-    trusted: isTrusted(false),
+    trusted: isTrusted(),
+    clientName: accessibilityClientName(),
     targets: TARGETS.map((t) => ({
       id: t.id,
       name: t.name,
@@ -162,9 +165,26 @@ function getStatus() {
   };
 }
 
-function requestAccess() {
-  isTrusted(true);
+function pushStatus() {
+  const status = getStatus();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('handoff:status', status);
+  }
+  return status;
+}
+
+async function requestAccess() {
+  readElectronTrust();
+  for (let i = 0; i < 8; i += 1) {
+    if (isTrusted()) return getStatus();
+    await sleep(250);
+  }
   return getStatus();
+}
+
+function relaunchToApplyAccess() {
+  app.relaunch();
+  app.exit(0);
 }
 
 function snapshotClipboard() {
@@ -207,8 +227,6 @@ async function sendToApp(appId, payload) {
   const rtf = String(payload?.rtf ?? '');
   if (!text) return { ok: false, reason: 'empty' };
 
-  if (!isTrusted(false)) return { ok: false, reason: 'no-accessibility', status: getStatus() };
-
   const appPath = findAppPath(target);
   if (!appPath) return { ok: false, reason: 'not-installed', status: getStatus() };
 
@@ -224,14 +242,18 @@ async function sendToApp(appId, payload) {
     await execFileAsync('/usr/bin/open', [appPath], { timeout: 8000 });
     await sleep(wasRunning ? 450 : 2200);
     await pasteViaSystemEvents();
+    markTrusted();
     setTimeout(() => restoreClipboard(previous), 1200);
-    return { ok: true, app: target.id, launched: !wasRunning };
+    return { ok: true, app: target.id, launched: !wasRunning, status: getStatus() };
   } catch (err) {
     restoreClipboard(previous);
-    const win = require('electron').BrowserWindow.getAllWindows()[0];
+    const win = BrowserWindow.getAllWindows()[0];
     if (win && !win.isDestroyed()) {
       win.show();
       win.focus();
+    }
+    if (systemEventsDenied(err?.stderr, err?.message)) {
+      return { ok: false, reason: 'no-accessibility', status: getStatus() };
     }
     return {
       ok: false,
@@ -247,4 +269,6 @@ module.exports = {
   requestAccess,
   openAccessibilitySettings,
   sendToApp,
+  pushStatus,
+  relaunchToApplyAccess,
 };
