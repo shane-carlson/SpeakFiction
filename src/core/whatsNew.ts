@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.16': bullets(
+    'On-Device Model says the private adaptation is trained on this device, and no prose leaves your device',
+    'The ethics note is shorter: models built from open source and creative commons works',
+    'Your personal adaptation layer is still yours alone',
+  ),
   '0.2.15': bullets(
     'Dictation cues are shorter and grouped: say, name, keys, and insert',
     'Hide the cue list when you know it, or show it again from Cues',

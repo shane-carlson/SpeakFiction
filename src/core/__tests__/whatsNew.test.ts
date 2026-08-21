@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.16 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.16')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.16',
+      build: 32,
+      pending: {
+        version: '0.2.16',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.16'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'On-Device Model says the private adaptation is trained on this device, and no prose leaves your device',
+      'The ethics note is shorter: models built from open source and creative commons works',
+      'Your personal adaptation layer is still yours alone',
+    ]);
+  });
+
   it('uses curated 0.2.15 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.15')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

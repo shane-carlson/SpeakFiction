@@ -24,7 +24,8 @@ export function ModelView({ book }: { book: Book }) {
           <h2>On-Device Model</h2>
           <p>
             A private model that adapts to <b>your</b> voice, vocabulary, genre, tense, and
-            perspective — trained on this device from your corrections. No prose ever leaves your Mac.
+            perspective (trained on this device from your corrections. No prose ever leaves your
+            device).
           </p>
         </div>
         <div className="book-pill">
@@ -37,9 +38,8 @@ export function ModelView({ book }: { book: Book }) {
       <div className="note-banner" style={{ marginBottom: 18 }}>
         <span className="ico">⚖️</span>
         <div>
-          <b>Ethically sourced.</b> The genre base models are built only from public-domain and
-          Creative-Commons-licensed fiction — never from writing that authors were not compensated
-          for. Your personal adaptation layer is yours alone.
+          All transcription models were ethically built from open source and creative commons
+          works, never from stolen words of others. Your personal adaptation layer is yours alone.
         </div>
       </div>
 
