@@ -304,6 +304,7 @@ app.whenReady().then(() => {
   }
   createWindow();
   updater.setup();
+  require('./appMenu.cjs').installAppMenu(() => updater.checkForUpdates({ user: true }));
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.14': bullets(
+    'Check for Updates lives in the SpeakFiction menu, next to About',
+    'If you are already current, SpeakFiction says so instead of staying quiet',
+    'A downloaded update still offers Restart to install in the sidebar',
+  ),
   '0.2.13': bullets(
     'Click a space between chapters, scenes, or paragraphs to mark where dictation lands',
     'A Dictation inserts here marker stays on that spot — the same places you can drop a dragged block',

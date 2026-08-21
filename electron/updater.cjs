@@ -1,4 +1,4 @@
-const { app, ipcMain, BrowserWindow } = require('electron');
+const { app, ipcMain, BrowserWindow, dialog } = require('electron');
 const whatsNewStore = require('./whatsNewStore.cjs');
 
 const CHECK_MS = 12 * 60 * 60 * 1000;
@@ -70,9 +70,30 @@ function getStatus() {
   };
 }
 
+function notifyUser(message, detail, type = 'info') {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const opts = {
+    type,
+    buttons: ['OK'],
+    defaultId: 0,
+    message,
+    detail,
+  };
+  if (win && !win.isDestroyed()) void dialog.showMessageBox(win, opts);
+  else void dialog.showMessageBox(opts);
+}
+
 async function checkForUpdates({ user } = {}) {
   userInitiated = Boolean(user);
-  if (!autoUpdater) return getStatus();
+  if (!autoUpdater) {
+    if (userInitiated) {
+      notifyUser(
+        'Updates are not available here',
+        'Packaged SpeakFiction checks GitHub Releases for updates. This copy is running unpackaged.',
+      );
+    }
+    return getStatus();
+  }
   try {
     await autoUpdater.checkForUpdates();
   } catch (err) {
@@ -115,6 +136,12 @@ function setup() {
   });
   autoUpdater.on('update-not-available', () => {
     setStatus({ state: 'idle', availableVersion: null, percent: null, error: null });
+    if (userInitiated) {
+      notifyUser(
+        'You’re up to date',
+        `SpeakFiction ${app.getVersion()} is the latest version.`,
+      );
+    }
   });
   autoUpdater.on('download-progress', (progress) => {
     const percent = progress && typeof progress.percent === 'number' ? progress.percent : null;
@@ -141,6 +168,7 @@ function setup() {
     const message = err && err.message ? String(err.message) : 'Could not check for updates.';
     if (userInitiated || status.state === 'downloading') {
       setStatus({ state: 'error', error: message });
+      if (userInitiated) notifyUser('Could not check for updates', message, 'warning');
       return;
     }
     setStatus({ state: 'idle', error: null });
@@ -172,4 +200,4 @@ ipcMain.handle('updater:install', () => {
   }
 });
 
-module.exports = { setup, getStatus };
+module.exports = { setup, getStatus, checkForUpdates };
