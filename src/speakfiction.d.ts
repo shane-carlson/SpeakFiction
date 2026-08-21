@@ -32,6 +32,8 @@ export interface HandoffStatus {
   trusted: boolean;
   /** Name shown in Privacy & Security → Accessibility for this process. */
   clientName?: string;
+  /** .app path macOS should list. */
+  appPath?: string;
   targets: HandoffTargetStatus[];
 }
 

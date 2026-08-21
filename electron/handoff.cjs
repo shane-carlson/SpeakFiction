@@ -11,6 +11,8 @@ const execFileAsync = promisify(execFile);
 
 /** Once Accessibility works for this process, keep treating it as granted. */
 let knownTrusted = false;
+/** At most one live (prompting) AX check per process, besides Enable. */
+let liveCheckUsed = false;
 
 const TARGETS = [
   {
@@ -53,6 +55,33 @@ function accessibilityClientName() {
   return 'SpeakFiction';
 }
 
+function appBundlePath() {
+  const exe = String(process.execPath || '');
+  const idx = exe.lastIndexOf('.app');
+  if (idx > 0) return exe.slice(0, idx + 4);
+  return exe;
+}
+
+function accessRequestFlagPath() {
+  return path.join(app.getPath('userData'), 'accessibility-requested');
+}
+
+function rememberAccessRequest() {
+  try {
+    fs.writeFileSync(accessRequestFlagPath(), '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+function hadAccessRequest() {
+  try {
+    return fs.existsSync(accessRequestFlagPath());
+  } catch {
+    return false;
+  }
+}
+
 function readElectronTrust(prompt) {
   if (typeof systemPreferences.isTrustedAccessibilityClient !== 'function') return false;
   return Boolean(systemPreferences.isTrustedAccessibilityClient(Boolean(prompt)));
@@ -64,6 +93,16 @@ function isTrusted() {
   if (readElectronTrust(false)) {
     knownTrusted = true;
     return true;
+  }
+  // Silent false often stays false after a grant. One live check per process
+  // if the user already clicked Enable — Apple does not re-prompt when this
+  // process is already allowed.
+  if (!liveCheckUsed && hadAccessRequest()) {
+    liveCheckUsed = true;
+    if (readElectronTrust(true)) {
+      knownTrusted = true;
+      return true;
+    }
   }
   return false;
 }
@@ -144,6 +183,7 @@ function emptyStatus(trusted) {
     available: false,
     trusted: Boolean(trusted),
     clientName: accessibilityClientName(),
+    appPath: '',
     targets,
   };
 }
@@ -154,6 +194,7 @@ function getStatus() {
     available: true,
     trusted: isTrusted(),
     clientName: accessibilityClientName(),
+    appPath: appBundlePath(),
     targets: TARGETS.map((t) => ({
       id: t.id,
       name: t.name,
@@ -172,13 +213,12 @@ function pushStatus() {
 }
 
 async function requestAccess() {
-  if (isTrusted()) return getStatus();
-  // Prompt only from Enable. Status polls and window-focus checks stay silent,
-  // or macOS keeps showing the dialog after a grant.
-  readElectronTrust(true);
-  for (let i = 0; i < 8; i += 1) {
-    if (isTrusted()) return getStatus();
-    await sleep(250);
+  rememberAccessRequest();
+  liveCheckUsed = true;
+  // Honor the live result. A following silent check often stays false even
+  // when this process is already allowed.
+  if (readElectronTrust(true) || readElectronTrust(false)) {
+    knownTrusted = true;
   }
   return getStatus();
 }

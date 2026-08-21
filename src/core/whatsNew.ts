@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.21': bullets(
+    'Live send treats a granted Accessibility prompt as on, even when the silent check stays off',
+    'After Restart, one live check picks up a grant without opening the dialog again',
+    'Integrations shows the exact app path macOS should list, so the right copy is enabled',
+  ),
   '0.2.20': bullets(
     'The Accessibility dialog appears only when you click Enable, not on a loop',
     'Background live-send checks stay silent after you grant access',

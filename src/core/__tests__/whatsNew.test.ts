@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.21 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.21')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.21',
+      build: 37,
+      pending: {
+        version: '0.2.21',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.21'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Live send treats a granted Accessibility prompt as on, even when the silent check stays off',
+      'After Restart, one live check picks up a grant without opening the dialog again',
+      'Integrations shows the exact app path macOS should list, so the right copy is enabled',
+    ]);
+  });
+
   it('uses curated 0.2.20 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.20')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

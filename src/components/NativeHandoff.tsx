@@ -133,7 +133,7 @@ export function NativeHandoff({ book }: { book: Book }) {
     if (next.trusted) return;
     await bridge.openPrivacySettings();
     setMessage(
-      `Toggle ${next.clientName || 'SpeakFiction'} on in Privacy & Security → Accessibility. If it is already on, turn it off and on again. macOS often applies the change only after SpeakFiction restarts.`,
+      `Toggle ${next.clientName || 'SpeakFiction'} on for this copy of the app. If it is already listed, remove it and add it again from Applications, then restart.`,
     );
   };
 
@@ -166,8 +166,15 @@ export function NativeHandoff({ book }: { book: Book }) {
       )}
       {!trusted && (
         <p className="sub" style={{ marginTop: 0, marginBottom: 12 }}>
-          macOS lists this process as {clientName}. If the toggle is already on, restart so the
-          grant can apply.
+          Enable <b>{clientName}</b>
+          {status?.appPath ? (
+            <>
+              {' '}
+              at <code>{status.appPath}</code>
+            </>
+          ) : null}
+          . If it is already in the list, remove it, click +, and add this copy, then Restart
+          SpeakFiction.
         </p>
       )}
       <div className="handoff-targets">
