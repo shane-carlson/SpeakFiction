@@ -67,9 +67,20 @@ export function NativeHandoff({ book }: { book: Book }) {
   useEffect(() => {
     void refresh();
     if (!bridge) return;
-    const id = window.setInterval(() => void refresh(), 2500);
-    return () => window.clearInterval(id);
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [bridge, refresh]);
+
+  useEffect(() => {
+    if (!bridge || status?.trusted) return;
+    const id = window.setInterval(() => void refresh(), 2000);
+    return () => window.clearInterval(id);
+  }, [bridge, status?.trusted, refresh]);
 
   const platform = window.speakfiction?.platform;
   const macOnly = !bridge || platform === 'win32' || platform === 'linux' || status?.available === false;
@@ -122,7 +133,7 @@ export function NativeHandoff({ book }: { book: Book }) {
     if (!next.trusted) {
       await bridge.openPrivacySettings();
       setMessage(
-        'Turn on SpeakFiction in Privacy & Security → Accessibility, then return here. You may need to restart the app once after enabling it.',
+        'Toggle SpeakFiction on in Privacy & Security → Accessibility. If it is already on, turn it off and on again, then return here.',
       );
     }
   };

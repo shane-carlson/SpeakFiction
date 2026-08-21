@@ -159,6 +159,7 @@ const BUNDLED_BY_VERSION: Record<string, string> = {
     'If you deleted the example book, Library can add Example: The Ember King back',
     'The restored sample includes the chapter outline, scenes, and trained names',
     'The offer only appears when that example is not already in your library',
+    'Live send notices Accessibility as soon as it is on, without a restart',
   ),
   '0.2.17': bullets(
     'LibreOffice Writer is on Integrations: export the same styled .docx Word uses',

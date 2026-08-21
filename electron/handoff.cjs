@@ -7,6 +7,9 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 
+/** Once Accessibility works for this process, keep treating it as granted. */
+let knownTrusted = false;
+
 const TARGETS = [
   {
     id: 'scrivener',
@@ -39,11 +42,38 @@ function isDarwin() {
   return process.platform === 'darwin';
 }
 
-function isTrusted(prompt = false) {
-  if (!isDarwin() || typeof systemPreferences.isTrustedAccessibilityClient !== 'function') {
+function readElectronTrust(prompt) {
+  if (typeof systemPreferences.isTrustedAccessibilityClient !== 'function') return false;
+  return Boolean(systemPreferences.isTrustedAccessibilityClient(prompt));
+}
+
+/** Same path live paste uses. Electron's silent AX check often stays false after a grant. */
+function probeSystemEvents() {
+  try {
+    execFileSync(
+      '/usr/bin/osascript',
+      ['-e', 'tell application "System Events" to count UI elements of process "Finder"'],
+      { timeout: 2500, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    return true;
+  } catch {
     return false;
   }
-  return Boolean(systemPreferences.isTrustedAccessibilityClient(prompt));
+}
+
+function isTrusted(prompt = false) {
+  if (!isDarwin()) return false;
+  if (knownTrusted) return true;
+  // Apple may suppress the Enable prompt if we silently check false first.
+  if (prompt && readElectronTrust(true)) {
+    knownTrusted = true;
+    return true;
+  }
+  if (probeSystemEvents()) {
+    knownTrusted = true;
+    return true;
+  }
+  return false;
 }
 
 function openAccessibilitySettings() {
