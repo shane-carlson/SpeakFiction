@@ -21,7 +21,7 @@ export interface FileFilter {
 }
 
 export interface HandoffTargetStatus {
-  id: 'scrivener' | 'word';
+  id: 'scrivener' | 'word' | 'libreoffice';
   name: string;
   installed: boolean;
   running: boolean;
@@ -47,7 +47,7 @@ export interface SpeakFictionHandoffBridge {
   requestAccess: () => Promise<HandoffStatus>;
   openPrivacySettings: () => Promise<void>;
   send: (
-    appId: 'scrivener' | 'word',
+    appId: 'scrivener' | 'word' | 'libreoffice',
     payload: { text: string; rtf?: string },
   ) => Promise<HandoffSendResult>;
 }

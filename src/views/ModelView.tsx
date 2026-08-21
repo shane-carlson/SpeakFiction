@@ -19,20 +19,18 @@ export function ModelView({ book }: { book: Book }) {
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h2>On-Device Model</h2>
-          <p>
-            A private model that adapts to <b>your</b> voice, vocabulary, genre, tense, and
-            perspective (trained on this device from your corrections. No prose ever leaves your
-            device).
-          </p>
-        </div>
+      <div className="page-head page-head-span">
+        <h2>On-Device Model</h2>
         <div className="book-pill">
           <span>🧠</span>
           <b>{book.title}</b>
           <span>· {genre.name} · {tense.name} · {perspective.name}</span>
         </div>
+        <p>
+          A private model that adapts to <b>your</b> voice, vocabulary, genre, tense, and
+          perspective (trained on this device from your corrections. No prose ever leaves your
+          device).
+        </p>
       </div>
 
       <div className="note-banner" style={{ marginBottom: 18 }}>

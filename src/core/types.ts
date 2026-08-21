@@ -169,4 +169,10 @@ export interface Series {
   name: string;
 }
 
-export type IntegrationTarget = 'scrivener' | 'word' | 'googledocs' | 'markdown' | 'plaintext';
+export type IntegrationTarget =
+  | 'scrivener'
+  | 'word'
+  | 'libreoffice'
+  | 'googledocs'
+  | 'markdown'
+  | 'plaintext';

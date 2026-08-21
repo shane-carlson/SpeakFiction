@@ -2,14 +2,20 @@ import { toPlainText, toRtf, type ExportContext } from './export';
 import { manuscriptStats } from './manuscript';
 import type { Manuscript } from './types';
 
-export type HandoffAppId = 'scrivener' | 'word';
+export type HandoffAppId = 'scrivener' | 'word' | 'libreoffice';
+
+export function handoffAppLabel(id: HandoffAppId): string {
+  if (id === 'word') return 'Word';
+  if (id === 'libreoffice') return 'LibreOffice';
+  return 'Scrivener';
+}
 
 /** Plain prose for the clipboard — no Scrivener Import-and-Split `#` markers. */
 export function toLiveInsertText(manuscript: Manuscript, ctx: ExportContext): string {
   return toPlainText(manuscript, ctx);
 }
 
-/** RTF for Word/Scrivener paste. Chapter titles are headings, not split delimiters. */
+/** RTF for Word, Scrivener, or LibreOffice paste. Chapter titles are headings, not split delimiters. */
 export function toLiveInsertRtf(manuscript: Manuscript, ctx: ExportContext): string {
   return toRtf(manuscript, ctx, { chapterSplit: false });
 }

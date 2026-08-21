@@ -159,6 +159,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.17 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.17')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.17',
+      build: 33,
+      pending: {
+        version: '0.2.17',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.17'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'LibreOffice Writer is on Integrations: export the same styled .docx Word uses',
+      'Open it in Writer and jump chapters in Navigator, then Save As .odt when you want the native file',
+      'On a Mac, live paste into LibreOffice at the cursor, the same way as Word',
+      'On-Device Model’s intro uses the full page width, so the privacy copy is easier to read',
+    ]);
+  });
+
   it('uses curated 0.2.16 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.16')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

@@ -103,9 +103,10 @@ module.exports = {
     extendInfo: {
       NSMicrophoneUsageDescription:
         'SpeakFiction uses the microphone to dictate your manuscript. Audio stays on this Mac.',
-      NSAppleEventsUsageDescription: 'SpeakFiction inserts your manuscript into Scrivener and Word.',
+      NSAppleEventsUsageDescription:
+        'SpeakFiction inserts your manuscript into Scrivener, Word, and LibreOffice.',
       NSAccessibilityUsageDescription:
-        'SpeakFiction uses Accessibility to paste dictated text into Scrivener and Word.',
+        'SpeakFiction uses Accessibility to paste dictated text into Scrivener, Word, and LibreOffice.',
       CFBundleDisplayName: 'SpeakFiction',
       CFBundleName: 'SpeakFiction',
     },

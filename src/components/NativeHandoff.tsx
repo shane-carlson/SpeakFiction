@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Book } from '../core/types';
 import { getGenre } from '../core/genres';
-import { liveInsertIsEmpty, toLiveInsertRtf, toLiveInsertText } from '../core/handoff';
+import {
+  handoffAppLabel,
+  liveInsertIsEmpty,
+  toLiveInsertRtf,
+  toLiveInsertText,
+  type HandoffAppId,
+} from '../core/handoff';
 import { loadExportImages } from '../core/mediaStore';
 import type { HandoffSendResult, HandoffStatus } from '../speakfiction';
 
@@ -31,7 +37,7 @@ function reasonMessage(result: HandoffSendResult): string {
 export function NativeHandoff({ book }: { book: Book }) {
   const bridge = nativeHandoff();
   const [status, setStatus] = useState<HandoffStatus | null>(null);
-  const [busy, setBusy] = useState<'scrivener' | 'word' | null>(null);
+  const [busy, setBusy] = useState<HandoffAppId | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const empty = liveInsertIsEmpty(book.manuscript);
   const genre = getGenre(book.genreId);
@@ -72,7 +78,7 @@ export function NativeHandoff({ book }: { book: Book }) {
       <div className="note-banner">
         <span className="ico">🖥️</span>
         <div>
-          <b>Live send to Scrivener or Word</b> is Mac only (Accessibility).
+          <b>Live send to Scrivener, Word, or LibreOffice</b> is Mac only (Accessibility).
           {platform === 'win32'
             ? ' On Windows, export a file below and open it in your writing app.'
             : ' This preview can still export files below.'}
@@ -85,19 +91,21 @@ export function NativeHandoff({ book }: { book: Book }) {
   const targets = status?.targets ?? [
     { id: 'scrivener' as const, name: 'Scrivener', installed: false, running: false },
     { id: 'word' as const, name: 'Microsoft Word', installed: false, running: false },
+    { id: 'libreoffice' as const, name: 'LibreOffice', installed: false, running: false },
   ];
-  const send = async (appId: 'scrivener' | 'word') => {
+  const send = async (appId: HandoffAppId) => {
     setMessage(null);
     setBusy(appId);
     try {
       const result = await bridge.send(appId, payload);
       if (result.status) setStatus(result.status);
       else await refresh();
+      const label = handoffAppLabel(appId);
       if (result.ok) {
         setMessage(
           result.launched
-            ? `Opened ${appId === 'word' ? 'Word' : 'Scrivener'} and pasted at the cursor. Place the cursor in a document first next time if the paste landed in the wrong place.`
-            : `Pasted into ${appId === 'word' ? 'Word' : 'Scrivener'} at the cursor.`,
+            ? `Opened ${label} and pasted at the cursor. Place the cursor in a document first next time if the paste landed in the wrong place.`
+            : `Pasted into ${label} at the cursor.`,
         );
       } else {
         setMessage(reasonMessage(result));
@@ -160,7 +168,7 @@ export function NativeHandoff({ book }: { book: Book }) {
               disabled={!trusted || !t.installed || empty || busy != null}
               onClick={() => void send(t.id)}
             >
-              {busy === t.id ? 'Sending…' : `Send to ${t.id === 'word' ? 'Word' : 'Scrivener'}`}
+              {busy === t.id ? 'Sending…' : `Send to ${handoffAppLabel(t.id)}`}
             </button>
           </div>
         ))}

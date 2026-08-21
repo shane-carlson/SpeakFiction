@@ -1,7 +1,7 @@
 # SpeakFiction
 
 **Dictation software built for fiction writers.** SpeakFiction turns spoken storytelling into
-clean, structured manuscript prose and hands it off to Scrivener, Word, or Google Docs — with
+clean, structured manuscript prose and hands it off to Scrivener, Word, LibreOffice, or Google Docs — with
 per-book name libraries, genre-aware punctuation, spoken chapter/scene cues, and a private
 on-device model that adapts to how *you* write.
 
@@ -26,7 +26,7 @@ fully testable on Linux/CI as well.
 - **Private on-device adaptive model** — Learns your vocabulary and correction habits locally to
   bias future recognition. The interface is designed so a Creative-Commons-trained local LLM (e.g.
   via llama.cpp) can drop in as the base model. No prose leaves the device.
-- **Guided integrations** — File export to Scrivener (RTF + split-on-import), Word, Google Docs, Markdown, and plain text. The Mac app can also **paste the manuscript into an open Scrivener or Word document** (Accessibility).
+- **Guided integrations** — File export to Scrivener (RTF + split-on-import), Word, LibreOffice Writer, Google Docs, Markdown, and plain text. The Mac app can also **paste the manuscript into an open Scrivener, Word, or LibreOffice document** (Accessibility).
 
 ## Ethics
 
@@ -158,7 +158,7 @@ npm run pack:win:same            # same version *and* build number (overwrite th
 # optional: --bump=patch|minor|major   also bump semver, then stamp a new build
 ```
 
-Windows extraResources never include Mac Mach-O dylibs. If `models/bin-win-x64/whisper-cli.exe` exists (or can be downloaded from the official whisper.cpp `whisper-bin-x64` CPU release), it is shipped; otherwise the app uses the WASM fallback. Live send / Accessibility stay **Mac only** — Windows users export files to Scrivener, Word, or Google Docs. Microphone access uses Chromium `getUserMedia` (Settings → Privacy → Microphone).
+Windows extraResources never include Mac Mach-O dylibs. If `models/bin-win-x64/whisper-cli.exe` exists (or can be downloaded from the official whisper.cpp `whisper-bin-x64` CPU release), it is shipped; otherwise the app uses the WASM fallback. Live send / Accessibility stay **Mac only** — Windows users export files to Scrivener, Word, LibreOffice, or Google Docs. Microphone access uses Chromium `getUserMedia` (Settings → Privacy → Microphone).
 
 `pack:mac`, `pack:mac:intel`, and `pack:mac:same` are unchanged.
 

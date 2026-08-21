@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getGenre } from '../genres';
-import { liveInsertIsEmpty, toLiveInsertRtf, toLiveInsertText } from '../handoff';
+import { handoffAppLabel, liveInsertIsEmpty, toLiveInsertRtf, toLiveInsertText } from '../handoff';
 import { appendSegments } from '../manuscript';
 import { SCRIVENER_SPLIT_SEPARATOR } from '../export';
 
@@ -26,5 +26,11 @@ describe('live insert payload', () => {
   it('treats an empty manuscript as empty', () => {
     expect(liveInsertIsEmpty({ blocks: [] })).toBe(true);
     expect(liveInsertIsEmpty(manuscript)).toBe(false);
+  });
+
+  it('names live-send apps for the Integrations buttons', () => {
+    expect(handoffAppLabel('scrivener')).toBe('Scrivener');
+    expect(handoffAppLabel('word')).toBe('Word');
+    expect(handoffAppLabel('libreoffice')).toBe('LibreOffice');
   });
 });

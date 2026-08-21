@@ -284,7 +284,7 @@ export function BackupView({
             </button>
           </div>
           <p className="hint" style={{ marginTop: 12 }}>
-            Need the Scrivener / Word wizard?{' '}
+            Need the Scrivener / Word / LibreOffice wizard?{' '}
             <button className="btn ghost" style={{ padding: '0 4px' }} onClick={onOpenIntegrations}>
               Open Integrations
             </button>

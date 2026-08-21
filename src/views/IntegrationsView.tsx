@@ -57,6 +57,20 @@ const TARGETS: TargetInfo[] = [
     ],
   },
   {
+    id: 'libreoffice',
+    name: 'LibreOffice',
+    icon: '📗',
+    blurb: 'The same .docx Word uses. Writer maps Heading 1 chapters into Navigator. Save as .odt when you want the native file.',
+    format: 'docx',
+    steps: [
+      'Download the .docx below.',
+      'In LibreOffice Writer: File → Open, then choose the exported .docx (or drop it on Writer).',
+      'Chapters use Heading 1 and sections use Heading 2. Open View → Navigator (F5) to jump between them.',
+      'Pictures and tables stay in the file. Scene breaks stay as a centered line inside the chapter.',
+      'When the page looks right, File → Save As → ODF Text Document (.odt) if you want LibreOffice’s native format from then on.',
+    ],
+  },
+  {
     id: 'googledocs',
     name: 'Google Docs',
     icon: '🗂️',
@@ -203,7 +217,9 @@ export function IntegrationsView({ book }: { book: Book }) {
           <p className="sub">
             {target.id === 'scrivener'
               ? 'Import and Split creates one binder document per chapter. Scene lines stay inside the chapter.'
-              : `What SpeakFiction will create in ${target.name}.`}
+              : target.id === 'libreoffice'
+                ? 'Writer keeps one document. Heading 1 chapters and Heading 2 sections show in Navigator. Scene lines stay inside the chapter.'
+                : `What SpeakFiction will create in ${target.name}.`}
           </p>
           {scrivener.outline.length === 0 ? (
             <div className="empty">Dictate some chapters and scenes first.</div>

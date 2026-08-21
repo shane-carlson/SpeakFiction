@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.17': bullets(
+    'LibreOffice Writer is on Integrations: export the same styled .docx Word uses',
+    'Open it in Writer and jump chapters in Navigator, then Save As .odt when you want the native file',
+    'On a Mac, live paste into LibreOffice at the cursor, the same way as Word',
+    'On-Device Model’s intro uses the full page width, so the privacy copy is easier to read',
+  ),
   '0.2.16': bullets(
     'On-Device Model says the private adaptation is trained on this device, and no prose leaves your device',
     'The ethics note is shorter: models built from open source and creative commons works',

@@ -22,6 +22,13 @@ const TARGETS = [
     processNames: ['Microsoft Word', 'Word'],
     bundleIds: ['com.microsoft.Word'],
   },
+  {
+    id: 'libreoffice',
+    name: 'LibreOffice',
+    appNames: ['LibreOffice'],
+    processNames: ['soffice', 'soffice.bin', 'LibreOffice'],
+    bundleIds: ['org.libreoffice.script', 'org.libreoffice.LibreOffice'],
+  },
 ];
 
 function sleep(ms) {
