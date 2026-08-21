@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.18': bullets(
+    'If you deleted the example book, Library can add Example: The Ember King back',
+    'The restored sample includes the chapter outline, scenes, and trained names',
+    'The offer only appears when that example is not already in your library',
+  ),
   '0.2.17': bullets(
     'LibreOffice Writer is on Integrations: export the same styled .docx Word uses',
     'Open it in Writer and jump chapters in Navigator, then Save As .odt when you want the native file',

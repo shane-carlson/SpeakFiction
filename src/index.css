@@ -2082,6 +2082,12 @@ label {
   color: var(--text-faint);
   margin: 0 0 6px;
 }
+.library-restore-sample {
+  margin: 0 0 12px;
+}
+.library-restore-sample .sub {
+  margin: 0 0 8px;
+}
 .list-row .grow {
   flex: 1;
   min-width: 0;

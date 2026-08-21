@@ -11,6 +11,15 @@ export function isEmberKingExampleTitle(title: string): boolean {
   return title === EMBER_KING_TITLE || title === EMBER_KING_TITLE_LEGACY;
 }
 
+export function isEmberKingExampleSeries(name: string): boolean {
+  return name === EMBER_KING_SERIES || name === EMBER_KING_SERIES_LEGACY;
+}
+
+/** True when the shipped example is already in the library (by its example title). */
+export function libraryHasEmberKingSample(books: Array<{ title: string }>): boolean {
+  return books.some((b) => isEmberKingExampleTitle(b.title));
+}
+
 export const EMBER_KING_CHAPTERS = [
   'The Exile Returns',
   "The Oracle's Warning",

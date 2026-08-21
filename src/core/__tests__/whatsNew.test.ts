@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.18 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.18')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.18',
+      build: 34,
+      pending: {
+        version: '0.2.18',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.18'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'If you deleted the example book, Library can add Example: The Ember King back',
+      'The restored sample includes the chapter outline, scenes, and trained names',
+      'The offer only appears when that example is not already in your library',
+    ]);
+  });
+
   it('uses curated 0.2.17 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.17')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

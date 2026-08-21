@@ -6,6 +6,7 @@ import { PERSPECTIVE_LIST, getPerspective } from '../core/perspective';
 import type { GenreId, NameCategory, NameEntry, PerspectiveId, TenseId } from '../core/types';
 import { formatSeriesBookNumber, groupLibraryBooks, seriesMembershipLabel } from '../core/seriesBooks';
 import { seriesNameViews } from '../core/seriesNames';
+import { libraryHasEmberKingSample } from '../core/seedManuscript';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
@@ -19,6 +20,7 @@ export function LibraryView() {
   const activeBookId = useStore((s) => s.activeBookId);
   const setActiveBook = useStore((s) => s.setActiveBook);
   const createBook = useStore((s) => s.createBook);
+  const restoreSampleBook = useStore((s) => s.restoreSampleBook);
   const deleteBook = useStore((s) => s.deleteBook);
   const renameBook = useStore((s) => s.renameBook);
   const createSeries = useStore((s) => s.createSeries);
@@ -219,6 +221,17 @@ export function LibraryView() {
           ))}
 
           <div style={{ borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12 }}>
+            {!libraryHasEmberKingSample(books) && (
+              <div className="library-restore-sample">
+                <p className="sub">
+                  The example book is not in this library. Add it back to try dictation on a full
+                  chapter outline with trained names.
+                </p>
+                <button type="button" className="btn ghost" onClick={() => restoreSampleBook()}>
+                  Add example book
+                </button>
+              </div>
+            )}
             <div className="field">
               <label>New book title</label>
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Winter of Glass" />

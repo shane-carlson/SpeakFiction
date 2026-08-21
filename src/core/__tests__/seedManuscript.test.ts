@@ -9,7 +9,9 @@ import {
   EMBER_KING_TITLE,
   EMBER_KING_TITLE_LEGACY,
   emberKingSampleManuscript,
+  isEmberKingExampleSeries,
   isTinyEmberKingSeed,
+  libraryHasEmberKingSample,
   relabelEmberKingExample,
   relabelEmberKingSeries,
 } from '../seedManuscript';
@@ -96,5 +98,21 @@ describe('relabelEmberKingExample', () => {
       },
     };
     expect(relabelEmberKingExample(book).title).toBe(EMBER_KING_TITLE_LEGACY);
+  });
+});
+
+describe('libraryHasEmberKingSample', () => {
+  it('matches the current and legacy example titles', () => {
+    expect(libraryHasEmberKingSample([{ title: EMBER_KING_TITLE }])).toBe(true);
+    expect(libraryHasEmberKingSample([{ title: EMBER_KING_TITLE_LEGACY }])).toBe(true);
+    expect(libraryHasEmberKingSample([{ title: 'Winter of Glass' }])).toBe(false);
+    expect(libraryHasEmberKingSample([])).toBe(false);
+  });
+
+  it('matches the example series names', () => {
+    expect(isEmberKingExampleSeries(EMBER_KING_SERIES)).toBe(true);
+    expect(isEmberKingExampleSeries(EMBER_KING_SERIES_LEGACY)).toBe(true);
+    expect(isEmberKingExampleSeries('The Ember Cycle')).toBe(true);
+    expect(isEmberKingExampleSeries('Ash Rising')).toBe(false);
   });
 });

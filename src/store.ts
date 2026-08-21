@@ -73,6 +73,8 @@ import {
   EMBER_KING_SERIES,
   EMBER_KING_TITLE,
   emberKingSampleManuscript,
+  isEmberKingExampleSeries,
+  isEmberKingExampleTitle,
   isTinyEmberKingSeed,
   relabelEmberKingExample,
   relabelEmberKingSeries,
@@ -131,6 +133,8 @@ interface AppState {
   createSeries: (name: string) => string;
   createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
   deleteBook: (id: string) => void;
+  /** Add the shipped Ember King example back if the user deleted it. */
+  restoreSampleBook: () => string;
   setActiveBook: (id: string) => void;
   setGenre: (bookId: string, genreId: GenreId) => void;
   setTense: (bookId: string, tenseId: TenseId) => void;
@@ -181,33 +185,48 @@ interface AppState {
   importLibraryBackup: (backup: LibraryBackup, mode: 'merge' | 'replace') => void;
 }
 
-function seedBook(): { series: Series[]; book: Book } {
-  const seriesId = uid('ser');
-  const now = Date.now();
-  const nameLibrary: NameEntry[] = [
+function emberKingNameLibrary(): NameEntry[] {
+  return [
     { id: uid('n'), canonical: 'Kaeldros', category: 'character', aliases: ['kaldros', 'kel dros'], note: 'exiled swordmaster' },
     { id: uid('n'), canonical: 'Aelith', category: 'character', aliases: ['aleith', 'a lith'], note: 'oracle of the deep' },
     { id: uid('n'), canonical: 'Vaelthorn Keep', category: 'location', aliases: ['valthorn keep', 'vale thorn keep'] },
     { id: uid('n'), canonical: 'Sunspar', category: 'item', aliases: ['sun spar'], note: 'the shard-blade' },
     { id: uid('n'), canonical: 'The Ashen Order', category: 'organization', aliases: ['ashen order'] },
   ];
+}
 
+function nextSeriesBookNumber(books: Book[], seriesId: string): number {
+  let max = 0;
+  for (const b of books) {
+    if (b.seriesId !== seriesId) continue;
+    const n = b.seriesBookNumber ?? 0;
+    if (n > max) max = n;
+  }
+  return max + 1;
+}
+
+function seedBook(opts?: { seriesId?: string; seriesBookNumber?: number }): { series: Series[]; book: Book } {
+  const seriesId = opts?.seriesId ?? uid('ser');
+  const now = Date.now();
   const book: Book = {
     id: uid('bk'),
     title: EMBER_KING_TITLE,
     seriesId,
-    seriesBookNumber: 1,
+    seriesBookNumber: opts?.seriesBookNumber ?? 1,
     genreId: 'fantasy',
     tenseId: DEFAULT_TENSE,
     perspectiveId: DEFAULT_PERSPECTIVE,
-    nameLibrary,
+    nameLibrary: emberKingNameLibrary(),
     manuscript: emberKingSampleManuscript(),
     adaptive: emptyAdaptiveState(),
     createdAt: now,
     updatedAt: now,
   };
 
-  return { series: [{ id: seriesId, name: EMBER_KING_SERIES }], book };
+  return {
+    series: opts?.seriesId ? [] : [{ id: seriesId, name: EMBER_KING_SERIES }],
+    book,
+  };
 }
 
 function patchBook(books: Book[], id: string, fn: (b: Book) => Book): Book[] {
@@ -389,6 +408,26 @@ export const useStore = create<AppState>()(
             activeBookId: s.activeBookId === id ? books[0]?.id ?? null : s.activeBookId,
           };
         }),
+
+      restoreSampleBook: () => {
+        const s = get();
+        const existing = s.books.find((b) => isEmberKingExampleTitle(b.title));
+        if (existing) {
+          set({ activeBookId: existing.id });
+          return existing.id;
+        }
+        const existingSeries = s.series.find((x) => isEmberKingExampleSeries(x.name));
+        const seeded = seedBook({
+          seriesId: existingSeries?.id,
+          seriesBookNumber: existingSeries ? nextSeriesBookNumber(s.books, existingSeries.id) : 1,
+        });
+        set({
+          series: [...s.series, ...seeded.series],
+          books: [...s.books, seeded.book],
+          activeBookId: seeded.book.id,
+        });
+        return seeded.book.id;
+      },
 
       setActiveBook: (id) => set({ activeBookId: id }),
 
