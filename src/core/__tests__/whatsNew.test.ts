@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.20 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.20')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.20',
+      build: 36,
+      pending: {
+        version: '0.2.20',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.20'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'The Accessibility dialog appears only when you click Enable, not on a loop',
+      'Background live-send checks stay silent after you grant access',
+      'If the toggle is already on, Restart SpeakFiction still applies it',
+    ]);
+  });
+
   it('uses curated 0.2.19 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.19')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

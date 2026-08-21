@@ -80,12 +80,6 @@ export function NativeHandoff({ book }: { book: Book }) {
     };
   }, [bridge, refresh]);
 
-  useEffect(() => {
-    if (!bridge || status?.trusted) return;
-    const id = window.setInterval(() => void refresh(), 2000);
-    return () => window.clearInterval(id);
-  }, [bridge, status?.trusted, refresh]);
-
   const platform = window.speakfiction?.platform;
   const macOnly = !bridge || platform === 'win32' || platform === 'linux' || status?.available === false;
   if (macOnly) {

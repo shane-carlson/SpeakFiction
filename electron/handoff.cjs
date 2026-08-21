@@ -53,17 +53,15 @@ function accessibilityClientName() {
   return 'SpeakFiction';
 }
 
-function readElectronTrust() {
+function readElectronTrust(prompt) {
   if (typeof systemPreferences.isTrustedAccessibilityClient !== 'function') return false;
-  // Always pass true. The silent false check is a documented stale false-negative,
-  // and calling false first can suppress Apple's Enable dialog afterward.
-  return Boolean(systemPreferences.isTrustedAccessibilityClient(true));
+  return Boolean(systemPreferences.isTrustedAccessibilityClient(Boolean(prompt)));
 }
 
 function isTrusted() {
   if (!isDarwin()) return false;
   if (knownTrusted) return true;
-  if (readElectronTrust()) {
+  if (readElectronTrust(false)) {
     knownTrusted = true;
     return true;
   }
@@ -174,7 +172,10 @@ function pushStatus() {
 }
 
 async function requestAccess() {
-  readElectronTrust();
+  if (isTrusted()) return getStatus();
+  // Prompt only from Enable. Status polls and window-focus checks stay silent,
+  // or macOS keeps showing the dialog after a grant.
+  readElectronTrust(true);
   for (let i = 0; i < 8; i += 1) {
     if (isTrusted()) return getStatus();
     await sleep(250);

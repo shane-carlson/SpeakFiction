@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.20': bullets(
+    'The Accessibility dialog appears only when you click Enable, not on a loop',
+    'Background live-send checks stay silent after you grant access',
+    'If the toggle is already on, Restart SpeakFiction still applies it',
+  ),
   '0.2.19': bullets(
     'Live send checks Accessibility with the live macOS prompt, not a stale silent flag',
     'Send still works if the badge has not caught up yet; a successful paste clears it',
