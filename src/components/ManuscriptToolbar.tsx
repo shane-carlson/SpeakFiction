@@ -82,6 +82,8 @@ export function ManuscriptToolbar({
   onSetKind,
   onUndo,
   onRedo,
+  pickingInsert = false,
+  onTogglePickingInsert,
 }: {
   focused?: Block;
   canUndo: boolean;
@@ -97,6 +99,8 @@ export function ManuscriptToolbar({
   onSetKind: (kind: StructureHeadingKind) => void;
   onUndo: () => void;
   onRedo: () => void;
+  pickingInsert?: boolean;
+  onTogglePickingInsert?: () => void;
 }) {
   const heading = focused && focused.type !== 'image' && focused.type !== 'table' ? focused.type : null;
   const formatEnabled = focused?.type === 'paragraph';
@@ -172,6 +176,21 @@ export function ManuscriptToolbar({
         </div>
       </div>
       <div className="ms-toolbar-group ms-toolbar-end">
+        {onTogglePickingInsert && (
+          <button
+            type="button"
+            className={`btn compact${pickingInsert ? ' primary' : ' ghost'}`}
+            aria-pressed={pickingInsert}
+            title={
+              pickingInsert
+                ? 'Click a gap in the manuscript, or click again to cancel'
+                : 'Turn on, then click a gap to mark where dictation lands'
+            }
+            onClick={onTogglePickingInsert}
+          >
+            {layout === 'rail' ? 'Insert point' : 'Choose insertion point'}
+          </button>
+        )}
         <button type="button" className="btn compact ghost" disabled={!canUndo} onClick={onUndo}>
           Undo
         </button>

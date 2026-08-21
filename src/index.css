@@ -382,9 +382,6 @@ button {
   border-top: 1px solid var(--border);
   line-height: 1.5;
 }
-.sidebar-privacy {
-  margin-top: 10px;
-}
 .sidebar-version {
   margin-top: 10px;
   font-size: 10px;
@@ -1273,15 +1270,18 @@ label {
   height: 18px;
   margin: 2px 0;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: default;
   position: relative;
 }
-.ms-insert-gap:hover {
+.manuscript.is-picking-insert .ms-insert-gap {
+  cursor: pointer;
+}
+.manuscript.is-picking-insert .ms-insert-gap:hover {
   height: 28px;
   margin: 6px 0;
   background: var(--accent-soft);
 }
-.ms-insert-gap:hover::after,
+.manuscript.is-picking-insert .ms-insert-gap:hover::after,
 .ms-insert-gap.is-insert-selected::after {
   content: '';
   position: absolute;
@@ -1306,7 +1306,7 @@ label {
   background: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
-.ms-insert-gap:hover::before,
+.manuscript.is-picking-insert .ms-insert-gap:hover::before,
 .ms-insert-gap.is-insert-selected::before {
   content: attr(data-insert-label);
   position: absolute;

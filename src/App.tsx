@@ -83,10 +83,6 @@ export default function App() {
           <ThemeSwitcher />
           <UpdateBanner updater={updater} dictating={dictating} />
           <LicenseBanner license={license} />
-          <div className="sidebar-privacy">
-            <strong>Private by design.</strong> Dictation, your name library, and the adaptive model
-            all stay on this device.
-          </div>
           <div
             className="sidebar-version"
             title={`Build ${__APP_BUILD__}. Click to check for updates.`}

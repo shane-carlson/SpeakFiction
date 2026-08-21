@@ -9,7 +9,7 @@ describe('DictationCues', () => {
 
     expect(screen.getByText('start dictation')).toBeVisible();
     expect(screen.getByText('new character')).toBeVisible();
-    expect(screen.getByText(/Click a gap in the manuscript/)).toBeVisible();
+    expect(screen.getByText(/Click Choose insertion point/)).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);

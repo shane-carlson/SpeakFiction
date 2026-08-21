@@ -19,7 +19,7 @@ import type { ManuscriptPlace } from '../core/persistedState';
 import { offsetsFromDomRange } from '../core/dictationDraft';
 import { ingestManuscriptImage } from '../core/mediaStore';
 import { mimeFromFile } from '../core/manuscriptMedia';
-import { buildManuscriptContextMenu, applyChapterHeadingMenuAction } from '../core/manuscriptContextMenu';
+import { buildManuscriptContextMenu, applyChapterHeadingMenuAction, UNSELECT_INSERT_ID } from '../core/manuscriptContextMenu';
 import {
   SPELLCHECK_ADD_ID,
   manuscriptSpellcheckGate,
@@ -188,6 +188,8 @@ export function ManuscriptView({
   canInsertDictation,
   onInsertDictation,
   onPickImage,
+  pickingInsert = false,
+  onPickingChange,
 }: {
   book: Book;
   place?: ManuscriptPlace;
@@ -195,6 +197,8 @@ export function ManuscriptView({
   canInsertDictation?: boolean;
   onInsertDictation?: (dest: ManuscriptInsertAt) => void;
   onPickImage?: (dest: ManuscriptInsertAt) => void;
+  pickingInsert?: boolean;
+  onPickingChange?: (picking: boolean) => void;
 }) {
   const updateBlockText = useStore((s) => s.updateBlockText);
   const updateBlockTitle = useStore((s) => s.updateBlockTitle);
@@ -267,6 +271,13 @@ export function ManuscriptView({
       scrollTop: place?.scrollTop ?? 0,
       atIndex,
     });
+    onPickingChange?.(false);
+  };
+
+  const clearGap = () => {
+    onPlaceChange?.({
+      scrollTop: place?.scrollTop ?? 0,
+    });
   };
 
   const openInsertMenu = (e: React.MouseEvent) => {
@@ -277,8 +288,6 @@ export function ManuscriptView({
     const chapterHeading = destBlock?.type === 'chapter';
     if (dest.atBlockId) {
       report(dest.atBlockId, dest.splitOffset, dest.splitOffset);
-    } else if (dest.atIndex != null) {
-      selectGap(dest.atIndex);
     }
     const token = ++menuGen.current;
     const field = spellFieldFromTarget(e.target);
@@ -337,6 +346,10 @@ export function ManuscriptView({
         },
       })
     ) {
+      return;
+    }
+    if (id === UNSELECT_INSERT_ID) {
+      clearGap();
       return;
     }
     if (id === 'insert-dictation-here') {
@@ -440,6 +453,7 @@ export function ManuscriptView({
       y={menu.y}
       items={buildManuscriptContextMenu(Boolean(canInsertDictation), menu.spell, {
         chapterHeading: menu.chapterHeading,
+        canUnselectInsert: place?.atIndex != null,
       })}
       onClose={closeMenu}
       onSelect={onMenuSelect}
@@ -468,19 +482,34 @@ export function ManuscriptView({
       className={gapClass(atIndex)}
       data-insert-index={atIndex}
       data-drop-label={dropOver === atIndex ? dropHint : undefined}
-      data-insert-label={selectedGap === atIndex ? insertSelected : insertHover}
+      data-insert-label={
+        selectedGap === atIndex ? insertSelected : pickingInsert ? insertHover : undefined
+      }
       role="button"
-      tabIndex={0}
-      title={selectedGap === atIndex ? insertSelected : insertHover}
-      aria-label={selectedGap === atIndex ? insertSelected : insertHover}
+      tabIndex={pickingInsert || selectedGap === atIndex ? 0 : -1}
+      title={
+        selectedGap === atIndex
+          ? insertSelected
+          : pickingInsert
+            ? insertHover
+            : 'Turn on Choose insertion point, then click a gap'
+      }
+      aria-label={
+        selectedGap === atIndex
+          ? insertSelected
+          : pickingInsert
+            ? insertHover
+            : 'Insertion gap'
+      }
       aria-pressed={selectedGap === atIndex}
       onClick={(e) => {
-        if (dragFrom != null) return;
+        if (dragFrom != null || !pickingInsert) return;
         e.preventDefault();
         e.stopPropagation();
         selectGap(atIndex);
       }}
       onKeyDown={(e) => {
+        if (!pickingInsert) return;
         if (e.key !== 'Enter' && e.key !== ' ') return;
         e.preventDefault();
         selectGap(atIndex);
@@ -505,12 +534,14 @@ export function ManuscriptView({
   if (blocks.length === 0) {
     return (
       <>
-        <div className="manuscript">
+        <div className={`manuscript${pickingInsert ? ' is-picking-insert' : ''}`}>
           {insertGap(0)}
           <div
             className="empty"
             onContextMenu={openInsertMenu}
-            onClick={() => selectGap(0)}
+            onClick={() => {
+              if (pickingInsert) selectGap(0);
+            }}
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes('Files')) e.preventDefault();
             }}
@@ -520,7 +551,7 @@ export function ManuscriptView({
               void insertImageAt({ atIndex: 0 }, e.dataTransfer.files);
             }}
           >
-            Nothing here yet. Click the marker above to choose where dictation lands, then insert.
+            Nothing here yet. Turn on Choose insertion point, then click the marker above.
             With no point chosen, new prose goes at the end.
           </div>
         </div>
@@ -534,7 +565,7 @@ export function ManuscriptView({
   return (
     <>
       <div
-        className={dragFrom != null ? 'manuscript is-dragging' : 'manuscript'}
+        className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}`}
         onContextMenu={openInsertMenu}
         onDragEnd={endDrag}
         onDragOver={(e) => {

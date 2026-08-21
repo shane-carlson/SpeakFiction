@@ -174,7 +174,8 @@ describe('release notes sources', () => {
     expect(featureBullets(resolved.text)).toEqual([
       'Dictation cues are shorter and grouped: say, name, keys, and insert',
       'Hide the cue list when you know it, or show it again from Cues',
-      'Mic status and the audio meter stay visible either way',
+      'Choose insertion point, then click a gap to mark where dictation lands',
+      'Right-click the marker to unselect it — with none chosen, insert goes at the end',
     ]);
   });
 

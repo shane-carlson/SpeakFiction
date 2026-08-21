@@ -547,7 +547,7 @@ export function destFromPlace(
   return { atIndex: blocks.length };
 }
 
-/** Gap index marked for dictation, or `null` when inserting at a paragraph caret. */
+/** Gap index marked for dictation, or `null` when none is chosen (insert goes at the end). */
 export function selectedInsertGapIndex(
   blocks: Block[],
   place?: { blockId?: string; atIndex?: number },
@@ -559,7 +559,7 @@ export function selectedInsertGapIndex(
   if (place?.atIndex != null && Number.isFinite(place.atIndex) && place.atIndex >= 0) {
     return Math.min(Math.floor(place.atIndex), blocks.length);
   }
-  return blocks.length;
+  return null;
 }
 
 export function insertGapHoverLabel(): string {

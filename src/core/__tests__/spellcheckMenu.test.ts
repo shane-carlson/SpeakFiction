@@ -7,6 +7,8 @@ import {
   CHAPTER_UNWRAP_ID,
   CHAPTER_UNWRAP_LABEL,
   manuscriptInsertMenuItems,
+  UNSELECT_INSERT_ID,
+  UNSELECT_INSERT_LABEL,
 } from '../manuscriptContextMenu';
 import {
   createSpellcheckGate,
@@ -79,6 +81,12 @@ describe('withSpellcheckItems', () => {
     ]);
     expect(items.find((i) => i.id === CHAPTER_UNWRAP_ID)?.group).toBe('chapter');
     expect(items.find((i) => i.id === CHAPTER_DELETE_ID)?.group).toBe('chapter');
+  });
+
+  it('leads with Unselect insertion point when a gap is marked', () => {
+    const items = buildManuscriptContextMenu(true, null, { canUnselectInsert: true });
+    expect(items[0]).toMatchObject({ id: UNSELECT_INSERT_ID, label: UNSELECT_INSERT_LABEL });
+    expect(items.map((i) => i.label)).toContain('Insert dictation here');
   });
 
   it('leads with both chapter actions when the heading is spelled correctly', () => {

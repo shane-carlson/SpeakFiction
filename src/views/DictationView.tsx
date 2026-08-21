@@ -87,6 +87,7 @@ export function DictationView({
   const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
   const dictateCuesOpen = useStore((s) => s.dictateCuesOpen);
   const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
+  const [pickingInsert, setPickingInsert] = useState(false);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -409,6 +410,8 @@ export function DictationView({
       onSetKind={onSetKind}
       onUndo={() => undoManuscript(book.id)}
       onRedo={() => redoManuscript(book.id)}
+      pickingInsert={pickingInsert}
+      onTogglePickingInsert={() => setPickingInsert((on) => !on)}
     />
   );
 
@@ -426,6 +429,8 @@ export function DictationView({
         book={book}
         place={place}
         canInsertDictation={canInsertDictation}
+        pickingInsert={pickingInsert}
+        onPickingChange={setPickingInsert}
         onInsertDictation={promoteToManuscript}
         onPickImage={(dest) => void pickImage(dest)}
         onPlaceChange={(next) => {
@@ -469,6 +474,8 @@ export function DictationView({
                   onSetKind={onSetKind}
                   onUndo={() => undoManuscript(book.id)}
                   onRedo={() => redoManuscript(book.id)}
+                  pickingInsert={pickingInsert}
+                  onTogglePickingInsert={() => setPickingInsert((on) => !on)}
                 />
                 <EditorDictationStrip
                   speech={speech}
@@ -664,6 +671,19 @@ export function DictationView({
             <div className="row">
               <button className="btn ghost" onClick={() => setDraft([])} disabled={!draftVisible}>
                 Clear
+              </button>
+              <button
+                type="button"
+                className={`btn ghost${pickingInsert ? ' primary' : ''}`}
+                aria-pressed={pickingInsert}
+                title={
+                  pickingInsert
+                    ? 'Click a gap in the manuscript, or click again to cancel'
+                    : 'Turn on, then click a gap between chapters, scenes, or paragraphs'
+                }
+                onClick={() => setPickingInsert((on) => !on)}
+              >
+                Choose insertion point
               </button>
               <button
                 className="btn primary"

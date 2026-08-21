@@ -8,9 +8,17 @@ export const CHAPTER_UNWRAP_ID = 'unwrap-header';
 export const CHAPTER_DELETE_ID = 'delete-chapter';
 export const CHAPTER_UNWRAP_LABEL = 'Remove chapter header';
 export const CHAPTER_DELETE_LABEL = 'Delete chapter';
+export const UNSELECT_INSERT_ID = 'unselect-insert';
+export const UNSELECT_INSERT_LABEL = 'Unselect insertion point';
 
-export function manuscriptInsertMenuItems(canInsertDictation: boolean): SpellcheckMenuItem[] {
+export function manuscriptInsertMenuItems(
+  canInsertDictation: boolean,
+  opts?: { canUnselectInsert?: boolean },
+): SpellcheckMenuItem[] {
   return [
+    ...(opts?.canUnselectInsert
+      ? [{ id: UNSELECT_INSERT_ID, label: UNSELECT_INSERT_LABEL, group: 'insert' as const }]
+      : []),
     {
       id: 'insert-dictation-here',
       label: 'Insert dictation here',
@@ -36,9 +44,11 @@ export function chapterHeadingMenuItems(): SpellcheckMenuItem[] {
 export function buildManuscriptContextMenu(
   canInsertDictation: boolean,
   spell?: SpellcheckHit | null,
-  opts?: { chapterHeading?: boolean },
+  opts?: { chapterHeading?: boolean; canUnselectInsert?: boolean },
 ): SpellcheckMenuItem[] {
-  const insert = manuscriptInsertMenuItems(canInsertDictation);
+  const insert = manuscriptInsertMenuItems(canInsertDictation, {
+    canUnselectInsert: opts?.canUnselectInsert,
+  });
   const items = opts?.chapterHeading ? [...chapterHeadingMenuItems(), ...insert] : insert;
   return withSpellcheckItems(items, spell);
 }

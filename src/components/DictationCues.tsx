@@ -49,7 +49,8 @@ export function DictationCues({
             Next sentence is the title. In the box: <span className="kbd">⌘Enter</span> chapter.
           </CueRow>
           <CueRow label="Insert">
-            Click a gap in the manuscript. With none chosen, insert goes at the end.
+            Click Choose insertion point, then a gap. Right-click the marker to clear it. With none
+            chosen, insert goes at the end.
           </CueRow>
         </div>
       )}

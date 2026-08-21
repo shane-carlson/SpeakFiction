@@ -112,7 +112,7 @@ describe('destFromPlace', () => {
 
   it('defaults to the end of the manuscript when nothing is selected', () => {
     expect(destFromPlace(existing)).toEqual({ atIndex: 3 });
-    expect(selectedInsertGapIndex(existing)).toBe(3);
+    expect(selectedInsertGapIndex(existing)).toBeNull();
   });
 
   it('uses a chosen gap index, including between a scene and the next paragraph', () => {
