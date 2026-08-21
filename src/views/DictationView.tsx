@@ -31,6 +31,7 @@ import { ManuscriptView } from '../components/ManuscriptView';
 import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { EditorDictationStrip } from '../components/EditorDictationStrip';
+import { DictationCues } from '../components/DictationCues';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -84,6 +85,8 @@ export function DictationView({
   const setManuscriptSplit = useStore((s) => s.setManuscriptSplit);
   const editorOpen = useStore((s) => s.manuscriptEditorOpen);
   const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
+  const dictateCuesOpen = useStore((s) => s.dictateCuesOpen);
+  const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -556,8 +559,8 @@ export function DictationView({
           <h3>Dictation console</h3>
           <p className="sub">
             {speech.supported
-              ? 'Use the mic, or type/paste a transcript to process. Speech is transcribed on this device. Pause to commit a line. Voice commands are not inserted into the transcript.'
-              : 'Live mic needs a microphone. Type or paste a transcript to process it here.'}
+              ? 'Mic, type, or paste. Speech stays on this device. Voice commands never land in the transcription.'
+              : 'Live mic needs a microphone. Type or paste a transcript here.'}
           </p>
 
           <LicenseGate license={license} />
@@ -600,32 +603,14 @@ export function DictationView({
                   {sessionLabel}
                 </span>
               )}
-              <div className="hint dictate-keys">
-                Say <span className="kbd">start dictation</span> <span className="kbd">pause dictation</span>{' '}
-                <span className="kbd">stop dictation</span> <span className="kbd">strike last sentence</span>{' '}
-                <span className="kbd">undo last command</span>
-              </div>
-              <div className="hint dictate-keys">
-                Say <span className="kbd">new character</span> then the name twice to train it. That cue
-                does not go into the transcription box or the manuscript.
-              </div>
-              <div className="hint dictate-keys">
-                Click a space between chapters, scenes, or paragraphs to choose where dictation
-                lands. The same spots you can drop a dragged block. With none chosen, insert goes
-                at the end.
-              </div>
-              <div className="hint dictate-keys">
-                While listening: <span className="kbd">Space</span> new paragraph ·{' '}
-                <span className="kbd">Enter</span> new chapter · <span className="kbd">Shift+Space</span> new
-                scene · <span className="kbd">Shift+Enter</span> new section. The next sentence is the
-                title. Editing the dictation box: <span className="kbd">⌘Enter</span> new chapter.
-              </div>
               <div className="audio-meter" aria-hidden="true">
                 <span style={{ width: `${speech.session !== 'stopped' || speech.level > 1 ? Math.max(4, speech.level) : 0}%` }} />
               </div>
               {speech.error && <div style={{ color: 'var(--warn)' }}>Mic: {speech.error}</div>}
             </div>
           </div>
+
+          <DictationCues open={dictateCuesOpen} onOpenChange={setDictateCuesOpen} />
 
           <AudioSettingsPanel />
 

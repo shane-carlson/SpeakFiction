@@ -4,6 +4,7 @@ import {
   normalizeDictationDrafts,
   normalizeLastSeenVersion,
   normalizeManuscriptEditorOpen,
+  normalizeDictateCuesOpen,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -65,6 +66,9 @@ describe('persisted session fields', () => {
     expect(normalizeManuscriptEditorOpen(true)).toBe(true);
     expect(normalizeManuscriptEditorOpen(undefined)).toBe(false);
     expect(normalizeManuscriptEditorOpen('yes')).toBe(false);
+    expect(normalizeDictateCuesOpen(undefined)).toBe(true);
+    expect(normalizeDictateCuesOpen(true)).toBe(true);
+    expect(normalizeDictateCuesOpen(false)).toBe(false);
   });
 
   it('treats persisted library JSON as a prior session, not a first install', () => {

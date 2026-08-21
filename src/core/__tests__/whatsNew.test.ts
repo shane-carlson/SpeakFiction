@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.15 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.15')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.15',
+      build: 30,
+      pending: {
+        version: '0.2.15',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.15'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Dictation cues are shorter and grouped: say, name, keys, and insert',
+      'Hide the cue list when you know it, or show it again from Cues',
+      'Mic status and the audio meter stay visible either way',
+    ]);
+  });
+
   it('uses curated 0.2.14 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.14')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

@@ -52,6 +52,7 @@ import {
   normalizeDictationDrafts,
   normalizeLastSeenVersion,
   normalizeManuscriptEditorOpen,
+  normalizeDictateCuesOpen,
   normalizeManuscriptPlace,
   normalizeThemeId,
   normalizeThemeMode,
@@ -113,6 +114,8 @@ interface AppState {
   setManuscriptSplit: (ratio: number) => void;
   manuscriptEditorOpen: boolean;
   setManuscriptEditorOpen: (open: boolean) => void;
+  dictateCuesOpen: boolean;
+  setDictateCuesOpen: (open: boolean) => void;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   dictationDrafts: Record<string, DictationDraft>;
@@ -333,6 +336,8 @@ export const useStore = create<AppState>()(
       setManuscriptSplit: (ratio) => set({ manuscriptSplit: normalizeManuscriptSplit(ratio) }),
       manuscriptEditorOpen: false,
       setManuscriptEditorOpen: (open) => set({ manuscriptEditorOpen: Boolean(open) }),
+      dictateCuesOpen: true,
+      setDictateCuesOpen: (open) => set({ dictateCuesOpen: Boolean(open) }),
       activeTab: 'dictate',
       setActiveTab: (tab) => set({ activeTab: tab }),
       dictationDrafts: {},
@@ -749,6 +754,7 @@ export const useStore = create<AppState>()(
         dictateSplit: s.dictateSplit,
         manuscriptSplit: s.manuscriptSplit,
         manuscriptEditorOpen: s.manuscriptEditorOpen,
+        dictateCuesOpen: s.dictateCuesOpen,
         activeTab: s.activeTab,
         dictationDrafts: s.dictationDrafts,
         manuscriptPlace: s.manuscriptPlace,
@@ -779,6 +785,7 @@ export const useStore = create<AppState>()(
           // Missing lastSeenVersion stays null — do not fill with the running version.
           lastSeenVersion: normalizeLastSeenVersion(p.lastSeenVersion),
           manuscriptEditorOpen: normalizeManuscriptEditorOpen(p.manuscriptEditorOpen),
+          dictateCuesOpen: normalizeDictateCuesOpen(p.dictateCuesOpen),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : 'dictate',
         };
       },
@@ -795,6 +802,7 @@ export const useStore = create<AppState>()(
           dictateSplit: normalizeDictateSplit(p.dictateSplit, current.dictateSplit),
           manuscriptSplit: normalizeManuscriptSplit(p.manuscriptSplit, current.manuscriptSplit),
           manuscriptEditorOpen: normalizeManuscriptEditorOpen(p.manuscriptEditorOpen),
+          dictateCuesOpen: normalizeDictateCuesOpen(p.dictateCuesOpen),
           activeTab: isAppTab(p.activeTab) ? p.activeTab : current.activeTab,
           dictationDrafts: normalizeDictationDrafts(p.dictationDrafts),
           manuscriptPlace: normalizeManuscriptPlace(p.manuscriptPlace),

@@ -77,6 +77,11 @@ export function normalizeManuscriptEditorOpen(value: unknown): boolean {
   return value === true;
 }
 
+/** Cues start visible; only an explicit false hides them. */
+export function normalizeDictateCuesOpen(value: unknown): boolean {
+  return value !== false;
+}
+
 /** Persist JSON from a previous run (`library-state.json` or zustand snapshot). */
 export function persistSnapshotIndicatesPriorSession(raw: unknown): boolean {
   if (raw == null) return false;
