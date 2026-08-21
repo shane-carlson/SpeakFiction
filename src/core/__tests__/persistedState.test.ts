@@ -35,16 +35,18 @@ describe('persisted session fields', () => {
     });
   });
 
-  it('keeps manuscript scroll and caret', () => {
+  it('keeps manuscript scroll, caret, and insert gap', () => {
     expect(
       normalizeManuscriptPlace({
         'bk-1': { scrollTop: 420, blockId: 'p-9', selectionStart: 3, selectionEnd: 8 },
         'bk-2': { scrollTop: 'nope' },
         'bk-3': null,
+        'bk-4': { scrollTop: 12, atIndex: 2 },
       }),
     ).toEqual({
       'bk-1': { scrollTop: 420, blockId: 'p-9', selectionStart: 3, selectionEnd: 8 },
       'bk-2': { scrollTop: 0 },
+      'bk-4': { scrollTop: 12, atIndex: 2 },
     });
   });
 

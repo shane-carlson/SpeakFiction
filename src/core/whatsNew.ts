@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.13': bullets(
+    'Click a space between chapters, scenes, or paragraphs to mark where dictation lands',
+    'A Dictation inserts here marker stays on that spot — the same places you can drop a dragged block',
+    'With no point chosen, insert goes at the end of the manuscript',
+  ),
   '0.2.12': bullets(
     'Say “New Character” then the name twice to train it — the cue never lands in the transcription box or the manuscript',
     'The two repeats teach pronunciation, so later mishearings rewrite to the canonical spelling',

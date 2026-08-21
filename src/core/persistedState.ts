@@ -22,6 +22,8 @@ export interface ManuscriptPlace {
   blockId?: string;
   selectionStart?: number;
   selectionEnd?: number;
+  /** Gap to insert dictation at (0…block count). Same slots as drag-and-drop. */
+  atIndex?: number;
 }
 
 export function normalizeDictationDrafts(raw: unknown): Record<string, DictationDraft> {
@@ -48,6 +50,9 @@ export function normalizeManuscriptPlace(raw: unknown): Record<string, Manuscrip
     }
     if (typeof rec.selectionEnd === 'number' && Number.isFinite(rec.selectionEnd)) {
       place.selectionEnd = rec.selectionEnd;
+    }
+    if (typeof rec.atIndex === 'number' && Number.isFinite(rec.atIndex) && rec.atIndex >= 0) {
+      place.atIndex = Math.floor(rec.atIndex);
     }
     out[id] = place;
   }

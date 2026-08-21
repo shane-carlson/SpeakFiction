@@ -529,14 +529,66 @@ export function trimEmptyBlocks(blocks: Block[]): Block[] {
 /** Insert destination from the writer's last caret in the manuscript. */
 export function destFromPlace(
   blocks: Block[],
-  place?: { blockId?: string; selectionStart?: number },
-): ManuscriptInsertAt | undefined {
-  if (!place?.blockId) return undefined;
-  const atIndex = blocks.findIndex((b) => b.id === place.blockId);
-  if (atIndex < 0) return undefined;
+  place?: { blockId?: string; selectionStart?: number; atIndex?: number },
+): ManuscriptInsertAt {
+  if (place?.atIndex != null && Number.isFinite(place.atIndex) && place.atIndex >= 0) {
+    return { atIndex: Math.min(Math.floor(place.atIndex), blocks.length) };
+  }
+  if (place?.blockId) {
+    const atIndex = blocks.findIndex((b) => b.id === place.blockId);
+    if (atIndex >= 0 && blocks[atIndex]?.type === 'paragraph') {
+      return {
+        atBlockId: place.blockId,
+        atIndex,
+        splitOffset: place.selectionStart,
+      };
+    }
+  }
+  return { atIndex: blocks.length };
+}
+
+/** Gap index marked for dictation, or `null` when inserting at a paragraph caret. */
+export function selectedInsertGapIndex(
+  blocks: Block[],
+  place?: { blockId?: string; atIndex?: number },
+): number | null {
+  if (place?.blockId) {
+    const i = blocks.findIndex((b) => b.id === place.blockId);
+    if (i >= 0 && blocks[i]?.type === 'paragraph' && place.atIndex == null) return null;
+  }
+  if (place?.atIndex != null && Number.isFinite(place.atIndex) && place.atIndex >= 0) {
+    return Math.min(Math.floor(place.atIndex), blocks.length);
+  }
+  return blocks.length;
+}
+
+export function insertGapHoverLabel(): string {
+  return 'Click to insert dictation here';
+}
+
+export function insertGapSelectedLabel(): string {
+  return 'Dictation inserts here';
+}
+
+/** After an insert, keep the marker just after the new blocks so the next take continues forward. */
+export function advanceInsertPlace(
+  place: { scrollTop?: number; blockId?: string; selectionStart?: number; selectionEnd?: number; atIndex?: number } | undefined,
+  dest: ManuscriptInsertAt,
+  addedCount: number,
+  blockCount: number,
+): { scrollTop: number; blockId?: string; selectionStart?: number; selectionEnd?: number; atIndex?: number } {
+  const scrollTop = place?.scrollTop ?? 0;
+  if (dest.splitOffset != null && dest.atBlockId) {
+    return {
+      scrollTop,
+      blockId: dest.atBlockId,
+      selectionStart: dest.splitOffset,
+      selectionEnd: dest.splitOffset,
+    };
+  }
+  const index = dest.atIndex ?? blockCount;
   return {
-    atBlockId: place.blockId,
-    atIndex,
-    splitOffset: place.selectionStart,
+    scrollTop,
+    atIndex: Math.min(Math.max(0, index + Math.max(0, addedCount)), blockCount),
   };
 }

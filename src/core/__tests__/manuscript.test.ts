@@ -23,6 +23,9 @@ import {
   TABLE_MIN_ROWS,
   unwrapHeading,
   validDropIndices,
+  destFromPlace,
+  selectedInsertGapIndex,
+  advanceInsertPlace,
 } from '../manuscript';
 import type { Segment } from '../audioCues';
 import type { Block } from '../types';
@@ -97,6 +100,50 @@ describe('insertSegments', () => {
       splitOffset: 7,
     });
     expect(blocks.map((b) => b.text)).toEqual(['Hello.', 'Inserted.', 'World.']);
+  });
+});
+
+describe('destFromPlace', () => {
+  const existing = appendSegments([], [
+    { type: 'text', text: 'Before.' },
+    { type: 'structure', event: { kind: 'scene' } },
+    { type: 'text', text: 'After.' },
+  ]);
+
+  it('defaults to the end of the manuscript when nothing is selected', () => {
+    expect(destFromPlace(existing)).toEqual({ atIndex: 3 });
+    expect(selectedInsertGapIndex(existing)).toBe(3);
+  });
+
+  it('uses a chosen gap index, including between a scene and the next paragraph', () => {
+    expect(destFromPlace(existing, { atIndex: 2 })).toEqual({ atIndex: 2 });
+    expect(selectedInsertGapIndex(existing, { atIndex: 2 })).toBe(2);
+    expect(existing[1]?.type).toBe('scene');
+    expect(existing[2]?.type).toBe('paragraph');
+  });
+
+  it('splits at a paragraph caret and hides the gap marker', () => {
+    const para = existing[0];
+    expect(para?.type).toBe('paragraph');
+    expect(destFromPlace(existing, { blockId: para!.id, selectionStart: 3 })).toEqual({
+      atBlockId: para!.id,
+      atIndex: 0,
+      splitOffset: 3,
+    });
+    expect(selectedInsertGapIndex(existing, { blockId: para!.id })).toBeNull();
+  });
+
+  it('does not treat a scene heading click as the insert dest when a gap is marked', () => {
+    const scene = existing[1];
+    expect(destFromPlace(existing, { blockId: scene!.id, atIndex: 2 })).toEqual({ atIndex: 2 });
+    expect(selectedInsertGapIndex(existing, { blockId: scene!.id, atIndex: 2 })).toBe(2);
+  });
+
+  it('advances the gap so the next insert continues after the new blocks', () => {
+    expect(advanceInsertPlace({ scrollTop: 40, atIndex: 2 }, { atIndex: 2 }, 2, 5)).toEqual({
+      scrollTop: 40,
+      atIndex: 4,
+    });
   });
 });
 

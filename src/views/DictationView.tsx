@@ -21,6 +21,7 @@ import { DICTATION_COMMAND_CHIPS } from '../core/dictationContextMenu';
 import {
   destFromPlace,
   manuscriptStats,
+  advanceInsertPlace,
   type ManuscriptInsertAt,
   type ManuscriptInsertKind,
   type StructureHeadingKind,
@@ -283,30 +284,29 @@ export function DictationView({
     (dest?: ManuscriptInsertAt) => {
       const { transcript, remaining } = takeInsertTranscript(draft);
       if (!transcript) return;
+      const blocks = book.manuscript.blocks;
+      const target = dest ?? destFromPlace(blocks, place);
+      const beforeLen = blocks.length;
       captureVoiceCommand(book.id);
-      const result = applyDictation(book.id, transcript, dest);
+      const result = applyDictation(book.id, transcript, target);
+      const afterLen =
+        useStore.getState().books.find((b) => b.id === book.id)?.manuscript.blocks.length ?? beforeLen;
+      setManuscriptPlace(book.id, advanceInsertPlace(place, target, afterLen - beforeLen, afterLen));
       setOutcome(result);
       setDraft(remaining);
       transcriptCaretRef.current = 0;
       setBoxCaret(0);
     },
-    [applyDictation, book.id, captureVoiceCommand, draft, setDraft],
+    [applyDictation, book.id, book.manuscript.blocks, captureVoiceCommand, draft, place, setDraft, setManuscriptPlace],
   );
   const insertIntoTranscript = useCallback((offset: number) => {
     transcriptCaretRef.current = offset;
     setBoxCaret(offset);
   }, []);
   const promoteAtManuscriptPlace = useCallback(() => {
-    if (!place?.blockId) {
-      promoteToManuscript();
-      return;
-    }
-    promoteToManuscript({
-      atBlockId: place.blockId,
-      splitOffset: place.selectionStart,
-    });
-  }, [promoteToManuscript, place]);
-  const insert = () => promoteToManuscript();
+    promoteToManuscript(destFromPlace(book.manuscript.blocks, place));
+  }, [book.manuscript.blocks, place, promoteToManuscript]);
+  const insert = () => promoteAtManuscriptPlace();
   const draftVisible = draftText(draft);
   const canInsertDictation = Boolean(takeInsertTranscript(draft).transcript);
   const focusedBlock = book.manuscript.blocks.find((b) => b.id === place?.blockId);
@@ -610,6 +610,11 @@ export function DictationView({
                 does not go into the transcription box or the manuscript.
               </div>
               <div className="hint dictate-keys">
+                Click a space between chapters, scenes, or paragraphs to choose where dictation
+                lands. The same spots you can drop a dragged block. With none chosen, insert goes
+                at the end.
+              </div>
+              <div className="hint dictate-keys">
                 While listening: <span className="kbd">Space</span> new paragraph ·{' '}
                 <span className="kbd">Enter</span> new chapter · <span className="kbd">Shift+Space</span> new
                 scene · <span className="kbd">Shift+Enter</span> new section. The next sentence is the
@@ -675,7 +680,18 @@ export function DictationView({
               <button className="btn ghost" onClick={() => setDraft([])} disabled={!draftVisible}>
                 Clear
               </button>
-              <button className="btn primary" onClick={insert} disabled={!canInsertDictation}>
+              <button
+                className="btn primary"
+                onClick={insert}
+                disabled={!canInsertDictation}
+                title={
+                  insertDest.splitOffset != null && insertDest.atBlockId
+                    ? 'Inserts at the caret in the selected paragraph'
+                    : (insertDest.atIndex ?? 0) >= book.manuscript.blocks.length
+                      ? 'Inserts at the end of the manuscript'
+                      : 'Inserts at the Dictation inserts here marker'
+                }
+              >
                 Insert into manuscript ↵
               </button>
             </div>

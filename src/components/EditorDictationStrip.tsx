@@ -105,7 +105,11 @@ export function EditorDictationStrip({
           className="btn primary compact"
           onClick={onInsert}
           disabled={!canInsert}
-          title="Insert into manuscript"
+          title={
+            canInsert
+              ? 'Insert into manuscript at the marked spot (or the end if none is chosen)'
+              : 'Insert into manuscript'
+          }
         >
           Insert
         </button>

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { joinDraft, joinDraftAt, draftText, plainDraft, takeInsertTranscript } from '../dictationDraft';
 import { cleanupDictationText } from '../dictationProcessor';
 import { getGenre } from '../genres';
-import type { ManuscriptInsertAt } from '../manuscript';
+import { destFromPlace, type ManuscriptInsertAt } from '../manuscript';
 import { mergeSeriesNameLibrary, seriesNameViews } from '../seriesNames';
 import { useStore } from '../../store';
 
@@ -107,6 +107,42 @@ describe('applyDictation', () => {
     useStore.getState().setDictationDraft(bookId, draft);
     useStore.getState().setManuscriptPlace(bookId, { scrollTop: 0, blockId: 'blk-1', selectionStart: 4 });
     expect(useStore.getState().dictationDrafts[bookId]).toEqual(draft);
+  });
+
+  it('inserts between a scene and its first paragraph when that gap is the place', () => {
+    const bookId = useStore.getState().createBook('Gap insert test', 'fantasy');
+    created.push(bookId);
+    useStore.getState().applyDictation(
+      bookId,
+      'new chapter titled The Gate period new scene titled The Ridge period the wind howled period',
+    );
+    const seeded = useStore.getState().books.find((b) => b.id === bookId)?.manuscript.blocks ?? [];
+    const sceneIdx = seeded.findIndex((b) => b.type === 'scene');
+    expect(sceneIdx).toBeGreaterThanOrEqual(0);
+    expect(seeded[sceneIdx + 1]?.type).toBe('paragraph');
+
+    const dest = destFromPlace(seeded, { atIndex: sceneIdx + 1 });
+    useStore.getState().applyDictation(bookId, 'aleith waited period', dest);
+    const blocks = useStore.getState().books.find((b) => b.id === bookId)?.manuscript.blocks ?? [];
+    expect(blocks[sceneIdx]?.type).toBe('scene');
+    expect(blocks[sceneIdx + 1]?.text).toMatch(/aleith waited/i);
+    expect(blocks[sceneIdx + 2]?.text).toMatch(/wind howled/i);
+  });
+
+  it('appends at the end when no insertion point is selected', () => {
+    const bookId = useStore.getState().createBook('Default end insert', 'fantasy');
+    created.push(bookId);
+    useStore.getState().applyDictation(bookId, 'the wind howled period');
+    const dest = destFromPlace(
+      useStore.getState().books.find((b) => b.id === bookId)?.manuscript.blocks ?? [],
+    );
+    useStore.getState().applyDictation(bookId, 'aleith waited period', dest);
+    const prose = (useStore.getState().books.find((b) => b.id === bookId)?.manuscript.blocks ?? [])
+      .filter((b) => b.type === 'paragraph')
+      .map((b) => b.text)
+      .join(' ');
+    expect(prose).toMatch(/wind howled/i);
+    expect(prose).toMatch(/aleith waited/i);
   });
 
   it('adds a spoken New Character name to the library and not the manuscript', () => {

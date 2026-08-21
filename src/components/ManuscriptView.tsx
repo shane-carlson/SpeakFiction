@@ -6,8 +6,11 @@ import {
   destFromPlace,
   dragPreviewLabel,
   dropPlaceLabel,
+  insertGapHoverLabel,
+  insertGapSelectedLabel,
   movableRange,
   nearestValidDropIndex,
+  selectedInsertGapIndex,
   validDropIndices,
   type ManuscriptInsertAt,
   type ManuscriptInsertKind,
@@ -240,11 +243,29 @@ export function ManuscriptView({
   }, [blocks, dragFrom]);
 
   const report = (blockId: string, selStart?: number, selEnd?: number) => {
+    const block = blocks.find((b) => b.id === blockId);
+    if (block?.type === 'paragraph') {
+      onPlaceChange?.({
+        scrollTop: place?.scrollTop ?? 0,
+        blockId,
+        selectionStart: selStart,
+        selectionEnd: selEnd,
+      });
+      return;
+    }
     onPlaceChange?.({
       scrollTop: place?.scrollTop ?? 0,
+      atIndex: place?.atIndex,
       blockId,
       selectionStart: selStart,
       selectionEnd: selEnd,
+    });
+  };
+
+  const selectGap = (atIndex: number) => {
+    onPlaceChange?.({
+      scrollTop: place?.scrollTop ?? 0,
+      atIndex,
     });
   };
 
@@ -256,6 +277,8 @@ export function ManuscriptView({
     const chapterHeading = destBlock?.type === 'chapter';
     if (dest.atBlockId) {
       report(dest.atBlockId, dest.splitOffset, dest.splitOffset);
+    } else if (dest.atIndex != null) {
+      selectGap(dest.atIndex);
     }
     const token = ++menuGen.current;
     const field = spellFieldFromTarget(e.target);
@@ -423,11 +446,17 @@ export function ManuscriptView({
     />
   ) : null;
 
+  const selectedGap = selectedInsertGapIndex(blocks, place);
+  const insertHover = insertGapHoverLabel();
+  const insertSelected = insertGapSelectedLabel();
+
   const gapClass = (atIndex: number) => {
     const classes = ['ms-insert-gap'];
     if (dragFrom != null || dropOver != null) {
       if (dropOk.has(atIndex) || dropOver === atIndex) classes.push('is-drop-ok');
       if (dropOver === atIndex) classes.push('is-drop-over');
+    } else if (selectedGap === atIndex) {
+      classes.push('is-insert-selected');
     }
     return classes.join(' ');
   };
@@ -439,6 +468,23 @@ export function ManuscriptView({
       className={gapClass(atIndex)}
       data-insert-index={atIndex}
       data-drop-label={dropOver === atIndex ? dropHint : undefined}
+      data-insert-label={selectedGap === atIndex ? insertSelected : insertHover}
+      role="button"
+      tabIndex={0}
+      title={selectedGap === atIndex ? insertSelected : insertHover}
+      aria-label={selectedGap === atIndex ? insertSelected : insertHover}
+      aria-pressed={selectedGap === atIndex}
+      onClick={(e) => {
+        if (dragFrom != null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        selectGap(atIndex);
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        selectGap(atIndex);
+      }}
       onDragOver={(e) => allowGapDrop(e, atIndex)}
       onDragEnter={(e) => allowGapDrop(e, atIndex)}
       onDrop={(e) => dropOnGap(e, atIndex)}
@@ -459,20 +505,24 @@ export function ManuscriptView({
   if (blocks.length === 0) {
     return (
       <>
-        <div
-          className="empty"
-          onContextMenu={openInsertMenu}
-          onDragOver={(e) => {
-            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-          }}
-          onDrop={(e) => {
-            if (!e.dataTransfer.files?.length) return;
-            e.preventDefault();
-            void insertImageAt({ atIndex: 0 }, e.dataTransfer.files);
-          }}
-        >
-          Nothing here yet. Start dictating and your prose — with chapters and scene breaks — will
-          appear here.
+        <div className="manuscript">
+          {insertGap(0)}
+          <div
+            className="empty"
+            onContextMenu={openInsertMenu}
+            onClick={() => selectGap(0)}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.files?.length) return;
+              e.preventDefault();
+              void insertImageAt({ atIndex: 0 }, e.dataTransfer.files);
+            }}
+          >
+            Nothing here yet. Click the marker above to choose where dictation lands, then insert.
+            With no point chosen, new prose goes at the end.
+          </div>
         </div>
         {insertMenu}
       </>
@@ -657,9 +707,14 @@ export function ManuscriptView({
           } else {
             body = (
               <div
-                className={dragging ? 'ms-para is-dragging' : 'ms-para'}
+                className={[
+                  dragging ? 'ms-para is-dragging' : 'ms-para',
+                  place?.blockId === b.id && selectedGap == null ? 'is-insert-target' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 data-block-id={b.id}
-                title="Click to edit"
+                title="Click to edit. Dictation inserts at the caret when this paragraph is selected."
               >
                 <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
                 <RichParagraph
