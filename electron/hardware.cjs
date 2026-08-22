@@ -89,6 +89,19 @@ function pickSttProfile(hw, hasNativeCli) {
   const threads = pickThreadCount({ ...hw, metal });
   const keepResident = appleSilicon ? ramGB >= 12 && cores >= 4 : ramGB >= 16;
 
+  if (hasNativeCli && ramGB < 8) {
+    return {
+      hardware: hw,
+      runtime: 'whisper.cpp',
+      modelId: 'ggml-tiny.en.bin',
+      threads: 1,
+      beamSize: 1,
+      keepResident: false,
+      idleUnloadMs: 8_000,
+      label: 'Using whisper-tiny.en · low memory · 1 thread',
+    };
+  }
+
   if (hasNativeCli && appleSilicon && ramGB >= 20 && cores >= 6) {
     return {
       hardware: hw,
@@ -138,6 +151,18 @@ function pickSttProfile(hw, hasNativeCli) {
       label: `Using whisper-small.en · ${metal ? 'Metal' : 'CPU'} · ${Math.min(threads, 4)} threads`,
     };
   }
+  if (ramGB < 8) {
+    return {
+      hardware: hw,
+      runtime: 'wasm',
+      modelId: 'Xenova/whisper-tiny.en',
+      threads: 1,
+      beamSize: 1,
+      keepResident: false,
+      idleUnloadMs: 8_000,
+      label: 'Using whisper-tiny.en · WASM · low memory · 1 thread',
+    };
+  }
   if (ramGB >= 8 && cores >= 4) {
     return {
       hardware: hw,
@@ -181,10 +206,14 @@ function getProfile() {
   if (hasNativeCli && profile.runtime !== 'wasm' && !modelReady(profile.modelId)) {
     const intel = !isAppleSilicon(hw);
     const fallbacks = intel
-      ? ['ggml-medium.en.bin', 'ggml-small.en.bin']
-      : ['ggml-large-v3-turbo.bin', 'ggml-medium.en.bin', 'ggml-small.en.bin'];
+      ? ['ggml-medium.en.bin', 'ggml-small.en.bin', 'ggml-tiny.en.bin']
+      : ['ggml-large-v3-turbo.bin', 'ggml-medium.en.bin', 'ggml-small.en.bin', 'ggml-tiny.en.bin'];
     const allowed =
-      intel && profile.modelId === 'ggml-small.en.bin' ? ['ggml-small.en.bin'] : fallbacks;
+      profile.modelId === 'ggml-tiny.en.bin'
+        ? ['ggml-tiny.en.bin']
+        : intel && profile.modelId === 'ggml-small.en.bin'
+          ? ['ggml-small.en.bin']
+          : fallbacks;
     const found = allowed.find((name) => modelReady(name));
     if (found) {
       return {

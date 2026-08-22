@@ -31,14 +31,27 @@ describe('pickSttProfile', () => {
     expect(p.runtime).toBe('whisper.cpp-metal');
   });
 
-  it('uses base.en WASM on a constrained machine, never q8', () => {
+  it('uses tiny.en WASM on a constrained machine, never q8', () => {
     const p = pickSttProfile(
       { platform: 'darwin', arch: 'x64', cores: 2, ramGB: 4, metal: false },
       false,
     );
-    expect(p.modelId).toBe('Xenova/whisper-base.en');
+    expect(p.modelId).toBe('Xenova/whisper-tiny.en');
     expect(p.keepResident).toBe(false);
-    expect(p.threads).toBeLessThanOrEqual(2);
+    expect(p.threads).toBe(1);
+    expect(p.modelId).not.toMatch(/q8/i);
+  });
+
+  it('uses tiny.en CPU on 4GB Windows, never small or resident', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 4, ramGB: 4, metal: false },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.modelId).toBe('ggml-tiny.en.bin');
+    expect(p.threads).toBe(1);
+    expect(p.keepResident).toBe(false);
+    expect(p.label).toMatch(/low memory/);
   });
 
   it('caps threads so weak machines are not oversubscribed', () => {

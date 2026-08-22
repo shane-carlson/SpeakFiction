@@ -11,6 +11,7 @@ import { LicenseBanner } from './components/LicenseBanner';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { HelpTicketModal } from './components/HelpTicketModal';
+import { ViewErrorBoundary } from './components/ViewErrorBoundary';
 import type { TicketKind } from './core/ticket';
 import { applyDocumentTheme } from './core/theme';
 import type { AppTab } from './core/persistedState';
@@ -112,7 +113,12 @@ export default function App() {
 
       <main className="main">
         {!activeBook ? (
-          <LibraryView />
+          <ViewErrorBoundary
+            title="Library could not open"
+            hint="The page failed to load. Your books are still on this machine."
+          >
+            <LibraryView />
+          </ViewErrorBoundary>
         ) : tab === 'dictate' ? (
           <DictationView
             key={activeBook.id}
@@ -121,7 +127,12 @@ export default function App() {
             onListeningChange={setDictating}
           />
         ) : tab === 'library' ? (
-          <LibraryView />
+          <ViewErrorBoundary
+            title="Library could not open"
+            hint="The page failed to load. Your books are still on this machine."
+          >
+            <LibraryView />
+          </ViewErrorBoundary>
         ) : tab === 'integrate' ? (
           <IntegrationsView book={activeBook} />
         ) : tab === 'model' ? (

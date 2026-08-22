@@ -1,6 +1,6 @@
 // Resolves on-disk locations for the packaged .app vs a git checkout.
-// ExtraResources (whisper binaries, logo) live next to the asar; GGML weights
-// are downloaded into userData because they are too large to ship in the DMG.
+// ExtraResources (whisper binaries, logo, and Windows tiny.en) live next to
+// the asar. Larger GGML weights download into userData.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');

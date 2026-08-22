@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.23': bullets(
+    'On machines with under 8GB of RAM, SpeakFiction uses a much smaller speech model',
+    'Library shows a retry if that page fails to load',
+    'Stop ends the microphone right away, even if a line is still finishing',
+  ),
   '0.2.22': bullets(
     'Help can send a support ticket without leaving SpeakFiction',
     'Request a feature from the same Help menu',

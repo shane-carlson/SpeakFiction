@@ -81,6 +81,7 @@ export function pickThreadCount(hw: HardwareInfo): number {
  * Hardware-aware Whisper defaults. Never selects q8 ONNX.
  * Native whisper.cpp is preferred when the CLI is present; WASM transformers is the fallback.
  * Metal + large-v3-turbo are Apple Silicon only.
+ * Under 8GB RAM, tiny.en is the only size that can finish a decode without thrashing.
  */
 export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProfile {
   const cores = Math.max(1, hw.cores);
@@ -89,6 +90,19 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
   const metal = Boolean(hw.metal) && appleSilicon;
   const threads = pickThreadCount({ ...hw, metal });
   const keepResident = appleSilicon ? ramGB >= 12 && cores >= 4 : ramGB >= 16;
+
+  if (hasNativeCli && ramGB < 8) {
+    return {
+      hardware: hw,
+      runtime: 'whisper.cpp',
+      modelId: 'ggml-tiny.en.bin',
+      threads: 1,
+      beamSize: 1,
+      keepResident: false,
+      idleUnloadMs: 8_000,
+      label: 'Using whisper-tiny.en · low memory · 1 thread',
+    };
+  }
 
   if (hasNativeCli && appleSilicon && ramGB >= 20 && cores >= 6) {
     return {
@@ -140,7 +154,19 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
     };
   }
 
-  // WASM: never q8, never tiny. Prefer small.en on capable machines.
+  // WASM: never q8. Prefer small.en on capable machines; tiny.en under 8GB.
+  if (ramGB < 8) {
+    return {
+      hardware: hw,
+      runtime: 'wasm',
+      modelId: 'Xenova/whisper-tiny.en',
+      threads: 1,
+      beamSize: 1,
+      keepResident: false,
+      idleUnloadMs: 8_000,
+      label: 'Using whisper-tiny.en · WASM · low memory · 1 thread',
+    };
+  }
   if (ramGB >= 8 && cores >= 4) {
     return {
       hardware: hw,

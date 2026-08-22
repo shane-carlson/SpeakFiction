@@ -159,6 +159,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.23 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.23')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.23',
+      build: 39,
+      pending: {
+        version: '0.2.23',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.23'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'On machines with under 8GB of RAM, SpeakFiction uses a much smaller speech model',
+      'Library shows a retry if that page fails to load',
+      'Stop ends the microphone right away, even if a line is still finishing',
+    ]);
+  });
+
   it('uses curated 0.2.22 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.22')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

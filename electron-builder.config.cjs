@@ -37,18 +37,24 @@ function updaterModules() {
 
 function whisperExtraResources() {
   if (packingWin) {
+    const extras = [];
     const winBin = path.join(__dirname, 'models', 'bin-win-x64');
     const cli = path.join(winBin, 'whisper-cli.exe');
     if (fs.existsSync(cli) && fs.statSync(cli).size > 10_000) {
-      return [
-        {
-          from: 'models/bin-win-x64',
-          to: 'whisper',
-          filter: ['whisper-cli.exe', 'whisper-server.exe', '*.dll'],
-        },
-      ];
+      extras.push({
+        from: 'models/bin-win-x64',
+        to: 'whisper',
+        filter: ['whisper-cli.exe', 'whisper-server.exe', '*.dll'],
+      });
     }
-    return [];
+    const tiny = path.join(__dirname, 'models', 'ggml-tiny.en.bin');
+    if (fs.existsSync(tiny) && fs.statSync(tiny).size > 10_000_000) {
+      extras.push({
+        from: 'models/ggml-tiny.en.bin',
+        to: 'models/ggml-tiny.en.bin',
+      });
+    }
+    return extras;
   }
   const whisperFrom = intel ? 'models/bin-x64' : 'models/bin';
   return [

@@ -35,6 +35,16 @@ describe('native hardware helpers', () => {
     }
   });
 
+  it('uses tiny.en on 4GB Windows so decode can finish', () => {
+    const p = hardware.pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 4, ramGB: 4, metal: false },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.modelId).toBe('ggml-tiny.en.bin');
+    expect(p.label).toMatch(/low memory/);
+  });
+
   it('keeps Windows STT on CPU small/medium in the Electron picker', () => {
     const p = hardware.pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 4, ramGB: 8, metal: false },
@@ -46,6 +56,7 @@ describe('native hardware helpers', () => {
   });
 
   it('does not pass language or task flags to English-only models', () => {
+    expect(sidecar.isEnglishOnlyModel('ggml-tiny.en.bin')).toBe(true);
     expect(sidecar.isEnglishOnlyModel('ggml-small.en.bin')).toBe(true);
     expect(sidecar.isEnglishOnlyModel('ggml-medium.en.bin')).toBe(true);
     expect(sidecar.isEnglishOnlyModel('ggml-large-v3-turbo.bin')).toBe(false);

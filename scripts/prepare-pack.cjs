@@ -38,6 +38,16 @@ if (win) {
   } else {
     console.log(`Using ${path.relative(root, cli)}`);
   }
+  const tiny = path.join(root, 'models', 'ggml-tiny.en.bin');
+  if (!fs.existsSync(tiny) || fs.statSync(tiny).size < 10_000_000) {
+    console.log('Fetching ggml-tiny.en for low-memory Windows machines…');
+    runAllowFail(process.execPath, [path.join(root, 'scripts', 'fetch-ggml-tiny.cjs')]);
+  }
+  if (fs.existsSync(tiny) && fs.statSync(tiny).size > 10_000_000) {
+    console.log(`Using ${path.relative(root, tiny)}`);
+  } else {
+    console.warn('Packing Windows without bundled tiny.en (first dictate will download it).');
+  }
   run(process.execPath, [path.join(root, 'scripts', 'make-ico.cjs')]);
   console.log('Packaging prerequisites ready (Windows x64).');
   process.exit(0);

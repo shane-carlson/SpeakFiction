@@ -311,13 +311,12 @@ export function useSpeechRecognition(
   useEffect(() => {
     if (mayDictate) return;
     if (sessionRef.current === 'stopped') return;
-    void flushRef.current().finally(() => {
-      teardownCapture();
-      sessionRef.current = 'stopped';
-      setSession('stopped');
-      setInterim('');
-    });
-  }, [mayDictate, teardownCapture]);
+    submitUtterance(slicerRef.current.forceFlush());
+    sessionRef.current = 'stopped';
+    setSession('stopped');
+    setInterim('');
+    teardownCapture();
+  }, [mayDictate, submitUtterance, teardownCapture]);
 
   const start = useCallback(async () => {
     if (!mayDictateRef.current) {
@@ -355,13 +354,12 @@ export function useSpeechRecognition(
   }, []);
 
   const stop = useCallback(() => {
-    void flushRef.current().finally(() => {
-      teardownCapture();
-      sessionRef.current = 'stopped';
-      setSession('stopped');
-      setInterim('');
-    });
-  }, [teardownCapture]);
+    submitUtterance(slicerRef.current.forceFlush());
+    sessionRef.current = 'stopped';
+    setSession('stopped');
+    setInterim('');
+    teardownCapture();
+  }, [submitUtterance, teardownCapture]);
 
   return {
     supported,
