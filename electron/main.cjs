@@ -243,6 +243,14 @@ ipcMain.handle('handoff:open-privacy', () => handoff.openAccessibilitySettings()
 ipcMain.handle('handoff:send', (_event, appId, payload) => handoff.sendToApp(appId, payload));
 ipcMain.handle('handoff:relaunch', () => handoff.relaunchToApplyAccess());
 
+const tickets = require('./ticket.cjs');
+ipcMain.handle('help:submit-ticket', (_event, payload) => tickets.submit(payload));
+
+function sendHelpTicket(kind) {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) win.webContents.send('help:open-ticket', kind);
+}
+
 function createWindow() {
   const iconFile = windowIconPath();
   const icon = nativeImage.createFromPath(iconFile);
@@ -305,7 +313,11 @@ app.whenReady().then(() => {
   }
   createWindow();
   updater.setup();
-  require('./appMenu.cjs').installAppMenu(() => updater.checkForUpdates({ user: true }));
+  require('./appMenu.cjs').installAppMenu({
+    onCheckForUpdates: () => updater.checkForUpdates({ user: true }),
+    onReportProblem: () => sendHelpTicket('support'),
+    onRequestFeature: () => sendHelpTicket('feature'),
+  });
   app.on('browser-window-focus', () => handoff.pushStatus());
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

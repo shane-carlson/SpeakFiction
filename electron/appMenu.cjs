@@ -1,4 +1,8 @@
 const CHECK_LABEL = 'Check for Updates…';
+const REPORT_PROBLEM_LABEL = 'Report a problem…';
+const REQUEST_FEATURE_LABEL = 'Request a feature…';
+
+function noop() {}
 
 function checkForUpdatesItem(onCheckForUpdates) {
   return {
@@ -9,13 +13,37 @@ function checkForUpdatesItem(onCheckForUpdates) {
   };
 }
 
+function helpTicketItems(onReportProblem, onRequestFeature) {
+  return [
+    {
+      label: REPORT_PROBLEM_LABEL,
+      click: () => {
+        void onReportProblem();
+      },
+    },
+    {
+      label: REQUEST_FEATURE_LABEL,
+      click: () => {
+        void onRequestFeature();
+      },
+    },
+  ];
+}
+
 /**
  * Application menu template. On macOS, Check for Updates sits in the SpeakFiction
  * menu (after About). On Windows, it lives under Help.
  */
-function buildAppMenuTemplate({ platform, appName, onCheckForUpdates }) {
+function buildAppMenuTemplate({
+  platform,
+  appName,
+  onCheckForUpdates,
+  onReportProblem,
+  onRequestFeature,
+}) {
   const isMac = platform === 'darwin';
-  const checkItem = checkForUpdatesItem(onCheckForUpdates);
+  const checkItem = checkForUpdatesItem(onCheckForUpdates || noop);
+  const ticketItems = helpTicketItems(onReportProblem || noop, onRequestFeature || noop);
   const macAppMenu = {
     label: appName || 'SpeakFiction',
     submenu: [
@@ -41,19 +69,28 @@ function buildAppMenuTemplate({ platform, appName, onCheckForUpdates }) {
     { role: 'windowMenu' },
     {
       role: 'help',
-      submenu: isMac ? [] : [checkItem],
+      submenu: isMac ? ticketItems : [checkItem, { type: 'separator' }, ...ticketItems],
     },
   ];
 }
 
-function installAppMenu(onCheckForUpdates) {
+function installAppMenu(options) {
   const { app, Menu } = require('electron');
+  const opts = typeof options === 'function' ? { onCheckForUpdates: options } : options || {};
   const template = buildAppMenuTemplate({
     platform: process.platform,
     appName: app.getName() || 'SpeakFiction',
-    onCheckForUpdates,
+    onCheckForUpdates: opts.onCheckForUpdates,
+    onReportProblem: opts.onReportProblem,
+    onRequestFeature: opts.onRequestFeature,
   });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-module.exports = { CHECK_LABEL, buildAppMenuTemplate, installAppMenu };
+module.exports = {
+  CHECK_LABEL,
+  REPORT_PROBLEM_LABEL,
+  REQUEST_FEATURE_LABEL,
+  buildAppMenuTemplate,
+  installAppMenu,
+};

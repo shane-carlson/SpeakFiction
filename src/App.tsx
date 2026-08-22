@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useStore } from './store';
 import { LibraryView } from './views/LibraryView';
 import { DictationView } from './views/DictationView';
@@ -10,6 +10,8 @@ import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { LicenseBanner } from './components/LicenseBanner';
 import { UpdateBanner } from './components/UpdateBanner';
 import { WhatsNewModal } from './components/WhatsNewModal';
+import { HelpTicketModal } from './components/HelpTicketModal';
+import type { TicketKind } from './core/ticket';
 import { applyDocumentTheme } from './core/theme';
 import type { AppTab } from './core/persistedState';
 import { useLicense } from './hooks/useLicense';
@@ -31,6 +33,7 @@ export default function App() {
   const tab = useStore((s) => s.activeTab);
   const setTab = useStore((s) => s.setActiveTab);
   const [dictating, setDictating] = useState(false);
+  const [ticketKind, setTicketKind] = useState<TicketKind | null>(null);
   const books = useStore((s) => s.books);
   const activeBookId = useStore((s) => s.activeBookId);
   const themeMode = useStore((s) => s.themeMode);
@@ -42,6 +45,12 @@ export default function App() {
   useLayoutEffect(() => {
     applyDocumentTheme(themeMode, themeId, activeBook?.genreId);
   }, [themeMode, themeId, activeBook?.genreId]);
+
+  useEffect(() => {
+    return window.speakfiction?.help?.onOpenTicket((kind) => {
+      if (kind === 'support' || kind === 'feature') setTicketKind(kind);
+    });
+  }, []);
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
@@ -128,6 +137,7 @@ export default function App() {
         notes={whatsNew.notes}
         onDismiss={whatsNew.dismiss}
       />
+      <HelpTicketModal kind={ticketKind} onClose={() => setTicketKind(null)} />
     </div>
   );
 }

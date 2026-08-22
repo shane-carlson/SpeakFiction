@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.22': bullets(
+    'Help can send a support ticket without leaving SpeakFiction',
+    'Request a feature from the same Help menu',
+    'Your email is only sent if you ask to be contacted',
+  ),
   '0.2.21': bullets(
     'Live send treats a granted Accessibility prompt as on, even when the silent check stays off',
     'After Restart, one live check picks up a grant without opening the dialog again',

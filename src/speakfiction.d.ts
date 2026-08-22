@@ -108,6 +108,13 @@ export interface SpeakFictionWhatsNewBridge {
   clearPending: () => Promise<{ ok: boolean }>;
 }
 
+export interface SpeakFictionHelpBridge {
+  submitTicket: (
+    payload: import('./core/ticket').TicketDraft,
+  ) => Promise<{ ok: boolean; message?: string; id?: string }>;
+  onOpenTicket: (cb: (kind: import('./core/ticket').TicketKind) => void) => () => void;
+}
+
 export interface SpellcheckContextPayload {
   misspelledWord: string;
   dictionarySuggestions: string[];
@@ -132,6 +139,7 @@ export interface SpeakFictionBridge {
   license?: SpeakFictionLicenseBridge;
   updater?: SpeakFictionUpdaterBridge;
   whatsNew?: SpeakFictionWhatsNewBridge;
+  help?: SpeakFictionHelpBridge;
   spellcheck?: SpeakFictionSpellcheckBridge;
 }
 

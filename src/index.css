@@ -2271,3 +2271,58 @@ label {
   justify-content: center;
   min-width: 96px;
 }
+
+.help-ticket-dialog {
+  width: min(520px, 100%);
+}
+.help-ticket-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.help-ticket-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.help-ticket-form textarea {
+  resize: vertical;
+  min-height: 8em;
+}
+.help-ticket-contact {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.help-ticket-contact input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.help-ticket-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.help-ticket-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+}
+.help-ticket-done {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 12px;
+}
+.help-ticket-done p {
+  margin: 0;
+}
