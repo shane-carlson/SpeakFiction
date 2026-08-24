@@ -5,6 +5,7 @@ import { ScreenKeyboardAvoid } from './keyboardAvoid';
 import { useHorizontalSwipe } from './pageSwipe';
 import { SyncDot, TakePlayer } from './TakePlayer';
 import { defaultTakeTitle, type LibraryTake } from './takeLibrary';
+import type { TaughtPair } from './speechVocab';
 import type { ThemeColors } from './theme';
 import type { WordCue } from './wordCues';
 
@@ -193,7 +194,7 @@ export function LibraryScreen({
   onSaveToFiles,
   onDelete,
   onChangeWords,
-  onTeachWord,
+  onTeachPairs,
   syncing,
 }: {
   takes: LibraryTake[];
@@ -211,7 +212,7 @@ export function LibraryScreen({
   onSaveToFiles: (take: LibraryTake) => void;
   onDelete: (ids: string[]) => void;
   onChangeWords: (id: string, words: WordCue[], text: string) => void;
-  onTeachWord: (take: LibraryTake, cue: WordCue, heard: string) => void;
+  onTeachPairs: (take: LibraryTake, pairs: TaughtPair[]) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
@@ -308,7 +309,7 @@ export function LibraryScreen({
             onScrubbingChange={setScrubbing}
             onDelete={() => confirmDelete([take.id])}
             onChangeWords={(words, text) => onChangeWords(take.id, words, text)}
-            onTeachWord={(cue, heard) => onTeachWord(take, cue, heard)}
+            onTeachPairs={(pairs) => onTeachPairs(take, pairs)}
           />
           <Pressable
             style={[styles.btnPrimary, (take.sent || syncing) && styles.btnDisabled]}

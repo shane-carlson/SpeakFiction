@@ -84,8 +84,10 @@ async function decryptPayload(key, envelope) {
   const ct = Uint8Array.from(Buffer.from(envelope.ct, 'base64'));
   const raw = await webcrypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKeyObj, ct);
   const parsed = JSON.parse(new TextDecoder().decode(raw));
+  const kind =
+    parsed.kind === 'library' || parsed.kind === 'create-book' || parsed.kind === 'create-name' ? parsed.kind : 'note';
   return {
-    kind: parsed.kind === 'library' || parsed.kind === 'create-book' ? parsed.kind : 'note',
+    kind,
     text: typeof parsed.text === 'string' ? parsed.text : '',
     title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : undefined,
     bookId: typeof parsed.bookId === 'string' && parsed.bookId.trim() ? parsed.bookId.trim() : undefined,
@@ -100,6 +102,11 @@ async function decryptPayload(key, envelope) {
         : typeof parsed.seriesBookNumber === 'string' && Number(parsed.seriesBookNumber) > 0
           ? Number(parsed.seriesBookNumber)
           : undefined,
+    canonical: typeof parsed.canonical === 'string' && parsed.canonical.trim() ? parsed.canonical.trim() : undefined,
+    aliases: Array.isArray(parsed.aliases)
+      ? parsed.aliases.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+      : [],
+    category: typeof parsed.category === 'string' ? parsed.category : undefined,
     audio:
       parsed.audio && typeof parsed.audio === 'object' && typeof parsed.audio.data === 'string' && parsed.audio.data
         ? {
@@ -166,9 +173,24 @@ function removeNoteAudio(id) {
   }
 }
 
+function parseNameFileName(fileName) {
+  if (typeof fileName !== 'string' || !fileName.startsWith('name\t')) return {};
+  const parts = fileName.split('\t');
+  const bookId = typeof parts[1] === 'string' && parts[1].trim() ? parts[1].trim() : undefined;
+  const canonical = typeof parts[2] === 'string' && parts[2].trim() ? parts[2].trim() : undefined;
+  return { bookId, canonical };
+}
+
 function isHiddenNote(note) {
   const id = String(note?.id || '');
-  return id === 'sf_library' || id.startsWith('sf_book_') || note?.kind === 'library' || note?.kind === 'create-book';
+  return (
+    id === 'sf_library' ||
+    id.startsWith('sf_book_') ||
+    id.startsWith('sf_name_') ||
+    note?.kind === 'library' ||
+    note?.kind === 'create-book' ||
+    note?.kind === 'create-name'
+  );
 }
 
 function storedKey() {
@@ -238,6 +260,7 @@ async function refreshRemote() {
   }
   const remote = [];
   const pendingBooks = [];
+  const pendingNames = [];
   const deletedIds = [];
   let books = [];
   for (const row of payload.notes) {
@@ -258,6 +281,20 @@ async function refreshRemote() {
           genreId: opened.genreId || 'generic',
           seriesName: opened.seriesName,
           seriesBookNumber: opened.seriesBookNumber,
+        });
+      }
+      continue;
+    }
+    if (opened.kind === 'create-name' || String(row.id).startsWith('sf_name_')) {
+      if ((row.status || 'inbox') === 'inbox') {
+        const fromFile = parseNameFileName(row.fileName);
+        pendingNames.push({
+          id: opened.id || String(row.id),
+          bookId: opened.bookId || fromFile.bookId,
+          canonical: opened.canonical || fromFile.canonical || opened.title,
+          aliases: opened.aliases || [],
+          category: opened.category || 'other',
+          bookHint: opened.bookHint,
         });
       }
       continue;
@@ -287,7 +324,7 @@ async function refreshRemote() {
   }
   const notes = [...byId.values()].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   writeLocal(notes);
-  return { ok: true, notes, books, pendingBooks };
+  return { ok: true, notes, books, pendingBooks, pendingNames };
 }
 
 async function publishLibrary(books) {

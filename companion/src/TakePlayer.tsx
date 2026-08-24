@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { TrashIcon } from './MicIcon';
+import { applyVocab, correctionsFromEdit, type TaughtPair } from './speechVocab';
 import type { ThemeColors } from './theme';
 import type { LibraryTake } from './takeLibrary';
 import { activeWordIndex, peaksForTake, replaceWordAt, textFromWords, wordsForTake, type WordCue } from './wordCues';
@@ -38,7 +39,7 @@ export function TakePlayer({
   onScrubbingChange,
   onDelete,
   onChangeWords,
-  onTeachWord,
+  onTeachPairs,
 }: {
   take: LibraryTake;
   colors: ThemeColors;
@@ -47,7 +48,7 @@ export function TakePlayer({
   onScrubbingChange?: (active: boolean) => void;
   onDelete?: () => void;
   onChangeWords?: (words: WordCue[], text: string) => void;
-  onTeachWord?: (cue: WordCue, heard: string) => void;
+  onTeachPairs?: (pairs: TaughtPair[]) => void;
 }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const soundGen = useRef(0);
@@ -58,6 +59,8 @@ export function TakePlayer({
   const [durationMs, setDurationMs] = useState(take.durationMs);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [editingAll, setEditingAll] = useState(() => !take.text.trim());
+  const [textDraft, setTextDraft] = useState(take.text);
   const words = useMemo(
     () => wordsForTake(take.text, durationMs || take.durationMs, take.words),
     [take.text, take.words, durationMs, take.durationMs],
@@ -83,6 +86,8 @@ export function TakePlayer({
     setPositionMs(0);
     setDurationMs(take.durationMs);
     setEditIndex(null);
+    setEditingAll(!take.text.trim());
+    setTextDraft(take.text);
   }, [take.id, take.audioUri, take.durationMs]);
 
   const ensureSound = async () => {
@@ -209,15 +214,51 @@ export function TakePlayer({
     [],
   );
 
-  const saveEdit = (teach: boolean) => {
+  const saveEdit = () => {
     if (editIndex == null) return;
-    const heard = words[editIndex]?.word || '';
-    const nextWords = replaceWordAt(words, editIndex, editValue);
-    const nextText = textFromWords(nextWords);
+    const cue = words[editIndex];
+    const heard = cue?.word || '';
+    const nextWord = editValue.trim();
+    if (!nextWord || !cue) {
+      setEditIndex(null);
+      setEditValue('');
+      return;
+    }
+    let nextWords = replaceWordAt(words, editIndex, nextWord);
+    let nextText = textFromWords(nextWords);
+    const pairs: TaughtPair[] = correctionsFromEdit(heard, nextWord);
+    if (!pairs.length) pairs.push({ heard, word: nextWord, startMs: cue.startMs, endMs: cue.endMs });
+    nextText = applyVocab(
+      nextText,
+      pairs
+        .filter((pair) => pair.heard.trim() && pair.heard.toLowerCase() !== pair.word.toLowerCase())
+        .map((pair) => ({ word: pair.word, heard: pair.heard })),
+    );
+    nextWords = wordsForTake(nextText, durationMs || take.durationMs, nextWords);
+    onTeachPairs?.(
+      pairs.map((pair) => ({
+        ...pair,
+        startMs: pair.startMs ?? cue.startMs,
+        endMs: pair.endMs ?? cue.endMs,
+      })),
+    );
     onChangeWords?.(nextWords, nextText);
-    if (teach && nextWords[editIndex]) onTeachWord?.(nextWords[editIndex], heard);
     setEditIndex(null);
     setEditValue('');
+  };
+
+  const commitTranscript = () => {
+    const nextText = textDraft.replace(/\s+$/g, '');
+    const previous = take.text;
+    if (nextText === previous) {
+      setEditingAll(!nextText.trim());
+      return;
+    }
+    const nextWords = wordsForTake(nextText, durationMs || take.durationMs, take.words);
+    onChangeWords?.(nextWords, nextText);
+    const pairs = correctionsFromEdit(previous, nextText);
+    if (pairs.length) onTeachPairs?.(pairs);
+    setEditingAll(!nextText.trim());
   };
 
   const syncRow = (
@@ -239,17 +280,138 @@ export function TakePlayer({
     </View>
   );
 
+  const transcriptBox = (
+    <View style={[playerStyles.box, { borderColor: colors.border, backgroundColor: colors.bgInput }]}>
+      {editingAll ? (
+        <TextInput
+          value={textDraft}
+          onChangeText={setTextDraft}
+          multiline
+          autoFocus={Boolean(take.text.trim())}
+          scrollEnabled
+          textAlignVertical="top"
+          placeholder="Type the transcript, or fix what the phone heard."
+          placeholderTextColor={colors.textFaint}
+          style={{
+            minHeight: 88,
+            maxHeight: 180,
+            color: colors.text,
+            fontSize: 16,
+            lineHeight: 24,
+            padding: 0,
+          }}
+          onEndEditing={commitTranscript}
+        />
+      ) : words.length ? (
+        <ScrollView style={playerStyles.transcript}>
+          <Text style={{ color: colors.text, fontSize: 16, lineHeight: 28 }}>
+            {words.map((cue, index) => {
+              const current = index === spoken && (playing || positionMs > 0);
+              const upcoming = index > spoken;
+              const taught = cue.cued === true || taughtWords?.has(cue.word.toLowerCase());
+              return (
+                <Text
+                  key={`${cue.startMs}-${index}`}
+                  onPress={() => take.audioUri && void seekTo(cue.startMs, true)}
+                  onLongPress={() => {
+                    setEditIndex(index);
+                    setEditValue(cue.word);
+                  }}
+                  style={{
+                    color: current ? colors.onAccent : upcoming ? colors.textFaint : colors.text,
+                    backgroundColor: current ? colors.accent : 'transparent',
+                    fontWeight: current ? '700' : '500',
+                    textDecorationLine: taught ? 'underline' : 'none',
+                    textDecorationColor: colors.accent2,
+                  }}
+                >
+                  {cue.word}
+                  {index < words.length - 1 ? ' ' : ''}
+                </Text>
+              );
+            })}
+          </Text>
+        </ScrollView>
+      ) : (
+        <Text style={{ color: colors.textFaint, fontSize: 14, lineHeight: 20 }}>
+          {take.recordOnly
+            ? 'No transcript on this take yet. Edit it here, or send it so the computer can transcribe.'
+            : 'No transcript on this take. Edit it here to add one.'}
+        </Text>
+      )}
+      {editIndex != null && !editingAll ? (
+        <View style={playerStyles.editRow}>
+          <TextInput
+            value={editValue}
+            onChangeText={setEditValue}
+            autoFocus
+            scrollEnabled={false}
+            style={{
+              flex: 1,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 10,
+              color: colors.text,
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              backgroundColor: colors.bg,
+            }}
+          />
+          <Pressable style={styles.btn} onPress={() => { setEditIndex(null); setEditValue(''); }}>
+            <Text style={styles.btnText}>Cancel</Text>
+          </Pressable>
+          <Pressable style={styles.btnPrimary} onPress={saveEdit}>
+            <Text style={styles.btnPrimaryText}>Save</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={playerStyles.editRow}>
+          {editingAll ? (
+            <>
+              {take.text.trim() ? (
+                <Pressable
+                  style={styles.btn}
+                  onPress={() => {
+                    setTextDraft(take.text);
+                    setEditingAll(false);
+                  }}
+                >
+                  <Text style={styles.btnText}>Cancel</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={[styles.btnPrimary, playerStyles.play]} onPress={commitTranscript}>
+                <Text style={styles.btnPrimaryText}>Save</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable
+              style={styles.btn}
+              onPress={() => {
+                setEditIndex(null);
+                setTextDraft(take.text);
+                setEditingAll(true);
+              }}
+            >
+              <Text style={styles.btnText}>Edit transcript</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+      <Text style={{ color: colors.textFaint, fontSize: 11, marginTop: 8 }}>
+        {editingAll
+          ? 'Save writes the transcript and adds corrected names to the library.'
+          : take.audioUri
+            ? 'Tap a word to play from there. Hold a word to fix it, or edit the transcript. Corrected names are taught and added to the book library.'
+            : 'Edit the transcript. Corrected names are taught and added to the book library.'}
+      </Text>
+    </View>
+  );
+
   if (!take.audioUri) {
     return (
       <View style={playerStyles.wrap}>
         {syncRow}
-        {take.text.trim() ? (
-          <View style={[playerStyles.box, { borderColor: colors.border, backgroundColor: colors.bgInput }]}>
-            <ScrollView style={playerStyles.transcript}>
-              <Text style={{ color: colors.text, fontSize: 16, lineHeight: 26 }}>{take.text.trim()}</Text>
-            </ScrollView>
-          </View>
-        ) : null}
+        {transcriptBox}
       </View>
     );
   }
@@ -311,75 +473,7 @@ export function TakePlayer({
         </Pressable>
       </View>
 
-      <View style={[playerStyles.box, { borderColor: colors.border, backgroundColor: colors.bgInput }]}>
-        {words.length ? (
-          <ScrollView style={playerStyles.transcript}>
-            <Text style={{ color: colors.text, fontSize: 16, lineHeight: 28 }}>
-              {words.map((cue, index) => {
-                const current = index === spoken && (playing || positionMs > 0);
-                const upcoming = index > spoken;
-                const taught = cue.cued === true || taughtWords?.has(cue.word.toLowerCase());
-                return (
-                  <Text
-                    key={`${cue.startMs}-${index}`}
-                    onPress={() => void seekTo(cue.startMs, true)}
-                    onLongPress={() => {
-                      setEditIndex(index);
-                      setEditValue(cue.word);
-                    }}
-                    style={{
-                      color: current ? colors.onAccent : upcoming ? colors.textFaint : colors.text,
-                      backgroundColor: current ? colors.accent : 'transparent',
-                      fontWeight: current ? '700' : '500',
-                      textDecorationLine: taught ? 'underline' : 'none',
-                      textDecorationColor: colors.accent2,
-                    }}
-                  >
-                    {cue.word}
-                    {index < words.length - 1 ? ' ' : ''}
-                  </Text>
-                );
-              })}
-            </Text>
-          </ScrollView>
-        ) : (
-          <Text style={{ color: colors.textFaint, fontSize: 14, lineHeight: 20 }}>
-            {take.recordOnly
-              ? 'No transcript on this take yet. Send it so the computer can transcribe, or type one on the recorder.'
-              : 'No transcript on this take.'}
-          </Text>
-        )}
-        {editIndex != null ? (
-          <View style={playerStyles.editRow}>
-            <TextInput
-              value={editValue}
-              onChangeText={setEditValue}
-              autoFocus
-              scrollEnabled={false}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 10,
-                color: colors.text,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                backgroundColor: colors.bg,
-              }}
-            />
-            <Pressable style={styles.btn} onPress={() => saveEdit(false)}>
-              <Text style={styles.btnText}>Save</Text>
-            </Pressable>
-            <Pressable style={styles.btnPrimary} onPress={() => saveEdit(true)}>
-              <Text style={styles.btnPrimaryText}>Teach</Text>
-            </Pressable>
-          </View>
-        ) : words.length ? (
-          <Text style={{ color: colors.textFaint, fontSize: 11, marginTop: 8 }}>
-            Tap a word to play from there. Hold a word to edit it. Underlined words have an audio cue or a taught spelling.
-          </Text>
-        ) : null}
-      </View>
+      {transcriptBox}
     </View>
   );
 }
@@ -406,7 +500,7 @@ const playerStyles = {
     borderRadius: 12,
     padding: 12,
     minHeight: 88,
-    maxHeight: 260,
+    maxHeight: 320,
   },
   transcript: { maxHeight: 176 },
   editRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 10 },

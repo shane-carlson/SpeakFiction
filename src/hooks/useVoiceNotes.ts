@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { mergeVoiceNotes, type VoiceNote, type VoiceNoteStatus } from '../core/voiceNotes';
+import { consumePendingCompanionInbox } from './useCompanionLibrarySync';
+import { useStore } from '../store';
 
 function notesBridge() {
   return window.speakfiction?.notes;
@@ -41,6 +43,7 @@ export function useVoiceNotes() {
       apply(listed);
       const remote = await bridge.refresh();
       apply(remote);
+      await consumePendingCompanionInbox(remote, bridge);
       if (!remote.ok && remote.message) setError(remote.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load voice notes.');
@@ -58,9 +61,17 @@ export function useVoiceNotes() {
       void refresh({ quiet: true });
     };
     window.addEventListener('focus', onFocus);
+    const persist = useStore.persist;
+    const unsubHydrate =
+      persist && !persist.hasHydrated()
+        ? persist.onFinishHydration(() => {
+            void refresh({ quiet: true });
+          })
+        : undefined;
     return () => {
       window.clearInterval(id);
       window.removeEventListener('focus', onFocus);
+      unsubHydrate?.();
     };
   }, [refresh]);
 

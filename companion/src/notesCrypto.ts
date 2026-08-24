@@ -55,13 +55,19 @@ export async function decryptNotePayload(
   id?: string;
   seriesName?: string;
   seriesBookNumber?: number;
+  canonical?: string;
+  aliases?: string[];
+  category?: string;
 }> {
   const raw = gcm(notesKeyBytes(licenseKey), bytesFromBase64(envelope.iv)).decrypt(
     bytesFromBase64(envelope.ct),
   );
   const parsed = JSON.parse(new TextDecoder().decode(raw)) as Record<string, unknown>;
   return {
-    kind: parsed.kind === 'library' || parsed.kind === 'create-book' ? parsed.kind : 'note',
+    kind:
+      parsed.kind === 'library' || parsed.kind === 'create-book' || parsed.kind === 'create-name'
+        ? parsed.kind
+        : 'note',
     text: typeof parsed.text === 'string' ? parsed.text : '',
     bookHint: typeof parsed.bookHint === 'string' ? parsed.bookHint : undefined,
     bookId: typeof parsed.bookId === 'string' ? parsed.bookId : undefined,
@@ -76,6 +82,11 @@ export async function decryptNotePayload(
         : typeof parsed.seriesBookNumber === 'string' && Number(parsed.seriesBookNumber) > 0
           ? Number(parsed.seriesBookNumber)
           : undefined,
+    canonical: typeof parsed.canonical === 'string' && parsed.canonical.trim() ? parsed.canonical.trim() : undefined,
+    aliases: Array.isArray(parsed.aliases)
+      ? parsed.aliases.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+      : [],
+    category: typeof parsed.category === 'string' ? parsed.category : undefined,
   };
 }
 

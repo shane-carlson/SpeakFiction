@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   catalogFromBooks,
+  companionNameFromPayload,
   createBookNoteId,
+  createNameNoteId,
   defaultTakeTitle,
+  guessNameCategory,
   isHiddenCompanionNoteId,
   parseCompanionPayload,
+  resolveCompanionNameBookId,
 } from '../companionLibrary';
 
 describe('companion library catalog', () => {
@@ -57,6 +61,37 @@ describe('companion library catalog', () => {
       seriesName: 'The Cycle',
       seriesBookNumber: 2,
     });
+    expect(
+      parseCompanionPayload({
+        kind: 'create-name',
+        bookId: 'bk_1',
+        canonical: 'Kaeldros',
+        aliases: ['kaldros', 'Kaeldros'],
+        category: 'character',
+      }),
+    ).toMatchObject({
+      kind: 'create-name',
+      bookId: 'bk_1',
+      canonical: 'Kaeldros',
+      aliases: ['kaldros', 'Kaeldros'],
+      category: 'character',
+    });
+    expect(
+      companionNameFromPayload(
+        parseCompanionPayload({
+          kind: 'create-name',
+          bookId: 'bk_1',
+          canonical: 'Kaeldros',
+          aliases: ['kaldros', 'Kaeldros'],
+        }),
+      ),
+    ).toEqual({
+      id: createNameNoteId('bk_1', 'Kaeldros'),
+      bookId: 'bk_1',
+      canonical: 'Kaeldros',
+      aliases: ['kaldros'],
+      category: 'character',
+    });
   });
 
   it('treats missing kind as a voice note and keeps book association', () => {
@@ -71,13 +106,33 @@ describe('companion library catalog', () => {
       id: undefined,
       seriesName: undefined,
       seriesBookNumber: undefined,
+      canonical: undefined,
+      aliases: [],
+      category: undefined,
     });
   });
 
   it('hides catalog and create-book inbox rows from the writer list', () => {
     expect(isHiddenCompanionNoteId('sf_library')).toBe(true);
     expect(isHiddenCompanionNoteId(createBookNoteId('bk_1'))).toBe(true);
+    expect(isHiddenCompanionNoteId(createNameNoteId('bk_1', 'Kaeldros'))).toBe(true);
     expect(isHiddenCompanionNoteId('vn_abc')).toBe(false);
+  });
+
+  it('guesses a library category from capitalization', () => {
+    expect(guessNameCategory('Kaeldros')).toBe('character');
+    expect(guessNameCategory('their')).toBe('other');
+  });
+
+  it('resolves a companion name onto a desktop book by id, title, or fallback', () => {
+    const books = [
+      { id: 'bk_1', title: 'Ash' },
+      { id: 'bk_2', title: 'Winter' },
+    ];
+    expect(resolveCompanionNameBookId(books, { bookId: 'bk_2' })).toBe('bk_2');
+    expect(resolveCompanionNameBookId(books, { bookId: 'missing', bookHint: 'Ash' })).toBe('bk_1');
+    expect(resolveCompanionNameBookId(books, { bookId: 'missing' }, 'bk_2')).toBe('bk_2');
+    expect(resolveCompanionNameBookId(books, { bookId: 'missing' })).toBe(null);
   });
 
   it('names a take from the recording time', () => {

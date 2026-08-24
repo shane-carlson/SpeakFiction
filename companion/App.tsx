@@ -30,10 +30,13 @@ import { MicIcon, PauseIcon } from './src/MicIcon';
 import { getCachedPrefs, loadCompanionPrefs, persistCompanionPrefs } from './src/prefs';
 import {
   BOOK_GENRES,
+  CREATE_NAME_PREFIX,
   LIBRARY_NOTE_ID,
   bookLabel,
   createBookId,
   createBookNoteId,
+  createNameNoteId,
+  guessNameCategory,
   loadCachedBooks,
   mergeBooks,
   parseCompanionBooks,
@@ -52,11 +55,13 @@ import { LibraryScreen } from './src/LibraryScreen';
 import { useHorizontalSwipe } from './src/pageSwipe';
 import {
   applyVocab,
+  applyVocabToWords,
   contextualStrings,
   loadSpeechVocab,
   taughtWordSet,
-  upsertSpeechCue,
+  upsertSpeechCues,
   type SpeechCue,
+  type TaughtPair,
 } from './src/speechVocab';
 import {
   createTakeId,
@@ -159,6 +164,7 @@ export default function App() {
   const themeName = THEME_LIST.find((item) => item.id === themeId)?.name ?? 'Theme';
 
   const [key, setKey] = useState('');
+  const [keyLocked, setKeyLocked] = useState(false);
   const [token, setToken] = useState('');
   const [recording, setRecording] = useState(false);
   const [draft, setDraft] = useState('');
@@ -202,8 +208,13 @@ export default function App() {
   const micOriginX = useRef(0);
   const micArm = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkedKeyRef = useRef('');
+  const vocabRef = useRef<SpeechCue[]>([]);
   const linked = Boolean(token);
   const taughtWords = useMemo(() => taughtWordSet(vocab), [vocab]);
+
+  useEffect(() => {
+    vocabRef.current = vocab;
+  }, [vocab]);
 
   useEffect(() => {
     recordingOn.current = recording;
@@ -229,6 +240,7 @@ export default function App() {
         if (storedKey) {
           setKey(storedKey);
           linkedKeyRef.current = storedKey;
+          setKeyLocked(true);
           void signIn(storedKey);
         }
       } catch {
@@ -275,6 +287,11 @@ export default function App() {
     setThemeOpen(false);
   }, []);
 
+  const openLink = useCallback(() => {
+    scannedRef.current = false;
+    setScanning(true);
+  }, []);
+
   const persistBook = useCallback(async (nextId: string | null, nextTitle: string | null) => {
     const target = bookTargetRef.current;
     setBookOpen(false);
@@ -313,6 +330,8 @@ export default function App() {
       await SecureStore.setItemAsync(KEY_STORE, trimmed);
       setToken(session.token);
       linkedKeyRef.current = trimmed;
+      setKeyLocked(true);
+      setScanning(false);
       setStatus('Linked. This phone is included with your license.');
       const remote = await listNotes(session.token);
       const opened: LocalNote[] = [];
@@ -324,6 +343,7 @@ export default function App() {
           continue;
         }
         if (openedNote.kind === 'create-book' || String(row.id).startsWith('sf_book_')) continue;
+        if (openedNote.kind === 'create-name' || String(row.id).startsWith(CREATE_NAME_PREFIX)) continue;
         if (row.status === 'deleted') continue;
         opened.push({
           id: String(row.id),
@@ -355,12 +375,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || keyLocked) return;
     const trimmed = key.trim();
     if (!SF_LICENSE_KEY_RE.test(trimmed) || trimmed === linkedKeyRef.current) return;
     const id = setTimeout(() => confirmLink(trimmed), 800);
     return () => clearTimeout(id);
-  }, [key, ready]);
+  }, [key, keyLocked, ready]);
 
   const addBook = async () => {
     const title = newBookTitle.trim();
@@ -475,17 +495,18 @@ export default function App() {
     }
     setAudioUri(stored);
     let heard = { text: '', words: [] as WordCue[] };
+    const taught = vocabRef.current;
     if (transcribeRef.current && stored) {
       setStatus('Transcribing the take on this phone…');
       heard = await transcribeAudioFile(stored, {
-        contextualStrings: contextualStrings(vocab),
-        replacements: vocab.map((item) => ({ heard: item.heard || item.word, word: item.word })),
+        contextualStrings: contextualStrings(taught),
+        replacements: taught.map((item) => ({ heard: item.heard || item.word, word: item.word })),
       });
     }
-    const text = applyVocab(heard.text, vocab);
+    const text = applyVocab(heard.text, taught);
     if (text) setDraft(text);
     const createdAt = takeAtRef.current;
-    const words = heard.words.length ? heard.words : estimateWordCues(text, duration);
+    const words = applyVocabToWords(heard.words.length ? heard.words : estimateWordCues(text, duration), taught);
     const take: LibraryTake = {
       id: takeId,
       title: defaultTakeTitle(createdAt),
@@ -757,17 +778,70 @@ export default function App() {
     })();
   };
 
-  const teachWord = async (take: LibraryTake, cue: WordCue, heard: string) => {
-    const next = await upsertSpeechCue(vocab, {
-      word: cue.word,
-      heard,
-      takeId: take.id,
-      audioUri: take.audioUri,
-      startMs: cue.startMs,
-      endMs: cue.endMs,
-    });
+  const teachPairs = async (take: LibraryTake, pairs: TaughtPair[]) => {
+    const taught = pairs.filter((pair) => pair.word.trim());
+    if (!taught.length) return;
+    const next = await upsertSpeechCues(
+      vocabRef.current,
+      taught.map((pair) => ({
+        word: pair.word.trim(),
+        heard: pair.heard.trim() || undefined,
+        takeId: take.id,
+        audioUri: take.audioUri,
+        startMs: pair.startMs,
+        endMs: pair.endMs,
+      })),
+    );
+    vocabRef.current = next;
     setVocab(next);
-    setStatus(`Taught “${cue.word}” to the on-device vocabulary.`);
+    const libraryBookId = take.bookId?.trim() || bookId?.trim() || '';
+    const libraryBookTitle = take.bookTitle?.trim() || bookTitle?.trim() || '';
+    if (!libraryBookId) {
+      setStatus(
+        taught.length === 1
+          ? `Taught “${taught[0].word}” for the next take. Choose a book to add it to the names library.`
+          : `Taught ${taught.length} words for the next take. Choose a book to add them to the names library.`,
+      );
+      return;
+    }
+    if (!token || !key.trim()) {
+      setStatus(
+        taught.length === 1
+          ? `Taught “${taught[0].word}”. Link this phone to add it to the names library.`
+          : `Taught ${taught.length} words. Link this phone to add them to the names library.`,
+      );
+      return;
+    }
+    try {
+      for (const pair of taught) {
+        const canonical = pair.word.trim();
+        const heard = pair.heard.trim();
+        const id = createNameNoteId(libraryBookId, canonical);
+        await pushNote(token, {
+          id,
+          createdAt: new Date().toISOString(),
+          durationMs: 0,
+          platform: 'phone',
+          fileName: `name\t${libraryBookId}\t${canonical}`.slice(0, 180),
+          ciphertext: await encryptNotePayload(key.trim(), {
+            kind: 'create-name',
+            id,
+            bookId: libraryBookId,
+            bookHint: libraryBookTitle,
+            canonical,
+            aliases: heard && heard.toLowerCase() !== canonical.toLowerCase() ? [heard] : [],
+            category: guessNameCategory(canonical),
+          }),
+        });
+      }
+      setStatus(
+        taught.length === 1
+          ? `Added “${taught[0].word}” to the names library. Refresh Voice notes on the computer if it is not there yet.`
+          : `Added ${taught.length} names to the library. Refresh Voice notes on the computer if they are not there yet.`,
+      );
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Taught on this phone. Could not add it to the names library yet.');
+    }
   };
 
   const shareTake = (take: LibraryTake) => {
@@ -865,9 +939,14 @@ export default function App() {
           <Pressable style={styles.btn} onPress={openLibrary} disabled={recording}>
             <Text style={styles.btnText}>Library</Text>
           </Pressable>
-          <View style={[styles.badge, linked ? styles.badgeOn : styles.badgeOff]}>
+          <Pressable
+            style={[styles.badge, linked ? styles.badgeOn : styles.badgeOff]}
+            onPress={openLink}
+            accessibilityRole="button"
+            accessibilityLabel={keyLocked ? 'Show the saved SF- key' : 'Link this phone'}
+          >
             <Text style={styles.badgeText}>{linked ? 'Linked' : 'Not linked'}</Text>
-          </View>
+          </Pressable>
         </View>
 
         {compactStage ? (
@@ -959,26 +1038,11 @@ export default function App() {
           >
             <Text style={styles.btnPrimaryText}>{syncing ? 'Sending…' : 'Send to desktop inbox'}</Text>
           </Pressable>
-          <View style={styles.linkRow}>
-            <TextInput
-              value={key}
-              onChangeText={setKey}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="SF-…"
-              placeholderTextColor={colors.textFaint}
-              style={[styles.input, styles.inputGrow]}
-            />
-            <Pressable
-              style={styles.btn}
-              onPress={() => {
-                scannedRef.current = false;
-                setScanning(true);
-              }}
-            >
-              <Text style={styles.btnText}>Scan</Text>
+          {keyLocked ? null : (
+            <Pressable style={styles.btn} onPress={openLink}>
+              <Text style={styles.btnText}>Scan or paste key</Text>
             </Pressable>
-          </View>
+          )}
 
           <View style={styles.lookRow}>
             <View style={styles.seg}>
@@ -1014,6 +1078,7 @@ export default function App() {
 
       {scanning ? (
         <View style={styles.scan} {...scanSwipe}>
+          <ScreenKeyboardAvoid>
           <View style={styles.scanSafe}>
             <View style={styles.brand}>
               <Image source={logo} style={styles.logo} />
@@ -1025,7 +1090,26 @@ export default function App() {
                 <Text style={styles.btnText}>Record</Text>
               </Pressable>
             </View>
-            <Text style={styles.lead}>Point the camera at Voice notes on your computer.</Text>
+            <Text style={styles.lead}>
+              {keyLocked
+                ? 'This phone is linked. The SF- key stays saved and cannot be edited.'
+                : 'Paste the SF- key, or point the camera at Voice notes on your computer.'}
+            </Text>
+            <TextInput
+              value={key}
+              onChangeText={keyLocked ? undefined : setKey}
+              editable={!keyLocked}
+              selectTextOnFocus={!keyLocked}
+              showSoftInputOnFocus={!keyLocked}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              placeholder="SF-…"
+              placeholderTextColor={colors.textFaint}
+              style={[styles.input, keyLocked && styles.inputLocked]}
+              accessibilityLabel="SpeakFiction license key"
+              accessibilityState={{ disabled: keyLocked }}
+            />
             {!cameraPerm?.granted ? (
               <Pressable style={styles.btnPrimary} onPress={() => void requestCamera()}>
                 <Text style={styles.btnPrimaryText}>Allow camera</Text>
@@ -1051,6 +1135,7 @@ export default function App() {
               <Text style={styles.btnText}>Record</Text>
             </Pressable>
           </View>
+          </ScreenKeyboardAvoid>
         </View>
       ) : null}
 
@@ -1073,8 +1158,8 @@ export default function App() {
           onShare={shareTake}
           onSaveToFiles={(take) => void saveTakeToFiles(take)}
           onDelete={deleteTakes}
-          onChangeWords={(id, words, text) => markTake(id, { words, text })}
-          onTeachWord={(take, cue, heard) => void teachWord(take, cue, heard)}
+          onChangeWords={(id, words, text) => markTake(id, { words, text, sent: false })}
+          onTeachPairs={(take, pairs) => void teachPairs(take, pairs)}
         />
       ) : null}
 
@@ -1289,6 +1374,10 @@ function createStyles(c: ThemeColors) {
       paddingHorizontal: 12,
       backgroundColor: c.bgInput,
       fontSize: 15,
+    },
+    inputLocked: {
+      color: c.textDim,
+      backgroundColor: c.bgElev2,
     },
     inputGrow: { flex: 1 },
     btnFlex: { flex: 1 },

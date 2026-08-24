@@ -115,9 +115,20 @@ export function textFromWords(words: WordCue[]): string {
 }
 
 export function replaceWordAt(words: WordCue[], index: number, word: string): WordCue[] {
-  const next = word.trim();
-  if (!next || !words[index]) return words;
-  return words.map((item, i) => (i === index ? { ...item, word: next, cued: true } : item));
+  const parts = tokenizeWords(word);
+  const target = words[index];
+  if (!parts.length || !target) return words;
+  if (parts.length === 1) {
+    return words.map((item, i) => (i === index ? { ...item, word: parts[0], cued: true } : item));
+  }
+  const span = Math.max(1, target.endMs - target.startMs);
+  const insert = parts.map((next, i) => ({
+    word: next,
+    startMs: target.startMs + (span * i) / parts.length,
+    endMs: target.startMs + (span * (i + 1)) / parts.length,
+    cued: true,
+  }));
+  return [...words.slice(0, index), ...insert, ...words.slice(index + 1)];
 }
 
 export function activeWordIndex(words: WordCue[], positionMs: number): number {

@@ -54,8 +54,8 @@ export function CompanionLinkSetup({ paired }: { paired: boolean }) {
       </p>
       <ol className="companion-link-steps">
         <li>Open SpeakFiction Notes on the phone.</li>
-        <li>Tap Scan QR, or paste the key.</li>
-        <li>Point the camera at this computer.</li>
+        <li>Tap Scan or paste key.</li>
+        <li>Paste the SF- key, or point the camera at this computer.</li>
       </ol>
       {message ? <p className="hint">{message}</p> : null}
       {key ? (

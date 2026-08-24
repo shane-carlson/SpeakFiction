@@ -117,6 +117,7 @@ export interface SpeakFictionNotesBridge {
     notes: import('./core/voiceNotes').VoiceNote[];
     books?: import('./core/companionLibrary').CompanionBook[];
     pendingBooks?: import('./core/companionLibrary').CompanionBook[];
+    pendingNames?: import('./core/companionLibrary').CompanionName[];
     message?: string;
   }>;
   addLocal: (

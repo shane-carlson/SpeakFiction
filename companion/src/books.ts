@@ -12,6 +12,9 @@ import { THEME_LIST, isThemeId } from './theme';
 const BOOKS_STORE = 'sf-companion-books';
 export const LIBRARY_NOTE_ID = 'sf_library';
 export const CREATE_BOOK_PREFIX = 'sf_book_';
+export const CREATE_NAME_PREFIX = 'sf_name_';
+export const NAME_CATEGORIES = ['character', 'location', 'item', 'organization', 'other'] as const;
+export type CompanionNameCategory = (typeof NAME_CATEGORIES)[number];
 
 export type CompanionGenreId = Exclude<ThemeId, never>;
 
@@ -53,6 +56,25 @@ export function createBookId(): string {
 
 export function createBookNoteId(bookId: string): string {
   return `${CREATE_BOOK_PREFIX}${bookId}`;
+}
+
+export function slugNameId(canonical: string): string {
+  return canonical
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+export function createNameNoteId(bookId: string, canonical: string): string {
+  return `${CREATE_NAME_PREFIX}${bookId}_${slugNameId(canonical) || 'name'}`;
+}
+
+export function guessNameCategory(canonical: string): CompanionNameCategory {
+  const trimmed = canonical.trim();
+  if (!trimmed) return 'other';
+  return /^[A-Z]/.test(trimmed) || /\s/.test(trimmed) ? 'character' : 'other';
 }
 
 export function parseCompanionBooks(raw: unknown): CompanionBook[] {

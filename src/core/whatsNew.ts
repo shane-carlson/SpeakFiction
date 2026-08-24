@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.25': bullets(
+    'Names you correct on the phone companion are added to this book’s name library',
+    'The misheard spelling is stored as an alias, so later dictation can fix it',
+    'Refresh Voice notes to pull those names if Library is already open',
+  ),
   '0.3.0': bullets(
     'Voice notes inbox collects takes from the phone companion or a file you import',
     'Add to transcription box runs names, structure cues, and genre punctuation the same way the mic does',

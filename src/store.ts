@@ -241,9 +241,9 @@ function patchBook(books: Book[], id: string, fn: (b: Book) => Book): Book[] {
   return books.map((b) => (b.id === id ? { ...fn(b), updatedAt: Date.now() } : b));
 }
 
-function uniqueAliases(existing: string[], incoming: string[]): string[] {
-  const aliases = [...existing];
-  for (const alias of incoming) {
+function uniqueAliases(existing: string[] | undefined, incoming: string[] | undefined): string[] {
+  const aliases = [...(existing ?? [])];
+  for (const alias of incoming ?? []) {
     if (!aliases.some((a) => a.toLowerCase() === alias.toLowerCase())) aliases.push(alias);
   }
   return aliases;
@@ -262,7 +262,7 @@ function upsertNameOnBook(books: Book[], originBookId: string, payload: Omit<Nam
     const ownerId = bookIdOwningName(books, existing.id) ?? originBookId;
     return patchBook(books, ownerId, (b) => ({
       ...b,
-      nameLibrary: b.nameLibrary.map((n) =>
+      nameLibrary: (b.nameLibrary ?? []).map((n) =>
         n.id === existing.id
           ? {
               ...n,
@@ -278,7 +278,7 @@ function upsertNameOnBook(books: Book[], originBookId: string, payload: Omit<Nam
   return patchBook(books, originBookId, (b) => ({
     ...b,
     nameLibrary: [
-      ...b.nameLibrary,
+      ...(b.nameLibrary ?? []),
       {
         ...payload,
         id: uid('n'),
