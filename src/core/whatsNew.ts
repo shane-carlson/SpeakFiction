@@ -155,6 +155,22 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.3.0': bullets(
+    'Voice notes inbox collects takes from the phone companion or a file you import',
+    'Add to transcription box runs names, structure cues, and genre punctuation the same way the mic does',
+    'Import WAV, M4A, MP3, AAC, and other common audio files; they land in the transcription box first',
+    'The phone companion is included with a license and does not use one of your three desktop seats',
+    'Link the phone by scanning a QR code on this computer, or by copying your SF- key',
+    'The phone keeps the last book you chose; takes can be named, saved locally, and sent to that book',
+  ),
+  '0.2.24': bullets(
+    'Adding a name in Library asks you to say it twice, and that recording stays on the name',
+    'Say “New Character” then the name twice while dictating — that clip is saved too, so you do not record it again',
+    'If Library cannot open, Back to Dictate still works, and a crash reopens Dictate instead of trapping you',
+    'Repeated closer loops like “thank you for listening” are dropped after a pause, without eating the sentence before them',
+    'Voice notes inbox collects takes from the phone companion or a file you import',
+    'Link the phone by scanning a QR code on this computer, or by copying your SF- key',
+  ),
   '0.2.23': bullets(
     'On machines with under 8GB of RAM, SpeakFiction uses a much smaller speech model',
     'Library shows a retry if that page fails to load',

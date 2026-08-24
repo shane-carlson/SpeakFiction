@@ -1,4 +1,4 @@
-import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage, ManuscriptTable, NameEntry, Series, TableCell } from './types';
+import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage, ManuscriptTable, NameEntry, NameVoiceClip, Series, TableCell } from './types';
 import { emptyAdaptiveState } from './adaptiveModel';
 import { DEFAULT_TENSE } from './tense';
 import { DEFAULT_PERSPECTIVE } from './perspective';
@@ -90,6 +90,10 @@ export function serializeLibraryBackup(input: {
   };
 }
 
+function isBackupMediaMime(mime: string): boolean {
+  return isManuscriptImageMime(mime) || mime === 'audio/wav';
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -102,7 +106,7 @@ function normalizeBackupMedia(raw: unknown): Record<string, { mime: string; b64:
   const out: Record<string, { mime: string; b64: string }> = {};
   for (const [id, value] of Object.entries(rec)) {
     const item = asRecord(value);
-    if (!item || typeof item.b64 !== 'string' || !isManuscriptImageMime(String(item.mime))) continue;
+    if (!item || typeof item.b64 !== 'string' || !isBackupMediaMime(String(item.mime))) continue;
     out[id] = { mime: String(item.mime), b64: item.b64 };
   }
   return Object.keys(out).length ? out : undefined;
@@ -209,19 +213,38 @@ function normalizeManuscript(raw: unknown): Manuscript {
   };
 }
 
+function normalizeNameVoiceClips(raw: unknown): NameVoiceClip[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const clips = raw
+    .map((c) => asRecord(c))
+    .filter((c): c is Record<string, unknown> => Boolean(c && typeof c.mediaId === 'string' && c.mediaId))
+    .map((c) => {
+      const clip: NameVoiceClip = { mediaId: String(c.mediaId) };
+      if (typeof c.heard === 'string' && c.heard.trim()) clip.heard = c.heard.trim();
+      if (c.source === 'library' || c.source === 'dictation') clip.source = c.source;
+      return clip;
+    });
+  return clips.length ? clips : undefined;
+}
+
 function normalizeNameLibrary(raw: unknown): NameEntry[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((n) => asRecord(n))
     .filter((n): n is Record<string, unknown> => Boolean(n && typeof n.id === 'string' && typeof n.canonical === 'string'))
-    .map((n) => ({
-      id: String(n.id),
-      canonical: String(n.canonical),
-      category: (typeof n.category === 'string' ? n.category : 'other') as NameEntry['category'],
-      aliases: Array.isArray(n.aliases) ? n.aliases.map(String) : [],
-      note: typeof n.note === 'string' ? n.note : undefined,
-      originBookId: typeof n.originBookId === 'string' && n.originBookId ? n.originBookId : undefined,
-    }));
+    .map((n) => {
+      const entry: NameEntry = {
+        id: String(n.id),
+        canonical: String(n.canonical),
+        category: (typeof n.category === 'string' ? n.category : 'other') as NameEntry['category'],
+        aliases: Array.isArray(n.aliases) ? n.aliases.map(String) : [],
+        note: typeof n.note === 'string' ? n.note : undefined,
+        originBookId: typeof n.originBookId === 'string' && n.originBookId ? n.originBookId : undefined,
+      };
+      const voiceClips = normalizeNameVoiceClips(n.voiceClips);
+      if (voiceClips) entry.voiceClips = voiceClips;
+      return entry;
+    });
 }
 
 export function normalizeBook(raw: unknown): Book | null {

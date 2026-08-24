@@ -32,6 +32,15 @@ describe('correctNames', () => {
     expect(text).toContain('"Kaeldros,"');
   });
 
+  it('maps a Whisper stay/fay miss after named when Fae is in the library', () => {
+    const fae: NameEntry[] = [{ id: 'c3', canonical: 'Fae', category: 'character', aliases: [] }];
+    const { text, applied } = correctNames('new character named stay', fae);
+    expect(text).toContain('Fae');
+    expect(applied.some((a) => a.to === 'Fae')).toBe(true);
+    const left = correctNames('please stay here Fae', fae);
+    expect(left.text).toBe('please stay here Fae');
+  });
+
   it('does not touch ordinary words', () => {
     const { text, applied } = correctNames('the sun was warm and the road was long', entries);
     expect(text).toBe('the sun was warm and the road was long');

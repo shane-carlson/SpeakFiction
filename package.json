@@ -1,8 +1,8 @@
 {
   "name": "speakfiction",
   "productName": "SpeakFiction",
-  "version": "0.2.23",
-  "buildNumber": 39,
+  "version": "0.2.24",
+  "buildNumber": 40,
   "description": "Dictation for fiction writers: per-book name libraries, genre-aware punctuation, audio-cue chapter/scene markers, and an adaptive on-device model. Native desktop app (Electron) for macOS and Windows, with guided integration into Scrivener, Word, LibreOffice, and Google Docs.",
   "author": "SpeakFiction",
   "license": "MIT",
@@ -26,12 +26,14 @@
     "pack:mac:intel": "node scripts/pack-mac.cjs --intel",
     "pack:mac:all": "node scripts/pack-mac.cjs --all",
     "pack:win": "node scripts/pack-win.cjs",
-    "pack:win:same": "node scripts/pack-win.cjs --keep-build"
+    "pack:win:same": "node scripts/pack-win.cjs --keep-build",
+    "notes:dev": "node scripts/notes-dev-server.cjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "docx": "^9.0.2",
     "electron-updater": "^6.6.2",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.5"
@@ -39,6 +41,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^8.4.0",

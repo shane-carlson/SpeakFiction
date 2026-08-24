@@ -7,6 +7,12 @@ import type { GenreId, NameCategory, NameEntry, PerspectiveId, TenseId } from '.
 import { formatSeriesBookNumber, groupLibraryBooks, seriesMembershipLabel } from '../core/seriesBooks';
 import { seriesNameViews } from '../core/seriesNames';
 import { libraryHasEmberKingSample } from '../core/seedManuscript';
+import {
+  heardAliasesFromClips,
+  nameVoiceTrainingComplete,
+  playNameVoiceClips,
+} from '../core/nameVoiceClips';
+import { NameVoiceTrainer } from '../components/NameVoiceTrainer';
 
 const CATEGORIES: NameCategory[] = ['character', 'location', 'item', 'organization', 'other'];
 
@@ -15,8 +21,8 @@ function parseAliases(raw: string): string[] {
 }
 
 export function LibraryView() {
-  const books = useStore((s) => s.books);
-  const series = useStore((s) => s.series);
+  const books = useStore((s) => s.books) ?? [];
+  const series = useStore((s) => s.series) ?? [];
   const activeBookId = useStore((s) => s.activeBookId);
   const setActiveBook = useStore((s) => s.setActiveBook);
   const createBook = useStore((s) => s.createBook);
@@ -52,6 +58,8 @@ export function LibraryView() {
   const [category, setCategory] = useState<NameCategory>('character');
   const [aliases, setAliases] = useState('');
   const [note, setNote] = useState('');
+  const [pendingClips, setPendingClips] = useState<NameEntry['voiceClips']>([]);
+  const [playingNameId, setPlayingNameId] = useState<string | null>(null);
 
   useEffect(() => {
     setSeriesDraft(bookSeriesName);
@@ -64,6 +72,7 @@ export function LibraryView() {
     setCategory('character');
     setAliases('');
     setNote('');
+    setPendingClips([]);
   }, [book?.id]);
 
   useEffect(() => {
@@ -94,8 +103,8 @@ export function LibraryView() {
   const confirmDeleteBook = (id: string, title: string) => {
     const target = books.find((b) => b.id === id);
     if (!target) return;
-    const blocks = target.manuscript.blocks.length;
-    const names = target.nameLibrary.length;
+    const blocks = target.manuscript?.blocks?.length ?? 0;
+    const names = target.nameLibrary?.length ?? 0;
     const last = books.length === 1;
     const extra = last ? ' This is your only book.' : '';
     if (
@@ -112,8 +121,9 @@ export function LibraryView() {
     setEditingNameId(entry.id);
     setCanonical(entry.canonical);
     setCategory(entry.category);
-    setAliases(entry.aliases.join(', '));
+    setAliases((entry.aliases ?? []).join(', '));
     setNote(entry.note ?? '');
+    setPendingClips(entry.voiceClips ?? []);
   };
 
   const cancelEditName = () => {
@@ -122,15 +132,29 @@ export function LibraryView() {
     setCategory('character');
     setAliases('');
     setNote('');
+    setPendingClips([]);
+  };
+
+  const mergeAliasField = (nextClips: NonNullable<NameEntry['voiceClips']>) => {
+    const extra = heardAliasesFromClips(nextClips, canonical);
+    if (!extra.length) return;
+    const current = parseAliases(aliases);
+    const merged = [...current];
+    for (const form of extra) {
+      if (!merged.some((a) => a.toLowerCase() === form.toLowerCase())) merged.push(form);
+    }
+    setAliases(merged.join(', '));
   };
 
   const submitName = () => {
     if (!book || !canonical.trim()) return;
+    if (!editingNameId && !nameVoiceTrainingComplete(pendingClips)) return;
     const payload = {
       canonical: canonical.trim(),
       category,
       aliases: parseAliases(aliases),
       note: note.trim() || undefined,
+      voiceClips: pendingClips?.length ? pendingClips : undefined,
     };
     if (editingNameId) {
       updateNameEntry(book.id, { id: editingNameId, ...payload });
@@ -138,6 +162,16 @@ export function LibraryView() {
       addNameEntry(book.id, payload);
     }
     cancelEditName();
+  };
+
+  const playEntryClips = async (entry: NameEntry) => {
+    if (!entry.voiceClips?.length || playingNameId) return;
+    setPlayingNameId(entry.id);
+    try {
+      await playNameVoiceClips(entry.voiceClips);
+    } finally {
+      setPlayingNameId((id) => (id === entry.id ? null : id));
+    }
   };
 
   const confirmRemoveName = (entry: NameEntry, originBookTitle: string, fromThisBook: boolean) => {
@@ -186,8 +220,8 @@ export function LibraryView() {
                 <div className="aliases">
                   {membership ? `${membership} · ` : ''}
                   {GENRE_LIST.find((g) => g.id === b.genreId)?.name} · {getTense(b.tenseId).name} ·{' '}
-                  {getPerspective(b.perspectiveId).name} · {b.nameLibrary.length} names ·{' '}
-                  {b.manuscript.blocks.length} blocks
+                  {getPerspective(b.perspectiveId).name} · {(b.nameLibrary ?? []).length} names ·{' '}
+                  {(b.manuscript?.blocks ?? []).length} blocks
                 </div>
               </div>
               {b.id === book?.id && <span className="badge character">active</span>}
@@ -394,8 +428,8 @@ export function LibraryView() {
           <h3>Name library — {book.title}</h3>
           <p className="sub">
             {book.seriesId
-              ? 'Trained proper nouns for every book in this series. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Each name shows the book it was first trained in. Say “New Character” then the name twice while dictating to add one.'
-              : 'Trained proper nouns. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Say “New Character” then the name twice while dictating to add one.'}
+              ? 'Trained proper nouns for every book in this series. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Each name shows the book it was first trained in. Say “New Character” then the name twice while dictating — that recording is saved on the name. Adding a name here asks you to say it twice into the microphone.'
+              : 'Trained proper nouns. Aliases are the ways speech-to-text mishears them; SpeakFiction rewrites any close match to the canonical spelling. Say “New Character” then the name twice while dictating — that recording is saved on the name. Adding a name here asks you to say it twice into the microphone.'}
           </p>
 
           <div className="grid cols-2" style={{ marginBottom: 16 }}>
@@ -428,13 +462,26 @@ export function LibraryView() {
               </div>
             </div>
           </div>
+          <NameVoiceTrainer
+            canonical={canonical}
+            clips={pendingClips ?? []}
+            required={!editingNameId}
+            onClipsChange={(next) => {
+              setPendingClips(next);
+              mergeAliasField(next);
+            }}
+          />
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginBottom: 18 }}>
             {editingNameId && (
               <button type="button" className="btn ghost" onClick={cancelEditName}>
                 Cancel
               </button>
             )}
-            <button className="btn primary" onClick={submitName} disabled={!canonical.trim()}>
+            <button
+              className="btn primary"
+              onClick={submitName}
+              disabled={!canonical.trim() || (!editingNameId && !nameVoiceTrainingComplete(pendingClips))}
+            >
               {editingNameId ? 'Save name' : '+ Add name'}
             </button>
           </div>
@@ -447,14 +494,27 @@ export function LibraryView() {
                 <div className="grow">
                   <div className="name">{view.entry.canonical}</div>
                   <div className="aliases">
-                    {view.entry.aliases.length ? `hears: ${view.entry.aliases.join(', ')}` : 'no aliases'}
+                    {(view.entry.aliases ?? []).length ? `hears: ${view.entry.aliases.join(', ')}` : 'no aliases'}
                     {view.entry.note ? ` · ${view.entry.note}` : ''}
                     {book.seriesId ? ` · from ${view.originBookTitle}` : ''}
+                    {view.entry.voiceClips?.length
+                      ? ` · ${view.entry.voiceClips.length} voice clip${view.entry.voiceClips.length === 1 ? '' : 's'}`
+                      : ''}
                   </div>
                 </div>
                 <div className="list-row-actions">
+                  {view.entry.voiceClips?.length ? (
+                    <button
+                      type="button"
+                      className="btn ghost compact"
+                      onClick={() => void playEntryClips(view.entry)}
+                      disabled={playingNameId === view.entry.id}
+                    >
+                      {playingNameId === view.entry.id ? 'Playing…' : 'Play'}
+                    </button>
+                  ) : null}
                   <button type="button" className="btn ghost compact" onClick={() => startEditName(view.entry)}>
-                    Edit
+                    {nameVoiceTrainingComplete(view.entry.voiceClips) ? 'Edit' : 'Train voice'}
                   </button>
                   <button
                     type="button"

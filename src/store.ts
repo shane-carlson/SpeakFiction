@@ -43,6 +43,7 @@ import {
   type VoiceCommandSnapshot,
 } from './core/voiceCommandUndo';
 import { processTranscript } from './core/dictationProcessor';
+import { importTextToTranscriptionBox } from './core/voiceNoteImport';
 import { getGenre } from './core/genres';
 import { DEFAULT_TENSE } from './core/tense';
 import { DEFAULT_PERSPECTIVE } from './core/perspective';
@@ -65,6 +66,7 @@ import {
 import { sessionStateStorage } from './core/sessionStorage';
 import { DICTATE_SPLIT_DEFAULT, MANUSCRIPT_SPLIT_DEFAULT, normalizeDictateSplit, normalizeManuscriptSplit } from './core/splitRatio';
 import { uid } from './core/util';
+import { mergeNameVoiceClips, purgeNameVoiceClips } from './core/nameVoiceClips';
 import type { AppliedCorrection } from './core/nameLibrary';
 import { bookIdOwningName, mergeSeriesNameLibrary } from './core/seriesNames';
 import type { SpokenCharacter } from './core/newCharacterCue';
@@ -131,7 +133,7 @@ interface AppState {
   voiceCommandUndo: Record<string, VoiceCommandSnapshot[]>;
 
   createSeries: (name: string) => string;
-  createBook: (title: string, genreId: GenreId, seriesId?: string) => string;
+  createBook: (title: string, genreId: GenreId, seriesId?: string, existingId?: string) => string;
   deleteBook: (id: string) => void;
   /** Add the shipped Ember King example back if the user deleted it. */
   restoreSampleBook: () => string;
@@ -152,6 +154,12 @@ interface AppState {
     transcript: string,
     dest?: ManuscriptInsertAt,
   ) => DictationOutcome;
+  /** Names, cues, and genre punctuation into the transcription box. Never writes the manuscript. */
+  importToTranscriptionBox: (
+    bookId: string,
+    transcript: string,
+    caret?: number | null,
+  ) => { cleaned: string; added: boolean };
   updateBlockText: (bookId: string, blockId: string, text: string, marks?: InlineMark[]) => void;
   updateBlockTitle: (bookId: string, blockId: string, title: string) => void;
   deleteBlock: (bookId: string, blockId: string) => void;
@@ -261,6 +269,7 @@ function upsertNameOnBook(books: Book[], originBookId: string, payload: Omit<Nam
               aliases: uniqueAliases(n.aliases, payload.aliases),
               note: n.note || payload.note,
               originBookId: n.originBookId || originBookId,
+              voiceClips: mergeNameVoiceClips(n.voiceClips, payload.voiceClips),
             }
           : n,
       ),
@@ -315,6 +324,11 @@ function dropImageMedia(blocks: Book['manuscript']['blocks']): void {
   for (const b of blocks) {
     if (b.type === 'image' && b.image) void removeMedia(b.image.mediaId);
   }
+}
+
+function dropBookMedia(book: Book): void {
+  dropImageMedia(book.manuscript?.blocks ?? []);
+  for (const entry of book.nameLibrary ?? []) void purgeNameVoiceClips(entry);
 }
 
 function pushHistory(
@@ -376,8 +390,12 @@ export const useStore = create<AppState>()(
         return id;
       },
 
-      createBook: (title, genreId, seriesId) => {
-        const id = uid('bk');
+      createBook: (title, genreId, seriesId, existingId) => {
+        if (existingId) {
+          const already = get().books.find((b) => b.id === existingId);
+          if (already) return already.id;
+        }
+        const id = existingId || uid('bk');
         const now = Date.now();
         const book: Book = {
           id,
@@ -392,12 +410,17 @@ export const useStore = create<AppState>()(
           createdAt: now,
           updatedAt: now,
         };
-        set((s) => ({ books: [...s.books, book], activeBookId: id }));
+        set((s) => ({
+          books: [...s.books, book],
+          ...(existingId ? {} : { activeBookId: id }),
+        }));
         return id;
       },
 
       deleteBook: (id) =>
         set((s) => {
+          const victim = s.books.find((b) => b.id === id);
+          if (victim) dropBookMedia(victim);
           const books = s.books.filter((b) => b.id !== id);
           return {
             books,
@@ -465,7 +488,14 @@ export const useStore = create<AppState>()(
             books: patchBook(s.books, ownerId, (b) => ({
               ...b,
               nameLibrary: b.nameLibrary.map((n) =>
-                n.id === entry.id ? { ...entry, originBookId: n.originBookId || ownerId } : n,
+                n.id === entry.id
+                  ? {
+                      ...n,
+                      ...entry,
+                      originBookId: n.originBookId || ownerId,
+                      voiceClips: entry.voiceClips ?? n.voiceClips,
+                    }
+                  : n,
               ),
             })),
           };
@@ -474,6 +504,9 @@ export const useStore = create<AppState>()(
       removeNameEntry: (bookId, entryId) =>
         set((s) => {
           const ownerId = bookIdOwningName(s.books, entryId) ?? bookId;
+          const owner = s.books.find((b) => b.id === ownerId);
+          const victim = owner?.nameLibrary.find((n) => n.id === entryId);
+          if (victim) void purgeNameVoiceClips(victim);
           return {
             books: patchBook(s.books, ownerId, (b) => ({
               ...b,
@@ -481,6 +514,23 @@ export const useStore = create<AppState>()(
             })),
           };
         }),
+
+      importToTranscriptionBox: (bookId, transcript, caret) => {
+        const book = get().books.find((b) => b.id === bookId);
+        if (!book) return { cleaned: '', added: false };
+        const prev = get().dictationDrafts[bookId] ?? [];
+        const result = importTextToTranscriptionBox(transcript, prev, { book, books: get().books }, caret);
+        if (result.captureCommand) get().captureVoiceCommand(bookId);
+        if (result.newCharacters.length) {
+          set((state) => ({
+            books: upsertSpokenCharacters(state.books, bookId, result.newCharacters),
+          }));
+        }
+        if (result.cleaned) {
+          set((s) => ({ dictationDrafts: { ...s.dictationDrafts, [bookId]: result.draft } }));
+        }
+        return { cleaned: result.cleaned, added: Boolean(result.cleaned) };
+      },
 
       applyDictation: (bookId, transcript, dest) => {
         const book = get().books.find((b) => b.id === bookId);

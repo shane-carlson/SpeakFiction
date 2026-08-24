@@ -18,7 +18,7 @@ import {
   type SpeakFictionBackup,
 } from '../core/backup';
 import { openTextFile, saveBytesFile, saveTextFile } from '../core/localFiles';
-import { collectBackupMedia, loadExportImages, restoreBackupMedia } from '../core/mediaStore';
+import { collectBackupMedia, collectNameVoiceMedia, loadExportImages, restoreBackupMedia } from '../core/mediaStore';
 import { useStore } from '../store';
 
 const JSON_FILTERS = [{ name: 'SpeakFiction backup', extensions: ['json'] }];
@@ -68,7 +68,10 @@ export function BackupView({
   };
 
   const saveBookJson = async () => {
-    const media = await collectBackupMedia(book.manuscript);
+    const media = {
+      ...(await collectBackupMedia(book.manuscript)),
+      ...(await collectNameVoiceMedia(book.nameLibrary)),
+    };
     const json = backupToJson(serializeBookBackup(book, bookSeries, media));
     const res = await saveTextFile({
       defaultPath: bookBackupFilename(book),
@@ -81,7 +84,10 @@ export function BackupView({
 
   const saveLibraryJson = async () => {
     const media: Record<string, { mime: string; b64: string }> = {};
-    for (const b of books) Object.assign(media, await collectBackupMedia(b.manuscript));
+    for (const b of books) {
+      Object.assign(media, await collectBackupMedia(b.manuscript));
+      Object.assign(media, await collectNameVoiceMedia(b.nameLibrary));
+    }
     const json = backupToJson(
       serializeLibraryBackup({
         series,

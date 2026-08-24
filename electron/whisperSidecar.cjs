@@ -128,8 +128,9 @@ function parseTranscript(stdout) {
   return lines.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-function nativeArgs(profile, wav) {
+function nativeArgs(profile, wav, prompt) {
   const model = modelPath(profile.modelId);
+  const hint = String(prompt || LITERARY_PROMPT).slice(0, 400);
   const args = [
     '-m',
     model,
@@ -151,7 +152,7 @@ function nativeArgs(profile, wav) {
     '--max-context',
     '0',
     '--prompt',
-    LITERARY_PROMPT,
+    hint,
   ];
   if (!isEnglishOnlyModel(profile.modelId)) args.push('-l', 'en');
   if (!String(profile.runtime).includes('metal')) args.push('--no-gpu');
@@ -226,7 +227,7 @@ async function ensureServer(profile) {
       '--host',
       '127.0.0.1',
       '--prompt',
-      LITERARY_PROMPT,
+      String(profile.prompt || LITERARY_PROMPT).slice(0, 400),
     ];
     if (!isEnglishOnlyModel(profile.modelId)) args.push('-l', 'en');
     if (!String(profile.runtime).includes('metal')) args.push('--no-gpu');
@@ -320,7 +321,7 @@ async function transcribeNative(payload, profile) {
         stopServer();
       }
     }
-    const stdout = await withTimeout(runCli(nativeArgs(profile, wav)), 90000, 'whisper-cli');
+    const stdout = await withTimeout(runCli(nativeArgs(profile, wav, payload?.prompt)), 90000, 'whisper-cli');
     scheduleUnload(profile);
     return parseTranscript(stdout);
   } finally {

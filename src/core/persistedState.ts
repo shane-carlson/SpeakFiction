@@ -8,9 +8,9 @@ import {
 export const PERSIST_NAME = 'speakfiction-state-v1';
 export const PERSIST_VERSION = 4;
 
-export type AppTab = 'library' | 'dictate' | 'integrate' | 'model' | 'backup';
+export type AppTab = 'library' | 'dictate' | 'notes' | 'integrate' | 'model' | 'backup';
 
-export const APP_TABS: AppTab[] = ['dictate', 'library', 'integrate', 'model', 'backup'];
+export const APP_TABS: AppTab[] = ['dictate', 'notes', 'library', 'integrate', 'model', 'backup'];
 
 export function isAppTab(value: unknown): value is AppTab {
   return APP_TABS.includes(value as AppTab);

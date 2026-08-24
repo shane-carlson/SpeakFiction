@@ -74,6 +74,9 @@ export function pickThreadCount(hw: HardwareInfo): number {
   }
   const half = Math.max(1, Math.floor(cores / 2));
   const spare = Math.max(1, cores - 2);
+  if (hw.platform === 'win32') {
+    return Math.min(2, Math.max(1, Math.min(half, spare)));
+  }
   return Math.min(4, Math.max(1, Math.min(half, spare)));
 }
 
@@ -89,7 +92,8 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
   const appleSilicon = isAppleSilicon(hw);
   const metal = Boolean(hw.metal) && appleSilicon;
   const threads = pickThreadCount({ ...hw, metal });
-  const keepResident = appleSilicon ? ramGB >= 12 && cores >= 4 : ramGB >= 16;
+  const keepResident =
+    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? false : ramGB >= 16;
 
   if (hasNativeCli && ramGB < 8) {
     return {
@@ -117,7 +121,7 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
     };
   }
   if (hasNativeCli && !appleSilicon) {
-    const intelMedium = ramGB >= 16;
+    const intelMedium = hw.platform === 'win32' ? ramGB >= 24 : ramGB >= 16;
     return {
       hardware: hw,
       runtime: 'whisper.cpp',

@@ -1,5 +1,6 @@
 import {
   collapseRepeats,
+  collapseRepeatedPhrases,
   cleanTranscript,
   isMostlyOneToken,
   isSilenceLoop,
@@ -65,5 +66,22 @@ describe('transcriptCleanup', () => {
       'the morning started like any other',
     );
     expect(stripLeadingSilenceFiller('No, she said no.')).toBe('No, she said no.');
+  });
+
+  it('drops a thank-you-for-listening silence loop without eating the sentence before it', () => {
+    const loop = Array(25).fill('thank you for listening').join(' ');
+    expect(cleanTranscript(loop)).toBe('');
+    expect(cleanTranscript(`She introduced a healer from the vale. ${loop}`)).toBe(
+      'She introduced a healer from the vale.',
+    );
+    expect(cleanTranscript('I want to thank you for listening')).toBe('I want to thank you for listening');
+    expect(cleanTranscript('thanks for listening')).toBe('');
+  });
+
+  it('collapses a repeated 4-word phrase without dropping the sentence before it', () => {
+    const loop = Array(8).fill('the gate stood open').join(' ');
+    expect(collapseRepeatedPhrases(loop).text).toBe('the gate stood open');
+    expect(cleanTranscript(`Kaeldros waited. ${loop}`)).toMatch(/Kaeldros waited/i);
+    expect(cleanTranscript(`Kaeldros waited. ${loop}`)).not.toMatch(/the gate stood open the gate stood open/i);
   });
 });

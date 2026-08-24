@@ -50,4 +50,30 @@ function save(json) {
   return { ok: true };
 }
 
-module.exports = { load, save, statePath };
+function applyDictateTab(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const state =
+      parsed.state && typeof parsed.state === 'object' && !Array.isArray(parsed.state)
+        ? parsed.state
+        : parsed;
+    if (!state || typeof state !== 'object' || state.activeTab === 'dictate') return null;
+    state.activeTab = 'dictate';
+    return JSON.stringify(parsed);
+  } catch {
+    return null;
+  }
+}
+
+/** After a GPU/renderer crash, reopen on Dictate so Library cannot trap the next launch. */
+function forceDictateTab() {
+  const text = load();
+  const next = applyDictateTab(text);
+  if (!next) return false;
+  save(next);
+  return true;
+}
+
+module.exports = { load, save, statePath, applyDictateTab, forceDictateTab };

@@ -1,4 +1,4 @@
-import type { Manuscript, ManuscriptImage, ManuscriptImageMime } from './types';
+import type { Manuscript, ManuscriptImage, ManuscriptImageMime, NameEntry } from './types';
 import type { ExportImageBytes } from './manuscriptMedia';
 import {
   base64ToBytes,
@@ -7,10 +7,17 @@ import {
   mimeFromFilename,
   validateImageBytes,
 } from './manuscriptMedia';
+import { NAME_VOICE_MIME } from './pcmWav';
 import { uid } from './util';
 
-const MEMORY = new Map<string, { mime: ManuscriptImageMime; bytes: Uint8Array }>();
+export type StoredMediaMime = ManuscriptImageMime | typeof NAME_VOICE_MIME;
+
+const MEMORY = new Map<string, { mime: StoredMediaMime; bytes: Uint8Array }>();
 const LS_KEY = 'speakfiction-media-v1';
+
+export function isStoredMediaMime(value: string | undefined | null): value is StoredMediaMime {
+  return isManuscriptImageMime(value) || value === NAME_VOICE_MIME;
+}
 
 function nativeMedia() {
   return typeof window !== 'undefined' ? window.speakfiction?.media : undefined;
@@ -28,7 +35,7 @@ function readLocal(): Record<string, { mime: string; b64: string }> {
   }
 }
 
-function writeLocal(id: string, mime: ManuscriptImageMime, bytes: Uint8Array): void {
+function writeLocal(id: string, mime: StoredMediaMime, bytes: Uint8Array): void {
   try {
     const all = readLocal();
     all[id] = { mime, b64: bytesToBase64(bytes) };
@@ -49,11 +56,7 @@ function removeLocal(id: string): void {
   }
 }
 
-export async function saveMedia(
-  id: string,
-  mime: ManuscriptImageMime,
-  bytes: Uint8Array,
-): Promise<void> {
+export async function saveRawMedia(id: string, mime: StoredMediaMime, bytes: Uint8Array): Promise<void> {
   MEMORY.set(id, { mime, bytes });
   const native = nativeMedia();
   if (native) {
@@ -63,28 +66,42 @@ export async function saveMedia(
   writeLocal(id, mime, bytes);
 }
 
-export async function loadMedia(
+export async function saveMedia(
   id: string,
-): Promise<{ mime: ManuscriptImageMime; bytes: Uint8Array } | null> {
+  mime: ManuscriptImageMime,
+  bytes: Uint8Array,
+): Promise<void> {
+  await saveRawMedia(id, mime, bytes);
+}
+
+export async function loadRawMedia(id: string): Promise<{ mime: StoredMediaMime; bytes: Uint8Array } | null> {
   const cached = MEMORY.get(id);
   if (cached) return cached;
   const native = nativeMedia();
   if (native) {
     const res = await native.load(id);
-    if (!res?.ok || !res.bytes || !isManuscriptImageMime(res.mime)) return null;
+    if (!res?.ok || !res.bytes || !isStoredMediaMime(res.mime)) return null;
     const bytes = Uint8Array.from(res.bytes);
     MEMORY.set(id, { mime: res.mime, bytes });
     return { mime: res.mime, bytes };
   }
   try {
     const rec = readLocal()[id];
-    if (!rec || !isManuscriptImageMime(rec.mime) || typeof rec.b64 !== 'string') return null;
+    if (!rec || !isStoredMediaMime(rec.mime) || typeof rec.b64 !== 'string') return null;
     const bytes = base64ToBytes(rec.b64);
     MEMORY.set(id, { mime: rec.mime, bytes });
     return { mime: rec.mime, bytes };
   } catch {
     return null;
   }
+}
+
+export async function loadMedia(
+  id: string,
+): Promise<{ mime: ManuscriptImageMime; bytes: Uint8Array } | null> {
+  const loaded = await loadRawMedia(id);
+  if (!loaded || !isManuscriptImageMime(loaded.mime)) return null;
+  return { mime: loaded.mime, bytes: loaded.bytes };
 }
 
 export async function removeMedia(id: string): Promise<void> {
@@ -119,8 +136,8 @@ export async function restoreBackupMedia(
 ): Promise<void> {
   if (!media) return;
   for (const [id, rec] of Object.entries(media)) {
-    if (!isManuscriptImageMime(rec.mime) || typeof rec.b64 !== 'string') continue;
-    await saveMedia(id, rec.mime, base64ToBytes(rec.b64));
+    if (!isStoredMediaMime(rec.mime) || typeof rec.b64 !== 'string') continue;
+    await saveRawMedia(id, rec.mime, base64ToBytes(rec.b64));
   }
 }
 
@@ -133,6 +150,21 @@ export async function collectBackupMedia(
     const loaded = await loadMedia(b.image.mediaId);
     if (!loaded) continue;
     out[b.image.mediaId] = { mime: loaded.mime, b64: bytesToBase64(loaded.bytes) };
+  }
+  return out;
+}
+
+export async function collectNameVoiceMedia(
+  entries: NameEntry[] | undefined,
+): Promise<Record<string, { mime: string; b64: string }>> {
+  const out: Record<string, { mime: string; b64: string }> = {};
+  for (const entry of entries ?? []) {
+    for (const clip of entry.voiceClips ?? []) {
+      if (!clip.mediaId || out[clip.mediaId]) continue;
+      const loaded = await loadRawMedia(clip.mediaId);
+      if (!loaded) continue;
+      out[clip.mediaId] = { mime: loaded.mime, b64: bytesToBase64(loaded.bytes) };
+    }
   }
   return out;
 }

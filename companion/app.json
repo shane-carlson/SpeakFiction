@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "SpeakFiction Notes",
+    "slug": "speakfiction-companion",
+    "version": "0.3.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0e1016"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "one.readywriter.speakfiction.companion",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "SpeakFiction records voice notes on this phone. Speech becomes text here, then only the text is sent to your desktop inbox.",
+        "NSSpeechRecognitionUsageDescription": "SpeakFiction turns a take into text on this phone. Audio is not sent to a hosted transcriber.",
+        "NSCameraUsageDescription": "SpeakFiction scans the QR code on your computer to link this phone. The camera is not used to send the book."
+      }
+    },
+    "android": {
+      "softwareKeyboardLayoutMode": "resize",
+      "package": "one.readywriter.speakfiction.companion",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0e1016"
+      }
+    },
+    "plugins": [
+      "expo-av",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SpeakFiction scans the QR code on your computer to link this phone."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "SpeakFiction records voice notes on this phone.",
+          "speechRecognitionPermission": "SpeakFiction turns a take into text on this phone."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

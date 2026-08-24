@@ -16,7 +16,9 @@ contextBridge.exposeInMainWorld('speakfiction', {
   stt: {
     getProfile: () => ipcRenderer.invoke('stt:profile'),
     ensure: () => ipcRenderer.invoke('stt:ensure'),
-    transcribe: (samples, sampleRate) => ipcRenderer.invoke('stt:transcribe', { samples, sampleRate }),
+    transcribe: (samples, sampleRate, prompt) =>
+      ipcRenderer.invoke('stt:transcribe', { samples, sampleRate, prompt }),
+    unload: () => ipcRenderer.invoke('stt:unload'),
     cacheMatch: (url) => ipcRenderer.invoke('stt:cache-match', url),
     cachePut: (url, bytes) => ipcRenderer.invoke('stt:cache-put', url, bytes),
   },
@@ -52,6 +54,16 @@ contextBridge.exposeInMainWorld('speakfiction', {
     getStatus: () => ipcRenderer.invoke('license:status'),
     activate: (key) => ipcRenderer.invoke('license:activate', key),
     buy: () => ipcRenderer.invoke('license:buy'),
+  },
+  notes: {
+    getStatus: () => ipcRenderer.invoke('notes:status'),
+    getPairing: () => ipcRenderer.invoke('notes:pairing'),
+    list: () => ipcRenderer.invoke('notes:list'),
+    refresh: () => ipcRenderer.invoke('notes:refresh'),
+    addLocal: (note) => ipcRenderer.invoke('notes:add-local', note),
+    setStatus: (id, status, extra) => ipcRenderer.invoke('notes:set-status', id, status, extra),
+    publishLibrary: (books) => ipcRenderer.invoke('notes:publish-library', books),
+    readAudio: (id) => ipcRenderer.invoke('notes:read-audio', id),
   },
   updater: {
     getStatus: () => ipcRenderer.invoke('updater:status'),

@@ -62,6 +62,24 @@ describe('backup serialize/deserialize', () => {
     expect(parsed.book.nameLibrary[0]?.originBookId).toBe('bk-1');
   });
 
+  it('round-trips name voice clips on a library entry', () => {
+    const withClip = {
+      ...book,
+      nameLibrary: [
+        {
+          ...book.nameLibrary[0]!,
+          voiceClips: [{ mediaId: 'nvc_1', heard: 'kaldros', source: 'library' as const }],
+        },
+      ],
+    };
+    const parsed = parseBackup(backupToJson(serializeBookBackup(withClip, series)));
+    expect(parsed.kind).toBe(BACKUP_KIND_BOOK);
+    if (parsed.kind !== BACKUP_KIND_BOOK) return;
+    expect(parsed.book.nameLibrary[0]?.voiceClips).toEqual([
+      { mediaId: 'nvc_1', heard: 'kaldros', source: 'library' },
+    ]);
+  });
+
   it('omits originBookId when a name was never tagged', () => {
     const legacy = {
       ...book,

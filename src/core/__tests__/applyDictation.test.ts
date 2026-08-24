@@ -222,6 +222,27 @@ describe('applyDictation', () => {
     expect(next?.manuscript.blocks ?? []).toEqual([]);
   });
 
+  it('attaches a dictation voice clip onto an existing spoken name', () => {
+    const bookId = useStore.getState().createBook('Clip attach', 'fantasy');
+    created.push(bookId);
+    useStore.getState().addNameEntry(bookId, {
+      canonical: 'Kael',
+      category: 'character',
+      aliases: [],
+      originBookId: bookId,
+    });
+    useStore.getState().addNameEntry(bookId, {
+      canonical: 'Kael',
+      category: 'character',
+      aliases: [],
+      originBookId: bookId,
+      voiceClips: [{ mediaId: 'nvc_dict', heard: 'Kael Kael', source: 'dictation' }],
+    });
+    const next = useStore.getState().books.find((b) => b.id === bookId);
+    const kael = next?.nameLibrary.find((n) => n.canonical === 'Kael');
+    expect(kael?.voiceClips).toEqual([{ mediaId: 'nvc_dict', heard: 'Kael Kael', source: 'dictation' }]);
+  });
+
   it('edits and removes a series name on the origin book', () => {
     const seriesId = useStore.getState().createSeries('Owning book');
     const originId = useStore.getState().createBook('Ash Rising', 'fantasy', seriesId);

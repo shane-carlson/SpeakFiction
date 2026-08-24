@@ -40,8 +40,8 @@ export function DictationCues({
             <span className="kbd">undo last command</span>
           </CueRow>
           <CueRow label="Name">
-            <span className="kbd">new character</span> then the name twice. Stays out of the
-            transcription and manuscript.
+            <span className="kbd">new character</span> then the name twice. Saved to the name
+            library, not the transcription or manuscript.
           </CueRow>
           <CueRow label="Keys">
             <span className="kbd">Space</span> paragraph · <span className="kbd">Enter</span> chapter ·{' '}

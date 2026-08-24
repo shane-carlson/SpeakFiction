@@ -28,7 +28,15 @@ const HALLUCINATION_WORDS = new Set([
 ]);
 
 const SUBTITLE_PHRASE =
-  /^(thanks for watching|thank you for watching|thanks for watching everybody|thank you)[.!?]*$/i;
+  /^(thanks for watching|thank you for watching|thanks for watching everybody|thanks for listening|thank you for listening|thank you)[.!?]*$/i;
+
+const CLOSER_PHRASES = [
+  'thank you for listening',
+  'thanks for listening',
+  'thank you for watching',
+  'thanks for watching everybody',
+  'thanks for watching',
+];
 
 /** Whisper often loops one filler word, then glues the next real sentence onto it. */
 const IDENTICAL_LEADING_FILLER =
@@ -64,6 +72,69 @@ export function collapseRepeats(text: string): string {
     }
   }
   return out.join(' ');
+}
+
+function escapeRe(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function phraseKey(tokens: string[]): string {
+  return tokens.map(norm).filter(Boolean).join(' ');
+}
+
+/**
+ * Whisper silence often repeats a 3–6 word closer. Keep one copy, then
+ * `stripKnownClosers` drops it when that copy came from a loop.
+ */
+export function collapseRepeatedPhrases(text: string): { text: string; collapsedCloser: boolean } {
+  const tokens = tokensOf(text);
+  if (tokens.length < 9) return { text: text.trim(), collapsedCloser: false };
+  const out: string[] = [];
+  let collapsedCloser = false;
+  let i = 0;
+  while (i < tokens.length) {
+    let hit = false;
+    for (let n = 6; n >= 3; n--) {
+      if (i + n * 3 > tokens.length) continue;
+      const unit = tokens.slice(i, i + n);
+      const key = phraseKey(unit);
+      if (!key) continue;
+      let repeats = 1;
+      while (
+        i + n * (repeats + 1) <= tokens.length &&
+        phraseKey(tokens.slice(i + n * repeats, i + n * (repeats + 1))) === key
+      ) {
+        repeats += 1;
+      }
+      if (repeats < 3) continue;
+      out.push(...unit);
+      i += n * repeats;
+      hit = true;
+      if (CLOSER_PHRASES.includes(key)) collapsedCloser = true;
+      break;
+    }
+    if (!hit) {
+      out.push(tokens[i]);
+      i += 1;
+    }
+  }
+  return { text: out.join(' '), collapsedCloser };
+}
+
+export function stripKnownClosers(text: string, force = false): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  if (SUBTITLE_PHRASE.test(trimmed)) return '';
+  let next = trimmed;
+  for (const phrase of CLOSER_PHRASES) {
+    const whole = new RegExp(`^(?:${escapeRe(phrase)}[.!?\\s]*)+$`, 'i');
+    if (whole.test(next)) return '';
+    const count = next.toLowerCase().split(phrase).length - 1;
+    if (force || count >= 3) {
+      next = next.replace(new RegExp(escapeRe(phrase), 'gi'), ' ').replace(/\s+/g, ' ').trim();
+    }
+  }
+  return next.replace(/\s+([.!?])/g, '$1').trim();
 }
 
 /** True when one word makes up most of the transcript (Whisper silence loops). */
@@ -121,7 +192,10 @@ export function isSilenceLoop(text: string): boolean {
 export function cleanTranscript(text: string): string {
   const stripped = stripLeadingSilenceFiller(text);
   if (!stripped || isSilenceLoop(stripped)) return '';
-  const collapsed = collapseRepeats(stripped);
+  const repeated = collapseRepeatedPhrases(stripped);
+  const withoutClosers = stripKnownClosers(repeated.text, repeated.collapsedCloser);
+  if (!withoutClosers || isSilenceLoop(withoutClosers)) return '';
+  const collapsed = collapseRepeats(withoutClosers);
   if (!collapsed || isSilenceLoop(collapsed)) return '';
   return collapsed;
 }

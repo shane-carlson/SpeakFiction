@@ -5,6 +5,7 @@ import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
 import { getPerspective } from '../core/perspective';
 import { cleanupDictationText } from '../core/dictationProcessor';
+import { persistNameVoiceClip } from '../core/nameVoiceClips';
 import { mergeSeriesNameLibrary } from '../core/seriesNames';
 import {
   appendCueText,
@@ -31,6 +32,7 @@ import { ManuscriptView } from '../components/ManuscriptView';
 import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { EditorDictationStrip } from '../components/EditorDictationStrip';
+import { MicToggleFace } from '../components/MicIcon';
 import { DictationCues } from '../components/DictationCues';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
@@ -124,7 +126,7 @@ export function DictationView({
   const [boxCaret, setBoxCaret] = useState<number | null>(null);
 
   const handleFinal = useCallback(
-    (text: string) => {
+    (text: string, utt: { samples: Float32Array; sampleRate: number }) => {
       const { text: cleaned, newCharacters } = cleanupDictationText(text, {
         entries: seriesNames,
         genre,
@@ -140,6 +142,30 @@ export function DictationView({
           aliases: ch.aliases,
           originBookId: book.id,
         });
+      }
+      if (newCharacters.length && utt.samples.length) {
+        const samples = utt.samples.slice();
+        const sampleRate = utt.sampleRate;
+        const bookId = book.id;
+        void (async () => {
+          for (const ch of newCharacters) {
+            try {
+              const clip = await persistNameVoiceClip(samples, sampleRate, {
+                heard: [ch.canonical, ...ch.aliases].join(' '),
+                source: 'dictation',
+              });
+              addNameEntry(bookId, {
+                canonical: ch.canonical,
+                category: 'character',
+                aliases: ch.aliases,
+                originBookId: bookId,
+                voiceClips: [clip],
+              });
+            } catch {
+              /* Name is already in the library; voice clip is optional. */
+            }
+          }
+        })();
       }
       if (!cleaned) return;
       const prev = useStore.getState().dictationDrafts[book.id] ?? [];
@@ -196,6 +222,7 @@ export function DictationView({
   const speech = useSpeechRecognition(handleFinal, audioSettings, handleProfile, {
     mayDictate: license.mayDictate,
     onCommand: handleCommand,
+    promptNames: seriesNames.map((entry) => entry.canonical),
   });
   const profileLabel = speech.profileLabel || savedProfileLabel;
 
@@ -566,7 +593,7 @@ export function DictationView({
           <h3>Dictation console</h3>
           <p className="sub">
             {speech.supported
-              ? 'Mic, type, or paste. Speech stays on this device. Voice commands never land in the transcription.'
+              ? 'Mic, type, or paste. Speech on this computer stays here. Voice commands never land in the transcription.'
               : 'Live mic needs a microphone. Type or paste a transcript here.'}
           </p>
 
@@ -593,7 +620,7 @@ export function DictationView({
                     : 'Microphone unavailable'
               }
             >
-              {speech.session === 'listening' ? '❚❚' : '🎙️'}
+              <MicToggleFace recording={speech.session === 'listening'} />
             </button>
             <button
               className="btn ghost"

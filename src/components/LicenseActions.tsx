@@ -55,7 +55,9 @@ export function LicenseActions({
       {error && <div className="license-error">{error}</div>}
       {!compact && (
         <p className="hint license-privacy">
-          Polar handles payment. Your manuscript and dictation stay on this device.
+          Polar handles payment. Your manuscript stays on this computer. The phone
+          companion is included with a license and does not use one of your three
+          desktop seats.
         </p>
       )}
     </div>

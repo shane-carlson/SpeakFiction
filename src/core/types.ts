@@ -8,6 +8,15 @@
 
 export type NameCategory = 'character' | 'location' | 'item' | 'organization' | 'other';
 
+/** A recorded saying of a library name, used to train later mishearings. */
+export interface NameVoiceClip {
+  mediaId: string;
+  /** What speech-to-text heard on this take. Stored as an alias when it differs. */
+  heard?: string;
+  /** Dictation already captured “New Character” + the name twice. */
+  source?: 'library' | 'dictation';
+}
+
 /** A single trained proper-noun entry in a book/series name library. */
 export interface NameEntry {
   id: string;
@@ -23,6 +32,8 @@ export interface NameEntry {
   note?: string;
   /** Book where this name was first trained. Used for series-wide libraries. */
   originBookId?: string;
+  /** Spoken takes of the name (two sayings from Library, or the dictation cue clip). */
+  voiceClips?: NameVoiceClip[];
 }
 
 export type GenreId =

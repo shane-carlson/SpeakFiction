@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AudioSettings } from '../store';
 import { openMicrophone } from './useLocalAudio';
 import { rms } from '../core/resample';
-import { ensureLocalStt, transcribePcm } from '../core/localStt';
+import { ensureLocalStt, releaseLocalStt, transcribePcm } from '../core/localStt';
+import { whisperPrompt } from '../core/whisperPrompt';
 import { parseVoiceCommand, type DictationCommand } from '../core/voiceCommands';
 import type { SttProfile } from '../core/sttProfile';
 import {
@@ -45,10 +46,10 @@ function settingsKey(s: AudioSettings): string {
 }
 
 export function useSpeechRecognition(
-  onFinal: (text: string) => void,
+  onFinal: (text: string, utterance: ReadyUtterance) => void,
   audioSettings: AudioSettings,
   onProfile?: (profile: SttProfile) => void,
-  options?: { mayDictate?: boolean; onCommand?: (command: DictationCommand) => void },
+  options?: { mayDictate?: boolean; onCommand?: (command: DictationCommand) => void; promptNames?: string[] },
 ): UseSpeechRecognition {
   const [supported] = useState(() => Boolean(navigator.mediaDevices?.getUserMedia));
   const [session, setSession] = useState<DictationSession>('stopped');
@@ -67,6 +68,8 @@ export function useSpeechRecognition(
   onProfileRef.current = onProfile;
   const onCommandRef = useRef(options?.onCommand);
   onCommandRef.current = options?.onCommand;
+  const promptRef = useRef('');
+  promptRef.current = whisperPrompt(options?.promptNames ?? []);
   const audioSettingsRef = useRef(audioSettings);
   audioSettingsRef.current = audioSettings;
   const mayDictate = options?.mayDictate !== false;
@@ -130,7 +133,7 @@ export function useSpeechRecognition(
     }
     const prose = parsed.remainder.trim();
     if (shouldCommitDecoded(prose, utt)) {
-      onFinalRef.current(prose);
+      onFinalRef.current(prose, utt);
     }
     setInterim('');
   };
@@ -139,7 +142,7 @@ export function useSpeechRecognition(
     decodeRef.current = createDecodeQueue({
       transcribe: async (samples, rate) => {
         try {
-          return await transcribePcm(samples, rate);
+          return await transcribePcm(samples, rate, { prompt: promptRef.current });
         } catch (e) {
           if (mountedRef.current) {
             setError(e instanceof Error ? e.message : 'Transcription failed.');
@@ -270,6 +273,7 @@ export function useSpeechRecognition(
       return () => {
         mountedRef.current = false;
         teardownCapture();
+        void releaseLocalStt();
       };
     }
     void (async () => {
@@ -287,6 +291,7 @@ export function useSpeechRecognition(
     return () => {
       mountedRef.current = false;
       teardownCapture();
+      void releaseLocalStt();
     };
   }, [mayDictate, teardownCapture]);
 

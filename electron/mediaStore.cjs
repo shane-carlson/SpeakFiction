@@ -8,6 +8,7 @@ const MIME_EXT = {
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
   'image/webp': '.webp',
+  'audio/wav': '.wav',
 };
 
 function electronApp() {
@@ -42,7 +43,7 @@ function findExisting(id) {
   const dir = mediaDir();
   const clean = safeId(id);
   if (!dir || !clean) return null;
-  const exts = ['.png', '.jpg', '.gif', '.webp', '.bin'];
+  const exts = ['.png', '.jpg', '.gif', '.webp', '.wav', '.bin'];
   for (const ext of exts) {
     const dest = path.join(dir, `${clean}${ext}`);
     if (fs.existsSync(dest)) return dest;
@@ -56,6 +57,7 @@ function mimeFromPath(dest) {
   if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
   if (ext === '.gif') return 'image/gif';
   if (ext === '.webp') return 'image/webp';
+  if (ext === '.wav') return 'audio/wav';
   return 'image/png';
 }
 

@@ -248,7 +248,7 @@ async function activate(key) {
       lastValidatedAt: new Date().toISOString(),
       lastValidatedStatus: 'granted',
     };
-    if (isGated()) writeRecord(next);
+    writeRecord(next);
     return { ok: true, status: statusFrom(next) };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not activate that license key.';
@@ -271,6 +271,11 @@ async function buy() {
   }
 }
 
+function getStoredKey() {
+  const key = readRecord().key;
+  return typeof key === 'string' ? key.trim() : '';
+}
+
 module.exports = {
   TRIAL_DAYS,
   GRACE_DAYS,
@@ -282,6 +287,7 @@ module.exports = {
   remainingDays,
   deriveLicenseStatus,
   getStatus,
+  getStoredKey,
   activate,
   buy,
 };

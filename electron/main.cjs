@@ -11,6 +11,8 @@ app.setName('SpeakFiction');
 // Must run before createWindow so the taskbar groups under this ID (and its exe icon).
 if (process.platform === 'win32') {
   app.setAppUserModelId('net.speakfiction.app');
+  // Software compositing avoids a blank GPU surface when switching to Library on Windows.
+  app.disableHardwareAcceleration();
 }
 
 function packageMeta() {
@@ -160,8 +162,22 @@ ipcMain.handle('license:status', () => license.getStatus());
 ipcMain.handle('license:activate', (_event, key) => license.activate(key));
 ipcMain.handle('license:buy', () => license.buy());
 
+const voiceNotes = require('./voiceNotes.cjs');
+ipcMain.handle('notes:status', () => voiceNotes.pairingStatus());
+ipcMain.handle('notes:pairing', () => voiceNotes.pairingMaterial());
+ipcMain.handle('notes:list', () => voiceNotes.list());
+ipcMain.handle('notes:refresh', () => voiceNotes.refreshRemote());
+ipcMain.handle('notes:add-local', (_event, note) => voiceNotes.addLocal(note));
+ipcMain.handle('notes:set-status', (_event, id, status, extra) => voiceNotes.setStatus(id, status, extra));
+ipcMain.handle('notes:publish-library', (_event, books) => voiceNotes.publishLibrary(books));
+  ipcMain.handle('notes:read-audio', (_event, id) => voiceNotes.readNoteAudio(id));
+
 ipcMain.handle('stt:profile', () => getProfile());
 ipcMain.handle('stt:ensure', () => ensureStt());
+ipcMain.handle('stt:unload', () => {
+  require('./whisperSidecar.cjs').stopServer();
+  return { ok: true };
+});
 ipcMain.handle('stt:transcribe', async (_event, payload) => {
   const profile = getProfile();
   if (!nativeAvailable() || profile.runtime === 'wasm') {
@@ -232,7 +248,25 @@ ipcMain.handle('files:open-bytes', async (_event, payload) => {
           ? 'image/webp'
           : ext === 'jpg' || ext === 'jpeg'
             ? 'image/jpeg'
-            : '';
+            : ext === 'wav' || ext === 'wave'
+              ? 'audio/wav'
+              : ext === 'mp3'
+                ? 'audio/mpeg'
+                : ext === 'm4a' || ext === 'mp4'
+                  ? 'audio/mp4'
+                  : ext === 'aac'
+                    ? 'audio/aac'
+                    : ext === 'caf'
+                      ? 'audio/x-caf'
+                      : ext === 'ogg' || ext === 'oga' || ext === 'opus'
+                        ? 'audio/ogg'
+                        : ext === 'flac'
+                          ? 'audio/flac'
+                          : ext === 'webm'
+                            ? 'audio/webm'
+                            : ext === '3gp'
+                              ? 'audio/3gpp'
+                              : '';
   return { ok: true, path: filePaths[0], bytes: Uint8Array.from(buf), mime };
 });
 
@@ -295,6 +329,16 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (win.isDestroyed() || details.reason === 'clean-exit') return;
+    try {
+      sessionStore.forceDictateTab();
+    } catch {
+      /* still reload */
+    }
+    win.reload();
+  });
 }
 
 app.whenReady().then(() => {

@@ -5,6 +5,7 @@ import { DictationView } from './views/DictationView';
 import { IntegrationsView } from './views/IntegrationsView';
 import { ModelView } from './views/ModelView';
 import { BackupView } from './views/BackupView';
+import { VoiceNotesView } from './views/VoiceNotesView';
 import { Logo } from './components/Logo';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { LicenseBanner } from './components/LicenseBanner';
@@ -18,9 +19,11 @@ import type { AppTab } from './core/persistedState';
 import { useLicense } from './hooks/useLicense';
 import { useUpdater } from './hooks/useUpdater';
 import { useWhatsNew } from './hooks/useWhatsNew';
+import { useCompanionLibrarySync } from './hooks/useCompanionLibrarySync';
 
 const NAV: Array<{ id: AppTab; label: string; icon: string }> = [
   { id: 'dictate', label: 'Dictate', icon: '🎙️' },
+  { id: 'notes', label: 'Voice notes', icon: '📝' },
   { id: 'library', label: 'Library', icon: '📚' },
   { id: 'integrate', label: 'Integrations', icon: '🔗' },
   { id: 'model', label: 'On-Device Model', icon: '🧠' },
@@ -31,11 +34,12 @@ export default function App() {
   const license = useLicense();
   const updater = useUpdater();
   const whatsNew = useWhatsNew();
+  useCompanionLibrarySync();
   const tab = useStore((s) => s.activeTab);
   const setTab = useStore((s) => s.setActiveTab);
   const [dictating, setDictating] = useState(false);
   const [ticketKind, setTicketKind] = useState<TicketKind | null>(null);
-  const books = useStore((s) => s.books);
+  const books = useStore((s) => s.books) ?? [];
   const activeBookId = useStore((s) => s.activeBookId);
   const themeMode = useStore((s) => s.themeMode);
   const themeId = useStore((s) => s.themeId);
@@ -112,34 +116,37 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {!activeBook ? (
-          <ViewErrorBoundary
-            title="Library could not open"
-            hint="The page failed to load. Your books are still on this machine."
-          >
+        <ViewErrorBoundary
+          key={tab}
+          title="This page could not open"
+          hint="Your books are still on this machine. Back to Dictate keeps the rest of the app usable."
+          onLeave={() => setTab('dictate')}
+        >
+          {!activeBook ? (
             <LibraryView />
-          </ViewErrorBoundary>
-        ) : tab === 'dictate' ? (
-          <DictationView
-            key={activeBook.id}
-            book={activeBook}
-            license={license}
-            onListeningChange={setDictating}
-          />
-        ) : tab === 'library' ? (
-          <ViewErrorBoundary
-            title="Library could not open"
-            hint="The page failed to load. Your books are still on this machine."
-          >
+          ) : tab === 'dictate' ? (
+            <DictationView
+              key={activeBook.id}
+              book={activeBook}
+              license={license}
+              onListeningChange={setDictating}
+            />
+          ) : tab === 'notes' ? (
+            <VoiceNotesView
+              book={activeBook}
+              license={license}
+              onOpenDictate={() => setTab('dictate')}
+            />
+          ) : tab === 'library' ? (
             <LibraryView />
-          </ViewErrorBoundary>
-        ) : tab === 'integrate' ? (
-          <IntegrationsView book={activeBook} />
-        ) : tab === 'model' ? (
-          <ModelView book={activeBook} />
-        ) : (
-          <BackupView book={activeBook} onOpenIntegrations={() => setTab('integrate')} />
-        )}
+          ) : tab === 'integrate' ? (
+            <IntegrationsView book={activeBook} />
+          ) : tab === 'model' ? (
+            <ModelView book={activeBook} />
+          ) : (
+            <BackupView book={activeBook} onOpenIntegrations={() => setTab('integrate')} />
+          )}
+        </ViewErrorBoundary>
       </main>
       <WhatsNewModal
         open={whatsNew.open}

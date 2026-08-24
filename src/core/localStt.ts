@@ -10,6 +10,7 @@ export { MIN_DECODE_RMS };
 /** fp32: q8 MatMulNBits graphs fail to load in Electron's onnxruntime-web. */
 const STT_DTYPE = 'fp32' as const;
 const NATIVE_TIMEOUT_MS = 45_000;
+const IMPORT_TIMEOUT_MS = 120_000;
 
 let pipelinePromise: Promise<AutomaticSpeechRecognitionPipeline> | null = null;
 let loadedWasmModel: string | null = null;
@@ -92,9 +93,25 @@ function scheduleUnload(profile: SttProfile) {
   if (idleTimer) clearTimeout(idleTimer);
   if (profile.keepResident || !profile.idleUnloadMs) return;
   idleTimer = setTimeout(() => {
-    pipelinePromise = null;
-    loadedWasmModel = null;
+    void releaseLocalStt(false);
   }, profile.idleUnloadMs);
+}
+
+/** Drop WASM weights and ask native whisper-cli to quit so Library can use the RAM. */
+export async function releaseLocalStt(native = true): Promise<void> {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+  pipelinePromise = null;
+  loadedWasmModel = null;
+  if (native) {
+    try {
+      await nativeBridge()?.unload?.();
+    } catch {
+      /* sidecar may already be idle */
+    }
+  }
 }
 
 async function ensureWasm(profile: SttProfile, onProgress?: SttProgress): Promise<AutomaticSpeechRecognitionPipeline> {
@@ -144,11 +161,12 @@ export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfi
   return cachedProfile;
 }
 
-async function transcribeWasm(audio: Float32Array, profile: SttProfile): Promise<string> {
+async function transcribeWasm(audio: Float32Array, profile: SttProfile, prompt?: string): Promise<string> {
   const asr = await ensureWasm(profile);
   const run = async () => {
     const result = await asr(audio, {
       return_timestamps: false,
+      ...(prompt ? { initial_prompt: prompt } : {}),
     });
     const text = (Array.isArray(result) ? result[0]?.text : result.text)?.trim() ?? '';
     return cleanTranscript(text);
@@ -163,17 +181,25 @@ async function transcribeWasm(audio: Float32Array, profile: SttProfile): Promise
   return text;
 }
 
-export async function transcribePcm(samples: Float32Array, sampleRate: number): Promise<string> {
-  if (samples.length < sampleRate * 0.12) return '';
-  if (rms(samples) < MIN_DECODE_RMS) return '';
+export async function transcribePcm(
+  samples: Float32Array,
+  sampleRate: number,
+  opts: { allowQuiet?: boolean; timeoutMs?: number; prompt?: string } = {},
+): Promise<string> {
+  if (samples.length === 0) return '';
+  if (!opts.allowQuiet) {
+    if (samples.length < sampleRate * 0.12) return '';
+    if (rms(samples) < MIN_DECODE_RMS) return '';
+  }
   const audio = resampleMono(samples, sampleRate, STT_SAMPLE_RATE);
   const profile = await resolveProfile();
   const bridge = nativeBridge();
+  const timeoutMs = opts.timeoutMs ?? (opts.allowQuiet ? IMPORT_TIMEOUT_MS : NATIVE_TIMEOUT_MS);
   if (bridge && profile.runtime !== 'wasm') {
     try {
       const text = await withTimeout(
-        bridge.transcribe(Array.from(audio), STT_SAMPLE_RATE),
-        NATIVE_TIMEOUT_MS,
+        bridge.transcribe(Array.from(audio), STT_SAMPLE_RATE, opts.prompt),
+        timeoutMs,
         'Native Whisper',
       );
       scheduleUnload(profile);
@@ -182,8 +208,17 @@ export async function transcribePcm(samples: Float32Array, sampleRate: number): 
       console.warn('Native Whisper failed, falling back to WASM', err);
       const wasmProfile = pickSttProfile(profile.hardware, false);
       cachedProfile = wasmProfile;
-      return transcribeWasm(audio, wasmProfile);
+      return transcribeWasm(audio, wasmProfile, opts.prompt);
     }
   }
-  return transcribeWasm(audio, profile.runtime === 'wasm' ? profile : pickSttProfile(profile.hardware, false));
+  return transcribeWasm(
+    audio,
+    profile.runtime === 'wasm' ? profile : pickSttProfile(profile.hardware, false),
+    opts.prompt,
+  );
+}
+
+/** File import: decode every chunk. Do not drop quiet or short slices. */
+export async function transcribeImportedPcm(samples: Float32Array, sampleRate: number): Promise<string> {
+  return transcribePcm(samples, sampleRate, { allowQuiet: true });
 }

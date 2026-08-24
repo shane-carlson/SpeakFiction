@@ -1,3 +1,4 @@
+import { mergeNameVoiceClips } from './nameVoiceClips';
 import type { Book, NameEntry } from './types';
 
 export interface SeriesNameView {
@@ -7,8 +8,9 @@ export interface SeriesNameView {
   fromThisBook: boolean;
 }
 
-function nameKey(entry: NameEntry): string {
-  return `${entry.category}:${entry.canonical.toLowerCase()}`;
+function nameKey(entry: NameEntry): string | null {
+  if (!entry?.canonical) return null;
+  return `${entry.category ?? 'other'}:${entry.canonical.toLowerCase()}`;
 }
 
 export function booksInSameSeries(books: Book[], book: Book): Book[] {
@@ -25,17 +27,18 @@ export function mergeSeriesNameLibrary(books: Book[], book: Book): NameEntry[] {
   const pool = booksInSameSeries(books, book);
   const byKey = new Map<string, NameEntry>();
   for (const b of pool) {
-    for (const entry of b.nameLibrary) {
+    for (const entry of b.nameLibrary ?? []) {
       const origin = originBookIdOf(entry, b.id);
-      const tagged: NameEntry = { ...entry, originBookId: origin };
+      const tagged: NameEntry = { ...entry, originBookId: origin, aliases: entry.aliases ?? [] };
       const key = nameKey(tagged);
+      if (!key) continue;
       const prev = byKey.get(key);
       if (!prev) {
         byKey.set(key, tagged);
         continue;
       }
-      const aliases = [...prev.aliases];
-      for (const alias of tagged.aliases) {
+      const aliases = [...(prev.aliases ?? [])];
+      for (const alias of tagged.aliases ?? []) {
         if (!aliases.some((a) => a.toLowerCase() === alias.toLowerCase())) aliases.push(alias);
       }
       byKey.set(key, {
@@ -43,6 +46,7 @@ export function mergeSeriesNameLibrary(books: Book[], book: Book): NameEntry[] {
         aliases,
         note: prev.note || tagged.note,
         originBookId: prev.originBookId || tagged.originBookId,
+        voiceClips: mergeNameVoiceClips(prev.voiceClips, tagged.voiceClips),
       });
     }
   }
@@ -64,5 +68,5 @@ export function seriesNameViews(books: Book[], book: Book): SeriesNameView[] {
 }
 
 export function bookIdOwningName(books: Book[], entryId: string): string | undefined {
-  return books.find((b) => b.nameLibrary.some((n) => n.id === entryId))?.id;
+  return books.find((b) => (b.nameLibrary ?? []).some((n) => n.id === entryId))?.id;
 }

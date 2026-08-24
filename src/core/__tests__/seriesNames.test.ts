@@ -94,6 +94,13 @@ describe('series name library', () => {
     });
   });
 
+  it('does not throw when a book is missing nameLibrary', () => {
+    const broken = book({ id: 'bk-x', title: 'Broken' });
+    delete (broken as { nameLibrary?: NameEntry[] }).nameLibrary;
+    expect(mergeSeriesNameLibrary([broken], broken)).toEqual([]);
+    expect(seriesNameViews([broken], broken)).toEqual([]);
+  });
+
   it('finds the book that owns a name entry', () => {
     expect(bookIdOwningName(books, 'n-1')).toBe('bk-1');
     expect(bookIdOwningName(books, 'n-2')).toBe('bk-2');
@@ -119,5 +126,25 @@ describe('series name library', () => {
     expect(one).toHaveLength(1);
     expect(one[0]!.aliases.map((a) => a.toLowerCase()).sort()).toEqual(['andrayos', 'andreus']);
     expect(one[0]!.originBookId).toBe('bk-1');
+  });
+
+  it('merges voice clips when the same name appears on two books', () => {
+    const withClips: NameEntry = {
+      ...andreos,
+      id: 'n-1b',
+      voiceClips: [{ mediaId: 'nvc_b', heard: 'andrayos', source: 'library' }],
+    };
+    const originClips: NameEntry = {
+      ...andreos,
+      voiceClips: [{ mediaId: 'nvc_a', source: 'dictation' }],
+    };
+    const withDup = [
+      book({ ...book1, nameLibrary: [originClips, keep] }),
+      book({ ...book2, nameLibrary: [mara, withClips] }),
+      standalone,
+    ];
+    const merged = mergeSeriesNameLibrary(withDup, book2);
+    const one = merged.find((n) => n.canonical.toLowerCase() === 'andreos');
+    expect(one?.voiceClips?.map((c) => c.mediaId).sort()).toEqual(['nvc_a', 'nvc_b']);
   });
 });

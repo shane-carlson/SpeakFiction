@@ -1,6 +1,7 @@
 import { draftText, type DictationDraft } from '../core/dictationDraft';
 import type { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { DictationTranscript } from './DictationTranscript';
+import { MicToggleFace } from './MicIcon';
 
 export function EditorDictationStrip({
   speech,
@@ -57,7 +58,7 @@ export function EditorDictationStrip({
           title={micLabel}
           aria-label={micLabel}
         >
-          {recording ? '❚❚' : '🎙️'}
+          <MicToggleFace recording={recording} />
         </button>
         <button
           type="button"

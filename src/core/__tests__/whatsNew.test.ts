@@ -159,6 +159,50 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.3.0 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.3.0')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.3.0',
+      build: 40,
+      pending: {
+        version: '0.3.0',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.3.0'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Voice notes inbox collects takes from the phone companion or a file you import',
+      'Add to transcription box runs names, structure cues, and genre punctuation the same way the mic does',
+      'Import WAV, M4A, MP3, AAC, and other common audio files; they land in the transcription box first',
+      'The phone companion is included with a license and does not use one of your three desktop seats',
+      'Link the phone by scanning a QR code on this computer, or by copying your SF- key',
+      'The phone keeps the last book you chose; takes can be named, saved locally, and sent to that book',
+    ]);
+  });
+
+  it('uses curated 0.2.24 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.24')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.24',
+      build: 41,
+      pending: {
+        version: '0.2.24',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.24'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Adding a name in Library asks you to say it twice, and that recording stays on the name',
+      'Say “New Character” then the name twice while dictating — that clip is saved too, so you do not record it again',
+      'If Library cannot open, Back to Dictate still works, and a crash reopens Dictate instead of trapping you',
+      'Repeated closer loops like “thank you for listening” are dropped after a pause, without eating the sentence before them',
+      'Voice notes inbox collects takes from the phone companion or a file you import',
+      'Link the phone by scanning a QR code on this computer, or by copying your SF- key',
+    ]);
+  });
+
   it('uses curated 0.2.23 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.23')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

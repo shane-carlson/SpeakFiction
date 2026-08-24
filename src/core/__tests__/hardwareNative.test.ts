@@ -13,7 +13,7 @@ const hardware = require('../../../electron/hardware.cjs') as {
   pickSttProfile: (
     hw: { platform: string; arch: string; cores: number; ramGB: number; metal: boolean },
     hasNativeCli: boolean,
-  ) => { runtime: string; modelId: string; label: string };
+  ) => { runtime: string; modelId: string; label: string; keepResident?: boolean; threads?: number };
   nativeCliReady: () => boolean;
 };
 const sidecar = require('../../../electron/whisperSidecar.cjs') as {
@@ -45,14 +45,25 @@ describe('native hardware helpers', () => {
     expect(p.label).toMatch(/low memory/);
   });
 
-  it('keeps Windows STT on CPU small/medium in the Electron picker', () => {
+  it('keeps Windows STT on CPU small.en in the Electron picker', () => {
     const p = hardware.pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 4, ramGB: 8, metal: false },
       true,
     );
     expect(p.runtime).toBe('whisper.cpp');
     expect(p.modelId).toBe('ggml-small.en.bin');
+    expect(p.keepResident).toBe(false);
     expect(p.label).not.toMatch(/Metal/);
+  });
+
+  it('does not keep a 16GB Windows model resident so Library can open', () => {
+    const p = hardware.pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false },
+      true,
+    );
+    expect(p.modelId).toBe('ggml-small.en.bin');
+    expect(p.keepResident).toBe(false);
+    expect(p.threads).toBeLessThanOrEqual(2);
   });
 
   it('does not pass language or task flags to English-only models', () => {

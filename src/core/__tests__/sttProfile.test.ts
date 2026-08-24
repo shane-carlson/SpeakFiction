@@ -108,17 +108,28 @@ describe('pickSttProfile', () => {
     expect(p.label).not.toMatch(/Metal/);
   });
 
-  it('uses medium.en CPU on 16GB Windows, never large-v3-turbo or Metal', () => {
+  it('uses small.en CPU on 16GB Windows so Electron still has RAM for Library', () => {
     const p = pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false },
       true,
     );
     expect(p.runtime).toBe('whisper.cpp');
-    expect(p.modelId).toBe('ggml-medium.en.bin');
-    expect(p.keepResident).toBe(true);
-    expect(p.threads).toBeLessThanOrEqual(4);
+    expect(p.modelId).toBe('ggml-small.en.bin');
+    expect(p.keepResident).toBe(false);
+    expect(p.threads).toBeLessThanOrEqual(2);
     expect(p.modelId).not.toContain('large');
     expect(p.label).toMatch(/CPU/);
+  });
+
+  it('uses medium.en CPU on 24GB Windows without keeping the server resident', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 24, metal: false },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.modelId).toBe('ggml-medium.en.bin');
+    expect(p.keepResident).toBe(false);
+    expect(p.threads).toBeLessThanOrEqual(2);
   });
 
   it('does not treat Windows ARM as Apple Silicon Metal', () => {
@@ -129,6 +140,7 @@ describe('pickSttProfile', () => {
     expect(p.runtime).toBe('whisper.cpp');
     expect(p.modelId).toBe('ggml-medium.en.bin');
     expect(p.label).not.toMatch(/Metal/);
+    expect(p.keepResident).toBe(false);
   });
 
   it('treats Electron process.arch as the CPU architecture, not MacIntel', () => {

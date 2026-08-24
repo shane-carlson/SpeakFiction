@@ -1,5 +1,6 @@
 .env
 .env.*
+.notes-dev/
 !.env.example
 *.p8
 AuthKey_*.p8
@@ -17,3 +18,4 @@ build/.ico-tmp/
 coverage/
 models/
 vendor/
+*.tsbuildinfo

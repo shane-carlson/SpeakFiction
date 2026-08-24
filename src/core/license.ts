@@ -1,5 +1,7 @@
 /** 15 calendar-length days from first packaged launch. */
 export const TRIAL_DAYS = 15;
+/** Polar desktop seats. The phone companion is included and does not use a seat. */
+export const DESKTOP_ACTIVATION_LIMIT = 3;
 /** Keep dictation working this long if Polar is unreachable after a successful activate. */
 export const GRACE_DAYS = 7;
 

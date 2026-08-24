@@ -10,7 +10,12 @@ export interface SpeakFictionAudioBridge {
 export interface SpeakFictionSttBridge {
   getProfile: () => Promise<import('./core/sttProfile').SttProfile>;
   ensure: () => Promise<import('./core/sttProfile').SttProfile>;
-  transcribe: (samples: number[] | Float32Array, sampleRate: number) => Promise<string>;
+  transcribe: (
+    samples: number[] | Float32Array,
+    sampleRate: number,
+    prompt?: string,
+  ) => Promise<string>;
+  unload?: () => Promise<{ ok: boolean }>;
   cacheMatch: (url: string) => Promise<Uint8Array | null>;
   cachePut: (url: string, bytes: Uint8Array) => Promise<void>;
 }
@@ -96,6 +101,38 @@ export interface SpeakFictionLicenseBridge {
   buy: () => Promise<{ ok: boolean; error?: string }>;
 }
 
+export interface SpeakFictionNotesBridge {
+  getStatus: () => Promise<{ paired: boolean; displayKey: string | null; canSync: boolean }>;
+  getPairing: () => Promise<{
+    ok: boolean;
+    key?: string;
+    payload?: string;
+    displayKey: string | null;
+    canSync: boolean;
+    message?: string;
+  }>;
+  list: () => Promise<{ ok: boolean; notes: import('./core/voiceNotes').VoiceNote[] }>;
+  refresh: () => Promise<{
+    ok: boolean;
+    notes: import('./core/voiceNotes').VoiceNote[];
+    books?: import('./core/companionLibrary').CompanionBook[];
+    pendingBooks?: import('./core/companionLibrary').CompanionBook[];
+    message?: string;
+  }>;
+  addLocal: (
+    note: import('./core/voiceNotes').VoiceNote,
+  ) => Promise<{ ok: boolean; notes: import('./core/voiceNotes').VoiceNote[] }>;
+  setStatus: (
+    id: string,
+    status: import('./core/voiceNotes').VoiceNoteStatus,
+    extra?: Partial<Pick<import('./core/voiceNotes').VoiceNote, 'text' | 'hasAudio' | 'durationMs'>>,
+  ) => Promise<{ ok: boolean; notes: import('./core/voiceNotes').VoiceNote[] }>;
+  publishLibrary: (
+    books: import('./core/companionLibrary').CompanionBook[],
+  ) => Promise<{ ok: boolean; books?: import('./core/companionLibrary').CompanionBook[]; message?: string }>;
+  readAudio: (id: string) => Promise<{ ok: boolean; mime?: string; bytes?: number[]; message?: string }>;
+}
+
 export interface SpeakFictionUpdaterBridge {
   getStatus: () => Promise<import('./core/update').UpdateStatus>;
   check: () => Promise<import('./core/update').UpdateStatus>;
@@ -137,6 +174,7 @@ export interface SpeakFictionBridge {
   state?: SpeakFictionStateBridge;
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;
+  notes?: SpeakFictionNotesBridge;
   updater?: SpeakFictionUpdaterBridge;
   whatsNew?: SpeakFictionWhatsNewBridge;
   help?: SpeakFictionHelpBridge;

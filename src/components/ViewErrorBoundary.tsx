@@ -5,6 +5,8 @@ export class ViewErrorBoundary extends Component<
     children: ReactNode;
     title: string;
     hint: string;
+    onLeave?: () => void;
+    leaveLabel?: string;
   },
   { failed: boolean }
 > {
@@ -31,6 +33,18 @@ export class ViewErrorBoundary extends Component<
         >
           Try again
         </button>
+        {this.props.onLeave ? (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              this.setState({ failed: false });
+              this.props.onLeave?.();
+            }}
+          >
+            {this.props.leaveLabel || 'Back to Dictate'}
+          </button>
+        ) : null}
       </div>
     );
   }

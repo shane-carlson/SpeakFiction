@@ -42,6 +42,25 @@ const DEFAULTS: Required<Omit<NameCorrectionOptions, 'vocabularyBoost'>> = {
   maxNgram: 3,
 };
 
+const NAME_INTRO = new Set(['named', 'called', 'meet', 'meets', 'introducing', 'introduce']);
+
+function isShortToken(value: string): boolean {
+  return value.length >= 2 && value.length <= 4 && !/\s/.test(value);
+}
+
+/** Fae / fay / stay share the same vowel when Whisper guesses a common word. */
+export function shortNameRhyme(a: string, b: string): boolean {
+  if (!isShortToken(a) || !isShortToken(b)) return false;
+  const stem = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/^(st|th|sh|ph|f|s)/, '')
+      .replace(/ae|ay|ey|ei|a$/g, 'AY');
+  const left = stem(a);
+  const right = stem(b);
+  return Boolean(left) && left === right;
+}
+
 function phoneticKey(normalized: string): string {
   return normalized
     .split(/\s+/)
@@ -84,6 +103,7 @@ function bestMatchForPhrase(
   wordCount: number,
   opts: Required<Omit<NameCorrectionOptions, 'vocabularyBoost'>>,
   vocabularyBoost: Record<string, number>,
+  previousWord = '',
 ): Candidate | null {
   const forms = index.formsByWordCount.get(wordCount);
   if (!forms) return null;
@@ -109,8 +129,12 @@ function bestMatchForPhrase(
 
     const passesPrimary = score >= opts.minSimilarity && (sameFirstLetter || soundexEqual);
     const passesPhonetic = soundexEqual && score >= opts.soundexFallbackSimilarity;
+    const passesIntroRhyme =
+      wordCount === 1 &&
+      NAME_INTRO.has(previousWord) &&
+      shortNameRhyme(phrase, form.normalized);
 
-    if (passesPrimary || passesPhonetic) {
+    if (passesPrimary || passesPhonetic || passesIntroRhyme) {
       if (!best || score > best.score) {
         best = { entry: form.entry, score: Math.min(1, score) };
       }
@@ -162,7 +186,15 @@ export function correctNames(
         .join(' ');
       if (!normalizedPhrase || normalizedPhrase.split(' ').length !== size) continue;
 
-      const candidate = bestMatchForPhrase(index, normalizedPhrase, size, opts, vocabularyBoost);
+      const previousWord = k > 0 ? normalizeToken(words[wordIdx[k - 1]]) : '';
+      const candidate = bestMatchForPhrase(
+        index,
+        normalizedPhrase,
+        size,
+        opts,
+        vocabularyBoost,
+        previousWord,
+      );
       if (candidate) {
         const firstTokenIdx = windowWordIdx[0];
         const lastTokenIdx = windowWordIdx[size - 1];

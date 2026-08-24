@@ -1,0 +1,14 @@
+.toolchains/
+.gdrive-toolchains
+node_modules/
+.expo/
+dist/
+ios/
+android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.DS_Store
+.screenshots/
