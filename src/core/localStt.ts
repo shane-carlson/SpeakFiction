@@ -219,6 +219,10 @@ export async function transcribePcm(
 }
 
 /** File import: decode every chunk. Do not drop quiet or short slices. */
-export async function transcribeImportedPcm(samples: Float32Array, sampleRate: number): Promise<string> {
-  return transcribePcm(samples, sampleRate, { allowQuiet: true });
+export async function transcribeImportedPcm(
+  samples: Float32Array,
+  sampleRate: number,
+  prompt?: string,
+): Promise<string> {
+  return transcribePcm(samples, sampleRate, { allowQuiet: true, prompt });
 }

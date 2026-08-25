@@ -42,6 +42,7 @@ export async function transcribeImportedAudioFile(
   bytes: Uint8Array,
   mime?: string,
   onProgress?: AudioImportProgressHandler,
+  prompt?: string,
 ): Promise<{ text: string; durationMs: number }> {
   onProgress?.({ fraction: 0.06, label: 'Decoding the audio file…' });
   const decoded = await decodeImportedAudio(bytes, mime);
@@ -56,7 +57,7 @@ export async function transcribeImportedAudioFile(
   const parts: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
     onProgress?.(audioImportChunkProgress(i, chunks.length, decoded.durationMs));
-    const text = (await transcribeImportedPcm(chunks[i], decoded.sampleRate)).trim();
+    const text = (await transcribeImportedPcm(chunks[i], decoded.sampleRate, prompt)).trim();
     if (text) parts.push(text);
   }
   onProgress?.({ fraction: 0.94, label: 'Preparing the transcript…' });

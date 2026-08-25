@@ -308,7 +308,7 @@ export function TakePlayer({
         <Pressable
           onPress={onDelete}
           accessibilityLabel="Delete this take"
-          style={[styles.btn, playerStyles.trashBtn]}
+          style={[styles.btn, playerStyles.actionBtn, playerStyles.trashBtn]}
         >
           <TrashIcon color={colors.danger} size={20} />
           <Text style={{ color: colors.danger, fontWeight: '700', fontSize: 14 }}>Delete</Text>
@@ -392,10 +392,10 @@ export function TakePlayer({
               backgroundColor: colors.bg,
             }}
           />
-          <Pressable style={styles.btn} onPress={() => { setEditIndex(null); setEditValue(''); }}>
+          <Pressable style={[styles.btn, playerStyles.actionBtn]} onPress={() => { setEditIndex(null); setEditValue(''); }}>
             <Text style={styles.btnText}>Cancel</Text>
           </Pressable>
-          <Pressable style={styles.btnPrimary} onPress={saveEdit}>
+          <Pressable style={[styles.btnPrimary, playerStyles.actionBtn]} onPress={saveEdit}>
             <Text style={styles.btnPrimaryText}>Save</Text>
           </Pressable>
         </View>
@@ -405,7 +405,7 @@ export function TakePlayer({
             <>
               {take.text.trim() ? (
                 <Pressable
-                  style={styles.btn}
+                  style={[styles.btn, playerStyles.actionBtn]}
                   onPress={() => {
                     setTextDraft(take.text);
                     setEditingAll(false);
@@ -414,13 +414,13 @@ export function TakePlayer({
                   <Text style={styles.btnText}>Cancel</Text>
                 </Pressable>
               ) : null}
-              <Pressable style={[styles.btnPrimary, playerStyles.play]} onPress={commitTranscript}>
+              <Pressable style={[styles.btnPrimary, playerStyles.actionBtn, playerStyles.play]} onPress={commitTranscript}>
                 <Text style={styles.btnPrimaryText}>Save</Text>
               </Pressable>
             </>
           ) : (
             <Pressable
-              style={styles.btn}
+              style={[styles.btn, playerStyles.actionBtn]}
               onPress={() => {
                 setEditIndex(null);
                 setTextDraft(take.text);
@@ -492,20 +492,32 @@ export function TakePlayer({
       </View>
 
       <View style={playerStyles.controls}>
-        <Pressable style={styles.btn} onPress={() => void seekTo(0, playing)} accessibilityLabel="Start over">
+        <Pressable
+          style={[styles.btn, playerStyles.controlBtn]}
+          onPress={() => void seekTo(0, playing)}
+          accessibilityLabel="Start over"
+        >
           <Text style={styles.btnText}>Start</Text>
         </Pressable>
-        <Pressable style={styles.btn} onPress={() => void seekTo(positionMs - SKIP_MS)} accessibilityLabel="Skip back 10 seconds">
+        <Pressable
+          style={[styles.btn, playerStyles.controlBtn]}
+          onPress={() => void seekTo(positionMs - SKIP_MS)}
+          accessibilityLabel="Skip back 10 seconds"
+        >
           <Text style={styles.btnText}>−10</Text>
         </Pressable>
         <Pressable
-          style={[styles.btnPrimary, playerStyles.play]}
+          style={[styles.btnPrimary, playerStyles.controlBtn, playerStyles.play]}
           onPress={() => void togglePlay()}
           accessibilityLabel={playing ? 'Pause' : 'Play'}
         >
           <Text style={styles.btnPrimaryText}>{playing ? 'Pause' : 'Play'}</Text>
         </Pressable>
-        <Pressable style={styles.btn} onPress={() => void seekTo(positionMs + SKIP_MS)} accessibilityLabel="Skip forward 10 seconds">
+        <Pressable
+          style={[styles.btn, playerStyles.controlBtn]}
+          onPress={() => void seekTo(positionMs + SKIP_MS)}
+          accessibilityLabel="Skip forward 10 seconds"
+        >
           <Text style={styles.btnText}>+10</Text>
         </Pressable>
       </View>
@@ -516,10 +528,16 @@ export function TakePlayer({
 }
 
 const playerStyles = {
-  wrap: { gap: 12, marginTop: 12 },
-  syncRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
-  trashBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
-  seek: { gap: 10 },
+  wrap: { gap: 16 },
+  syncRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+  trashBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  actionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  seek: { gap: 12 },
   waveHit: {
     height: 64,
     flexDirection: 'row' as const,
@@ -527,18 +545,25 @@ const playerStyles = {
     gap: 2,
   },
   bar: { flex: 1, borderRadius: 2, minWidth: 2 },
-  times: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  times: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   track: { flex: 1, height: 4, borderRadius: 2, backgroundColor: '#262d3d55', overflow: 'hidden' as const },
   fill: { height: 4, borderRadius: 2 },
-  controls: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
-  play: { flex: 1, paddingVertical: 12 },
+  controls: { flexDirection: 'row' as const, alignItems: 'stretch' as const, gap: 12 },
+  controlBtn: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    minHeight: 44,
+    justifyContent: 'center' as const,
+  },
+  play: { flex: 1.4, paddingHorizontal: 14, paddingVertical: 12 },
   box: {
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     minHeight: 88,
     maxHeight: 320,
   },
   transcript: { maxHeight: 176 },
-  editRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 10 },
+  editRow: { flexDirection: 'row' as const, alignItems: 'center' as const, flexWrap: 'wrap' as const, gap: 12, marginTop: 12 },
 };

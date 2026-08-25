@@ -70,6 +70,21 @@ export function noteNeedsDesktopTranscription(
   return isRemoteVoiceTakePlaceholder(note.text) || (Boolean(note.hasAudio) && !(note.text || '').trim());
 }
 
+/** Phone audio on this computer — desktop Whisper should hear it, even if the phone already typed a transcript. */
+export function noteCanDesktopHear(
+  note: Pick<VoiceNote, 'hasAudio' | 'source'>,
+): boolean {
+  return note.source === 'phone' && Boolean(note.hasAudio);
+}
+
+/** Prefer the computer’s hearing; keep the phone’s words if desktop STT came back empty. */
+export function transcriptAfterDesktopHear(desktop: string, phone: string): string {
+  const heard = desktop.replace(/\s+/g, ' ').trim();
+  if (heard) return heard;
+  if (isRemoteVoiceTakePlaceholder(phone)) return '';
+  return (phone || '').replace(/\s+/g, ' ').trim();
+}
+
 const STATUS_RANK: Record<VoiceNoteStatus, number> = {
   inbox: 0,
   imported: 1,

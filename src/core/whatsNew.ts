@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.28': bullets(
+    'Adding a transcribed phone take from Voice notes runs this computer’s speech model over the audio',
+    'Names and punctuation are interpreted here, using this book’s name library',
+    'If the computer hears nothing, the phone’s words are kept',
+  ),
   '0.2.27': bullets(
     'Import audio shows a progress bar while the take is decoded and transcribed',
     'Long takes name each part with clock times, so you can see how far the file has gotten',

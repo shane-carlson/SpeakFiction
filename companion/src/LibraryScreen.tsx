@@ -267,11 +267,11 @@ export function LibraryScreen({
             <Text style={styles.wordmark}>Take</Text>
             <Text style={styles.tag}>Stays in the app unless you save a copy to Files</Text>
           </View>
-          <View style={styles.linkRow}>
-            <Pressable style={styles.btn} onPress={() => setOpenId(null)}>
+          <View style={[styles.linkRow, { gap: 12 }]}>
+            <Pressable style={[styles.btn, { paddingHorizontal: 14, paddingVertical: 12 }]} onPress={() => setOpenId(null)}>
               <Text style={styles.btnText}>Library</Text>
             </Pressable>
-            <Pressable style={styles.btn} onPress={onClose}>
+            <Pressable style={[styles.btn, { paddingHorizontal: 14, paddingVertical: 12 }]} onPress={onClose}>
               <Text style={styles.btnText}>Record</Text>
             </Pressable>
           </View>
@@ -281,7 +281,7 @@ export function LibraryScreen({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: 32, gap: 16 }}
         >
           <TextInput
             value={take.title}
@@ -312,7 +312,7 @@ export function LibraryScreen({
             onTeachPairs={(pairs) => onTeachPairs(take, pairs)}
           />
           <Pressable
-            style={[styles.btnPrimary, (take.sent || syncing) && styles.btnDisabled]}
+            style={[styles.btnPrimary, { paddingVertical: 14 }, (take.sent || syncing) && styles.btnDisabled]}
             onPress={() => onSend(take)}
             disabled={take.sent || syncing}
           >
@@ -320,16 +320,16 @@ export function LibraryScreen({
               {take.sent ? 'Already synced' : syncing ? 'Sending…' : 'Send to desktop inbox'}
             </Text>
           </Pressable>
-          <View style={styles.linkRow}>
+          <View style={[styles.linkRow, { gap: 12 }]}>
             <Pressable
-              style={[styles.btn, styles.btnFlex, !canExport && styles.btnDisabled]}
+              style={[styles.btn, styles.btnFlex, { paddingVertical: 12 }, !canExport && styles.btnDisabled]}
               onPress={() => onShare(take)}
               disabled={!canExport}
             >
               <Text style={styles.btnText}>Share</Text>
             </Pressable>
             <Pressable
-              style={[styles.btn, styles.btnFlex, !canExport && styles.btnDisabled]}
+              style={[styles.btn, styles.btnFlex, { paddingVertical: 12 }, !canExport && styles.btnDisabled]}
               onPress={() => onSaveToFiles(take)}
               disabled={!canExport}
             >

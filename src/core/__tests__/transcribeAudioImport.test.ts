@@ -51,6 +51,7 @@ describe('audio import progress', () => {
     });
     expect(result.text).toBe('the wind howled the wind howled');
     expect(vi.mocked(transcribeImportedPcm).mock.calls).toHaveLength(2);
+    expect(vi.mocked(transcribeImportedPcm).mock.calls[0]?.[2]).toBeUndefined();
     expect(seen.map((step) => step.label)).toEqual([
       'Decoding the audio file…',
       'Loading the speech model…',
@@ -61,5 +62,15 @@ describe('audio import progress', () => {
     ]);
     expect(seen[0]?.fraction).toBeLessThan(seen[seen.length - 1]?.fraction ?? 0);
     expect(seen[seen.length - 1]?.fraction).toBeGreaterThan(0.9);
+  });
+
+  it('feeds the book names into each imported chunk', async () => {
+    vi.mocked(decodeImportedAudio).mockResolvedValue({
+      samples: new Float32Array(16_000),
+      sampleRate: 16_000,
+      durationMs: 1_000,
+    });
+    await transcribeImportedAudioFile(new Uint8Array([1]), 'audio/mp4', undefined, 'Names: Kaeldros.');
+    expect(vi.mocked(transcribeImportedPcm).mock.calls[0]?.[2]).toBe('Names: Kaeldros.');
   });
 });

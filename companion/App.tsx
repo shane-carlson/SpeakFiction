@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -99,6 +100,20 @@ function formatClock(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+type FinishPhase = 'saving' | 'transcribing' | 'saved';
+
+function finishLabel(phase: FinishPhase): string {
+  if (phase === 'saving') return 'Saving to Library…';
+  if (phase === 'transcribing') return 'Transcribing…';
+  return 'Saved to Library';
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function ProgressRing({
   progress,
   color,
@@ -167,6 +182,8 @@ export default function App() {
   const [keyLocked, setKeyLocked] = useState(false);
   const [token, setToken] = useState('');
   const [recording, setRecording] = useState(false);
+  const [finishPhase, setFinishPhase] = useState<FinishPhase | null>(null);
+  const [finishProgress, setFinishProgress] = useState(0);
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState('Scan the QR on your computer, or paste your SF- key.');
   const [notes, setNotes] = useState<LocalNote[]>([]);
@@ -189,7 +206,7 @@ export default function App() {
   const [vocab, setVocab] = useState<SpeechCue[]>([]);
   const [screen, setScreen] = useState<'record' | 'library'>('record');
   const keyboardHeight = useKeyboardHeight();
-  const compactStage = keyboardHeight > 0 && !recording;
+  const compactStage = keyboardHeight > 0 && !recording && !finishPhase;
   const [currentTakeId, setCurrentTakeId] = useState<string | null>(null);
   const bookTargetRef = useRef<'session' | string>('session');
   const scannedRef = useRef(false);
@@ -200,6 +217,7 @@ export default function App() {
   const peaksRef = useRef<number[]>([]);
   const transcribeRef = useRef(true);
   const recordingOn = useRef(false);
+  const finishingRef = useRef(false);
   const micBusy = useRef(false);
   const ignoreStartUntil = useRef(0);
   const pressAt = useRef(0);
@@ -414,7 +432,7 @@ export default function App() {
   };
 
   const start = async () => {
-    if (micBusy.current || recordingOn.current || Date.now() < ignoreStartUntil.current) return;
+    if (micBusy.current || recordingOn.current || finishingRef.current || Date.now() < ignoreStartUntil.current) return;
     micBusy.current = true;
     recordingOn.current = true;
     setRecording(true);
@@ -464,10 +482,25 @@ export default function App() {
     }
   };
 
+  const resetRecordSession = () => {
+    setDraft('');
+    setElapsedMs(0);
+    setAudioUri(null);
+    setCurrentTakeId(null);
+    accumulatedMs.current = 0;
+    startedAt.current = 0;
+    peaksRef.current = [];
+    const stamp = new Date().toISOString();
+    takeAtRef.current = stamp;
+    setTakeAt(stamp);
+  };
+
   const stop = async () => {
     if (!recordingOn.current && !recordingRef.current) return;
+    if (finishingRef.current) return;
     micBusy.current = true;
     recordingOn.current = false;
+    finishingRef.current = true;
     ignoreStartUntil.current = Date.now() + 600;
     const rec = recordingRef.current;
     recordingRef.current = null;
@@ -476,68 +509,88 @@ export default function App() {
     startedAt.current = 0;
     setElapsedMs(duration);
     setRecording(false);
-    const recUri = rec ? rec.getURI() : null;
-    if (rec) {
-      try {
-        await rec.stopAndUnloadAsync();
-      } catch {
-        /* already stopped */
+    setFinishPhase('saving');
+    setFinishProgress(0.18);
+    setStatus('Saving to Library…');
+    const saveStarted = Date.now();
+    try {
+      const recUri = rec ? rec.getURI() : null;
+      if (rec) {
+        try {
+          await rec.stopAndUnloadAsync();
+        } catch {
+          /* already stopped */
+        }
       }
-    }
-    const takeId = createTakeId();
-    let stored = recUri;
-    if (recUri) {
-      try {
-        stored = await keepLibraryAudio(takeId, recUri);
-      } catch {
-        stored = recUri;
+      const takeId = createTakeId();
+      let stored = recUri;
+      if (recUri) {
+        try {
+          stored = await keepLibraryAudio(takeId, recUri);
+        } catch {
+          stored = recUri;
+        }
       }
-    }
-    setAudioUri(stored);
-    let heard = { text: '', words: [] as WordCue[] };
-    const taught = vocabRef.current;
-    if (transcribeRef.current && stored) {
-      setStatus('Transcribing the take on this phone…');
-      heard = await transcribeAudioFile(stored, {
-        contextualStrings: contextualStrings(taught),
-        replacements: taught.map((item) => ({ heard: item.heard || item.word, word: item.word })),
+      setFinishProgress(0.36);
+      const remain = 500 - (Date.now() - saveStarted);
+      if (remain > 0) await wait(remain);
+      let heard = { text: '', words: [] as WordCue[] };
+      const taught = vocabRef.current;
+      if (transcribeRef.current && stored) {
+        setFinishPhase('transcribing');
+        setFinishProgress(0.48);
+        setStatus('Transcribing…');
+        try {
+          heard = await transcribeAudioFile(stored, {
+            contextualStrings: contextualStrings(taught),
+            replacements: taught.map((item) => ({ heard: item.heard || item.word, word: item.word })),
+            durationMs: duration,
+          });
+        } catch {
+          heard = { text: '', words: [] };
+        }
+        setFinishProgress(0.82);
+      }
+      const text = applyVocab(heard.text, taught);
+      const createdAt = takeAtRef.current;
+      const peaks = downsamplePeaks(peaksRef.current);
+      const words = wordsForTake(
+        text,
+        duration,
+        heard.words.length ? applyVocabToWords(heard.words, taught) : undefined,
+        peaks,
+      );
+      const take: LibraryTake = {
+        id: takeId,
+        title: defaultTakeTitle(createdAt),
+        createdAt,
         durationMs: duration,
+        text,
+        audioUri: stored,
+        bookId,
+        bookTitle,
+        recordOnly: !transcribeRef.current,
+        words,
+        peaks,
+      };
+      setTakes((prev) => {
+        void upsertTake(prev, take);
+        return [take, ...prev.filter((item) => item.id !== takeId)];
       });
+      setFinishPhase('saved');
+      setFinishProgress(1);
+      setStatus('Saved to Library');
+      await wait(1400);
+      resetRecordSession();
+    } catch (err) {
+      resetRecordSession();
+      setStatus(err instanceof Error ? err.message : 'Could not save that take.');
+    } finally {
+      setFinishPhase(null);
+      setFinishProgress(0);
+      finishingRef.current = false;
+      micBusy.current = false;
     }
-    const text = applyVocab(heard.text, taught);
-    if (text) setDraft(text);
-    const createdAt = takeAtRef.current;
-    const peaks = downsamplePeaks(peaksRef.current);
-    const words = wordsForTake(
-      text,
-      duration,
-      heard.words.length ? applyVocabToWords(heard.words, taught) : undefined,
-      peaks,
-    );
-    const take: LibraryTake = {
-      id: takeId,
-      title: defaultTakeTitle(createdAt),
-      createdAt,
-      durationMs: duration,
-      text,
-      audioUri: stored,
-      bookId,
-      bookTitle,
-      recordOnly: !transcribeRef.current,
-      words,
-      peaks,
-    };
-    setCurrentTakeId(takeId);
-    setTakes((prev) => {
-      void upsertTake(prev, take);
-      return [take, ...prev.filter((item) => item.id !== takeId)];
-    });
-    setStatus(
-      transcribeRef.current
-        ? 'Audio and transcript are in Library. Open Library to check the text or send it.'
-        : 'Take kept in Library. Open Library to send it so the computer can transcribe, or to play it.',
-    );
-    micBusy.current = false;
   };
 
   const clearMicArm = () => {
@@ -558,7 +611,7 @@ export default function App() {
     pressAt.current = Date.now();
     startedThisPress.current = false;
     clearMicArm();
-    if (recordingOn.current) return;
+    if (recordingOn.current || finishingRef.current) return;
     micArm.current = setTimeout(() => {
       micArm.current = null;
       if (micAbort.current || recordingOn.current) return;
@@ -581,7 +634,7 @@ export default function App() {
   };
 
   const onMicPress = () => {
-    if (micAbort.current || startedThisPress.current) return;
+    if (micAbort.current || startedThisPress.current || finishingRef.current) return;
     if (recordingOn.current) void stop();
     else void start();
   };
@@ -604,7 +657,7 @@ export default function App() {
   const recordSwipe = useHorizontalSwipe({
     onSwipeLeft: openLibrary,
     onGrant: abortMicGesture,
-    enabled: !recording && !scanning && !bookOpen && !themeOpen,
+    enabled: !recording && !finishPhase && !scanning && !bookOpen && !themeOpen,
   });
   const scanSwipe = useHorizontalSwipe({
     onSwipeRight: goRecord,
@@ -889,7 +942,11 @@ export default function App() {
     : null;
   const sheetBookId = sheetTake ? sheetTake.bookId ?? null : bookId;
 
-  const ringProgress = recording ? (elapsedMs % 60_000) / 60_000 : 0;
+  const ringProgress = recording
+    ? (elapsedMs % 60_000) / 60_000
+    : finishPhase
+      ? finishProgress
+      : 0;
 
   if (!ready) {
     return (
@@ -918,7 +975,7 @@ export default function App() {
             <Text style={styles.wordmark}>SpeakFiction</Text>
             <Text style={styles.tag}>Companion · Voice notes</Text>
           </View>
-          <Pressable style={styles.btn} onPress={openLibrary} disabled={recording}>
+          <Pressable style={styles.btn} onPress={openLibrary} disabled={recording || Boolean(finishPhase)}>
             <Text style={styles.btnText}>Library</Text>
           </Pressable>
           <Pressable
@@ -945,6 +1002,7 @@ export default function App() {
             }}
             accessibilityRole="button"
             accessibilityLabel="Choose a book for this take"
+            disabled={recording || Boolean(finishPhase)}
           >
             <Text style={styles.bookPickLabel}>Book</Text>
             <Text style={styles.bookPickValue} numberOfLines={1}>
@@ -954,21 +1012,53 @@ export default function App() {
           </Pressable>
           <Text style={styles.clock}>{formatClock(elapsedMs)}</Text>
           <Text style={styles.stageHint}>
-            {recording ? 'Recording' : 'Tap to record · hold to talk'}
+            {finishPhase ? finishLabel(finishPhase) : recording ? 'Recording' : 'Tap to record · hold to talk'}
           </Text>
+          {finishPhase ? (
+            <View style={styles.finishMeter} accessibilityRole="progressbar">
+              <View style={[styles.finishTrack, { backgroundColor: colors.border }]}>
+                <View
+                  style={[
+                    styles.finishFill,
+                    {
+                      width: `${Math.max(8, Math.round(finishProgress * 100))}%`,
+                      backgroundColor: colors.accent,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ) : null}
           <Pressable
             onPressIn={onMicIn}
             onPressOut={onMicOut}
             onPress={onMicPress}
             onTouchMove={onMicMove}
+            disabled={Boolean(finishPhase)}
             accessibilityRole="button"
-            accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}
+            accessibilityLabel={
+              finishPhase
+                ? finishLabel(finishPhase)
+                : recording
+                  ? 'Stop recording'
+                  : 'Start recording'
+            }
             style={styles.micHit}
           >
-            <ProgressRing progress={recording ? Math.max(ringProgress, 0.02) : 0} color={colors.accent} track={colors.border} />
+            <ProgressRing
+              progress={recording || finishPhase ? Math.max(ringProgress, 0.02) : 0}
+              color={colors.accent}
+              track={colors.border}
+            />
             <View style={styles.mic}>
-              <MicIcon size={Math.round(MIC_SIZE * 0.6)} hidden={recording} />
-              {recording ? <PauseIcon color={colors.onAccent} size={30} /> : null}
+              {finishPhase && finishPhase !== 'saved' ? (
+                <ActivityIndicator color={colors.onAccent} />
+              ) : (
+                <>
+                  <MicIcon size={Math.round(MIC_SIZE * 0.6)} hidden={recording} />
+                  {recording ? <PauseIcon color={colors.onAccent} size={30} /> : null}
+                </>
+              )}
             </View>
           </Pressable>
 
@@ -976,14 +1066,14 @@ export default function App() {
             <Pressable
               style={[styles.toggleBtn, !transcribeOnPhone && styles.toggleOn]}
               onPress={() => void persistTranscribe(false)}
-              disabled={recording}
+              disabled={recording || Boolean(finishPhase)}
             >
               <Text style={[styles.toggleText, !transcribeOnPhone && styles.toggleTextOn]}>Record only</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, transcribeOnPhone && styles.toggleOn]}
               onPress={() => void persistTranscribe(true)}
-              disabled={recording}
+              disabled={recording || Boolean(finishPhase)}
             >
               <Text style={[styles.toggleText, transcribeOnPhone && styles.toggleTextOn]}>Transcribe here</Text>
             </Pressable>
@@ -1003,19 +1093,24 @@ export default function App() {
                 value={draft}
                 onChangeText={setDraft}
                 multiline
+                editable={!finishPhase}
                 style={styles.area}
                 placeholder="On-device text lands here."
                 placeholderTextColor={colors.textFaint}
               />
-              {draft.trim() || currentTakeId ? (
+              {finishPhase ? (
+                <Text style={styles.toggleHint}>{finishLabel(finishPhase)}</Text>
+              ) : draft.trim() || currentTakeId ? (
                 <Text style={styles.toggleHint}>Open Library to send this take to the desktop inbox.</Text>
               ) : null}
             </>
           ) : (
             <Text style={styles.lead}>
-              {elapsedMs > 0 && !recording
-                ? `${formatClock(elapsedMs)} take is in Library. Open Library to play, send, share, or save a copy.`
-                : 'Record a take. It stays in Library. Open Library to send it so the computer can transcribe.'}
+              {finishPhase
+                ? finishLabel(finishPhase)
+                : elapsedMs > 0 && !recording
+                  ? `${formatClock(elapsedMs)} take is in Library. Open Library to play, send, share, or save a copy.`
+                  : 'Record a take. It stays in Library. Open Library to send it so the computer can transcribe.'}
             </Text>
           )}
           {keyLocked ? null : (
@@ -1308,6 +1403,17 @@ function createStyles(c: ThemeColors) {
       fontVariant: ['tabular-nums'],
     },
     stageHint: { color: c.textFaint, fontSize: 13, marginBottom: 4 },
+    finishMeter: { width: '100%', maxWidth: 280, alignItems: 'center' },
+    finishTrack: {
+      width: '100%',
+      height: 8,
+      borderRadius: 999,
+      overflow: 'hidden',
+    },
+    finishFill: {
+      height: 8,
+      borderRadius: 999,
+    },
     micHit: {
       width: RING_SIZE,
       height: RING_SIZE,

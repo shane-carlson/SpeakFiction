@@ -4,9 +4,11 @@ import {
   encryptNotePayload,
   isSpeakFictionLicenseKey,
   mergeVoiceNotes,
+  noteCanDesktopHear,
   noteNeedsDesktopTranscription,
   notesAccountHash,
   REMOTE_VOICE_TAKE_PLACEHOLDER,
+  transcriptAfterDesktopHear,
   type VoiceNote,
 } from '../voiceNotes';
 
@@ -82,6 +84,15 @@ describe('voice notes identity and crypto', () => {
     );
     expect(noteNeedsDesktopTranscription({ text: 'the wind howled', hasAudio: true, source: 'phone' })).toBe(false);
     expect(noteNeedsDesktopTranscription({ text: 'the wind howled', hasAudio: false, source: 'phone' })).toBe(false);
+    expect(noteCanDesktopHear({ hasAudio: true, source: 'phone' })).toBe(true);
+    expect(noteCanDesktopHear({ hasAudio: false, source: 'phone' })).toBe(false);
+    expect(noteCanDesktopHear({ hasAudio: true, source: 'file' })).toBe(false);
+  });
+
+  it('keeps the phone transcript when desktop STT hears silence', () => {
+    expect(transcriptAfterDesktopHear('Kaeldros said no.', 'kaldros said no')).toBe('Kaeldros said no.');
+    expect(transcriptAfterDesktopHear('  ', 'No, she said no.')).toBe('No, she said no.');
+    expect(transcriptAfterDesktopHear('', REMOTE_VOICE_TAKE_PLACEHOLDER)).toBe('');
   });
 
   it('drops a remote deleted take so a leftover local row cannot come back', () => {
