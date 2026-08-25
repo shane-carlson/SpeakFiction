@@ -25,25 +25,148 @@ export function parseWordCues(raw: unknown): WordCue[] {
   return words;
 }
 
-export function estimateWordCues(text: string, durationMs: number): WordCue[] {
+export type SpeechWindow = { startMs: number; endMs: number };
+
+/** Metering silence is clamped to 0.08 while recording. Speech sits above that floor. */
+const PEAK_SPEECH_FLOOR = 0.14;
+
+export function speechWindowFromPeaks(peaks: number[] | null | undefined, durationMs: number): SpeechWindow {
+  const span = Math.max(0, durationMs);
+  if (!peaks?.length || span <= 0) return { startMs: 0, endMs: span };
+  const sorted = [...peaks].sort((a, b) => a - b);
+  const q15 = sorted[Math.floor((sorted.length - 1) * 0.15)] ?? 0;
+  const q80 = sorted[Math.floor((sorted.length - 1) * 0.8)] ?? 1;
+  const rise = q80 - q15;
+  if (rise < 0.06) return { startMs: 0, endMs: span };
+  const floor = Math.max(PEAK_SPEECH_FLOOR, q15 + Math.max(0.05, rise * 0.32));
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < peaks.length - 1; i++) {
+    if ((peaks[i] ?? 0) < floor || (peaks[i + 1] ?? 0) < floor) continue;
+    if (first < 0) first = i;
+    last = i + 1;
+  }
+  if (first < 0) return { startMs: 0, endMs: span };
+  return {
+    startMs: (first / peaks.length) * span,
+    endMs: Math.max(((last + 1) / peaks.length) * span, (first / peaks.length) * span + 80),
+  };
+}
+
+export function estimateWordCues(
+  text: string,
+  durationMs: number,
+  span?: SpeechWindow | null,
+): WordCue[] {
   const tokens = tokenizeWords(text);
   if (!tokens.length) return [];
-  const span = Math.max(durationMs, tokens.length * 280);
+  const start = Math.max(0, span?.startMs ?? 0);
+  const end = Math.max(start + tokens.length * 80, span?.endMs ?? Math.max(durationMs, start + tokens.length * 280));
+  const length = Math.max(end - start, tokens.length * 80);
   const weights = tokens.map((token) => Math.max(1, token.replace(/[^a-zA-Z0-9]+/g, '').length || 1));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
-  let at = 0;
+  let at = start;
   return tokens.map((word, index) => {
     const startMs = at;
-    at += (weights[index] / total) * span;
-    return { word, startMs, endMs: index === tokens.length - 1 ? span : at, cued: false };
+    at += (weights[index] / total) * length;
+    return { word, startMs, endMs: index === tokens.length - 1 ? start + length : at, cued: false };
   });
 }
 
-export function wordsForTake(text: string, durationMs: number, stored?: WordCue[] | null): WordCue[] {
+export function alignWordCues(
+  words: WordCue[],
+  durationMs: number,
+  peaks?: number[] | null,
+): WordCue[] {
+  if (!words.length) return words;
+  const window = speechWindowFromPeaks(peaks, durationMs);
+  const leading = window.startMs;
+  const trailing = Math.max(0, durationMs - window.endMs);
+  if (leading < 280 && trailing < 280) return words;
+  const srcStart = words[0].startMs;
+  const srcEnd = Math.max(words[words.length - 1].endMs, srcStart + 1);
+  const srcSpan = srcEnd - srcStart;
+  const dstSpan = Math.max(80, window.endMs - window.startMs);
+  if (Math.abs(srcStart - window.startMs) < 280 && Math.abs(srcEnd - window.endMs) < 450) return words;
+  if (srcSpan < dstSpan * 0.35) return estimateWordCues(textFromWords(words), durationMs, window);
+  const scale = dstSpan / srcSpan;
+  return words.map((item) => ({
+    ...item,
+    startMs: window.startMs + (item.startMs - srcStart) * scale,
+    endMs: window.startMs + (item.endMs - srcStart) * scale,
+  }));
+}
+
+export function normalizeCueUnits(words: WordCue[], durationMs: number): WordCue[] {
+  if (!words.length || durationMs <= 0) return words;
+  const last = words[words.length - 1].endMs;
+  const asMillis = last * 1000;
+  if (last > 0 && asMillis >= durationMs * 0.25 && asMillis <= durationMs * 1.4) {
+    return words.map((item) => ({
+      ...item,
+      startMs: item.startMs * 1000,
+      endMs: item.endMs * 1000,
+    }));
+  }
+  return words;
+}
+
+export function syncWordTimings(
+  display: WordCue[],
+  timed: WordCue[] | null | undefined,
+  durationMs: number,
+  peaks?: number[] | null,
+): WordCue[] {
+  if (!display.length) return display;
+  const heard = timed?.length ? normalizeCueUnits(timed, durationMs) : [];
+  if (heard.length === display.length && heard[0].startMs >= 200) {
+    return display.map((word, index) => ({
+      ...word,
+      startMs: heard[index].startMs,
+      endMs: heard[index].endMs,
+      cued: true,
+    }));
+  }
+  const peakWindow = speechWindowFromPeaks(peaks, durationMs);
+  const startMs = Math.max(heard[0]?.startMs ?? 0, peakWindow.startMs);
+  const heardEnd = heard.length ? heard[heard.length - 1].endMs : 0;
+  const endMs = Math.max(
+    startMs + display.length * 80,
+    heardEnd > startMs ? heardEnd : peakWindow.endMs || durationMs,
+  );
+  if (startMs < 200 && endMs >= Math.max(durationMs - 250, startMs + 80)) {
+    return alignWordCues(display, durationMs, peaks);
+  }
+  return estimateWordCues(textFromWords(display), durationMs, { startMs, endMs }).map((cue, index) => ({
+    ...cue,
+    word: display[index]?.word || cue.word,
+    cued: Boolean(heard.length),
+  }));
+}
+
+export function timingsLookUntrusted(words: WordCue[], durationMs: number): boolean {
+  if (!words.length) return false;
+  const first = words[0].startMs;
+  const last = words[words.length - 1].endMs;
+  const noneCued = words.every((item) => !item.cued);
+  if (first < 280) return true;
+  return noneCued && last > durationMs * 0.92 && first < durationMs * 0.12;
+}
+
+export function wordsForTake(
+  text: string,
+  durationMs: number,
+  stored?: WordCue[] | null,
+  peaks?: number[] | null,
+): WordCue[] {
   const tokens = tokenizeWords(text);
   if (!tokens.length) return [];
-  if (stored?.length && stored.map((item) => item.word).join(' ') === tokens.join(' ')) return stored;
-  return estimateWordCues(text, durationMs);
+  const window = speechWindowFromPeaks(peaks, durationMs);
+  const storedOk =
+    Boolean(stored?.length) && stored!.map((item) => item.word).join(' ') === tokens.join(' ');
+  const guessed = storedOk && stored![0].startMs < 80 && stored!.every((item) => !item.cued);
+  const words = storedOk && !guessed ? stored! : estimateWordCues(text, durationMs, window);
+  return alignWordCues(words, durationMs, peaks);
 }
 
 export function cuesFromSegments(
@@ -133,8 +256,9 @@ export function replaceWordAt(words: WordCue[], index: number, word: string): Wo
 
 export function activeWordIndex(words: WordCue[], positionMs: number): number {
   if (!words.length) return -1;
+  if (positionMs < words[0].startMs) return -1;
   for (let i = words.length - 1; i >= 0; i--) {
     if (positionMs >= words[i].startMs) return i;
   }
-  return 0;
+  return -1;
 }

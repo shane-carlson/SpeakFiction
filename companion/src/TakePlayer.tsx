@@ -2,10 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { TrashIcon } from './MicIcon';
+import { transcribeAudioFile } from './onDeviceStt';
 import { applyVocab, correctionsFromEdit, type TaughtPair } from './speechVocab';
 import type { ThemeColors } from './theme';
 import type { LibraryTake } from './takeLibrary';
-import { activeWordIndex, peaksForTake, replaceWordAt, textFromWords, wordsForTake, type WordCue } from './wordCues';
+import {
+  activeWordIndex,
+  peaksForTake,
+  replaceWordAt,
+  syncWordTimings,
+  textFromWords,
+  timingsLookUntrusted,
+  wordsForTake,
+  type WordCue,
+} from './wordCues';
 
 const SKIP_MS = 10_000;
 const WAVE_BARS = 72;
@@ -54,16 +64,18 @@ export function TakePlayer({
   const soundGen = useRef(0);
   const startedPlay = useRef(false);
   const seeking = useRef(false);
+  const retunedFor = useRef<string | null>(null);
+  const [tunedWords, setTunedWords] = useState<WordCue[] | null>(null);
   const [playing, setPlaying] = useState(false);
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(take.durationMs);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [editingAll, setEditingAll] = useState(() => !take.text.trim());
+  const [editingAll, setEditingAll] = useState(() => !take.recordOnly && !take.text.trim());
   const [textDraft, setTextDraft] = useState(take.text);
   const words = useMemo(
-    () => wordsForTake(take.text, durationMs || take.durationMs, take.words),
-    [take.text, take.words, durationMs, take.durationMs],
+    () => tunedWords ?? wordsForTake(take.text, durationMs || take.durationMs, take.words, take.peaks),
+    [tunedWords, take.text, take.words, take.peaks, durationMs, take.durationMs],
   );
   const peaks = useMemo(() => peaksForTake(take.id, take.peaks), [take.id, take.peaks]);
   const spoken = activeWordIndex(words, positionMs);
@@ -78,6 +90,29 @@ export function TakePlayer({
   }, []);
 
   useEffect(() => {
+    if (take.recordOnly || !take.audioUri || !take.text.trim()) return;
+    if (retunedFor.current === take.id) return;
+    const span = durationMs || take.durationMs;
+    const current = wordsForTake(take.text, span, take.words, take.peaks);
+    if (!timingsLookUntrusted(current, span)) {
+      retunedFor.current = take.id;
+      return;
+    }
+    let cancelled = false;
+    void transcribeAudioFile(take.audioUri, { durationMs: span }).then((heard) => {
+      if (cancelled) return;
+      retunedFor.current = take.id;
+      const next = syncWordTimings(current, heard.words, span, take.peaks);
+      if (!next.length) return;
+      setTunedWords(next);
+      onChangeWords?.(next, take.text);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [take.id, take.audioUri, take.recordOnly, take.text, durationMs, take.durationMs]);
+
+  useEffect(() => {
     soundGen.current += 1;
     startedPlay.current = false;
     void soundRef.current?.unloadAsync();
@@ -86,7 +121,9 @@ export function TakePlayer({
     setPositionMs(0);
     setDurationMs(take.durationMs);
     setEditIndex(null);
-    setEditingAll(!take.text.trim());
+    setTunedWords(null);
+    retunedFor.current = null;
+    setEditingAll(!take.recordOnly && !take.text.trim());
     setTextDraft(take.text);
   }, [take.id, take.audioUri, take.durationMs]);
 
@@ -234,7 +271,7 @@ export function TakePlayer({
         .filter((pair) => pair.heard.trim() && pair.heard.toLowerCase() !== pair.word.toLowerCase())
         .map((pair) => ({ word: pair.word, heard: pair.heard })),
     );
-    nextWords = wordsForTake(nextText, durationMs || take.durationMs, nextWords);
+    nextWords = wordsForTake(nextText, durationMs || take.durationMs, nextWords, take.peaks);
     onTeachPairs?.(
       pairs.map((pair) => ({
         ...pair,
@@ -254,7 +291,7 @@ export function TakePlayer({
       setEditingAll(!nextText.trim());
       return;
     }
-    const nextWords = wordsForTake(nextText, durationMs || take.durationMs, take.words);
+    const nextWords = wordsForTake(nextText, durationMs || take.durationMs, take.words, take.peaks);
     onChangeWords?.(nextWords, nextText);
     const pairs = correctionsFromEdit(previous, nextText);
     if (pairs.length) onTeachPairs?.(pairs);
@@ -306,8 +343,8 @@ export function TakePlayer({
         <ScrollView style={playerStyles.transcript}>
           <Text style={{ color: colors.text, fontSize: 16, lineHeight: 28 }}>
             {words.map((cue, index) => {
-              const current = index === spoken && (playing || positionMs > 0);
-              const upcoming = index > spoken;
+              const current = spoken >= 0 && index === spoken && (playing || positionMs > 0);
+              const upcoming = spoken < 0 || index > spoken;
               const taught = cue.cued === true || taughtWords?.has(cue.word.toLowerCase());
               return (
                 <Text
@@ -334,9 +371,7 @@ export function TakePlayer({
         </ScrollView>
       ) : (
         <Text style={{ color: colors.textFaint, fontSize: 14, lineHeight: 20 }}>
-          {take.recordOnly
-            ? 'No transcript on this take yet. Edit it here, or send it so the computer can transcribe.'
-            : 'No transcript on this take. Edit it here to add one.'}
+          No transcript on this take. Edit it here to add one.
         </Text>
       )}
       {editIndex != null && !editingAll ? (
@@ -407,11 +442,13 @@ export function TakePlayer({
     </View>
   );
 
+  const showTranscript = !take.recordOnly;
+
   if (!take.audioUri) {
     return (
       <View style={playerStyles.wrap}>
         {syncRow}
-        {transcriptBox}
+        {showTranscript ? transcriptBox : null}
       </View>
     );
   }
@@ -473,7 +510,7 @@ export function TakePlayer({
         </Pressable>
       </View>
 
-      {transcriptBox}
+      {showTranscript ? transcriptBox : null}
     </View>
   );
 }

@@ -181,6 +181,24 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.26 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.26')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.26',
+      build: 43,
+      pending: {
+        version: '0.2.26',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.26'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Voice-only phone takes appear in Voice notes as audio you can play',
+      'Import audio on that take transcribes it on this computer',
+    ]);
+  });
+
   it('uses curated 0.2.25 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.25')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

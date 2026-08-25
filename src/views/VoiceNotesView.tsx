@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Book } from '../core/types';
 import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
@@ -9,7 +9,7 @@ import {
   isAudioImportName,
   mimeForAudioImport,
 } from '../core/audioImport';
-import { createVoiceNoteId, noteNeedsDesktopTranscription, type VoiceNote } from '../core/voiceNotes';
+import { createVoiceNoteId, noteNeedsDesktopTranscription, REMOTE_VOICE_TAKE_PLACEHOLDER, type VoiceNote } from '../core/voiceNotes';
 import { transcribeImportedAudioFile } from '../core/transcribeAudioImport';
 import { openBytesFile, openTextFile } from '../core/localFiles';
 import { useStore } from '../store';
@@ -50,6 +50,7 @@ export function VoiceNotesView({
   const books = useStore((s) => s.books);
 
   const landInBox = async (note: VoiceNote) => {
+    const fromAudio = noteNeedsDesktopTranscription(note) || note.source === 'file';
     const target =
       books.find((item) => item.id === note.bookId) ??
       books.find((item) => note.bookHint && item.title === note.bookHint) ??
@@ -86,7 +87,11 @@ export function VoiceNotesView({
       return;
     }
     await inbox.setStatus(note.id, 'imported', { text });
-    report('Added to the transcription box. The audio stays on this computer until you delete the take.');
+    report(
+      fromAudio
+        ? 'Imported into the transcription box. The audio stays on this computer until you delete the take.'
+        : 'Added to the transcription box. The audio stays on this computer until you delete the take.',
+    );
     onOpenDictate();
   };
 
@@ -203,8 +208,8 @@ export function VoiceNotesView({
           <h2>Voice notes</h2>
           <p>
             The phone hears the take. Your computer shapes the book. Synced audio stays on this
-            computer until you delete the take here or on the phone. Record-only takes are
-            transcribed here and land in the transcription box first.
+            computer until you delete the take here or on the phone. Voice-only takes appear here as
+            audio; import them to transcribe.
           </p>
         </div>
         <div className="book-pill">
@@ -279,9 +284,9 @@ export function VoiceNotesView({
       <div className="card voice-notes-inbox">
         <h3>Inbox</h3>
         <p className="sub">
-          Add a note to the transcription box to run names, cues, and genre punctuation. Synced
-          audio stays here until you delete the take. Insert into the manuscript stays a separate
-          step.
+          Add a transcribed note to the transcription box to run names, cues, and genre punctuation.
+          Voice-only takes play here first — import the audio to transcribe. Insert into the
+          manuscript stays a separate step.
         </p>
         {inboxNotes.length === 0 ? (
           <p className="hint">No waiting notes. Import a file or send a take from the phone.</p>
@@ -291,7 +296,8 @@ export function VoiceNotesView({
               <VoiceNoteRow
                 key={note.id}
                 note={note}
-                onAdd={importing ? undefined : () => void landInBox(note)}
+                onAdd={importing || noteNeedsDesktopTranscription(note) ? undefined : () => void landInBox(note)}
+                onImportAudio={importing || !noteNeedsDesktopTranscription(note) ? undefined : () => void landInBox(note)}
                 onDelete={() => void removeNote(note)}
               />
             ))}
@@ -312,18 +318,48 @@ export function VoiceNotesView({
   );
 }
 
+function InboxAudioPlayer({ noteId }: { noteId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [message, setMessage] = useState('Loading audio…');
+
+  useEffect(() => {
+    let blobUrl: string | undefined;
+    let cancelled = false;
+    void window.speakfiction?.notes?.readAudio(noteId).then((audio) => {
+      if (cancelled) return;
+      if (!audio?.ok || !audio.bytes?.length) {
+        setMessage(audio?.message || 'This take has no audio on this computer. Send it again from the phone.');
+        return;
+      }
+      const blob = new Blob([new Uint8Array(audio.bytes)], { type: audio.mime || 'audio/mp4' });
+      blobUrl = URL.createObjectURL(blob);
+      setUrl(blobUrl);
+    });
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [noteId]);
+
+  if (!url) return <p className="hint">{message}</p>;
+  return <audio className="voice-note-audio" controls preload="metadata" src={url} />;
+}
+
 function VoiceNoteRow({
   note,
   onAdd,
+  onImportAudio,
   onDelete,
 }: {
   note: VoiceNote;
   onAdd?: () => void;
+  onImportAudio?: () => void;
   onDelete?: () => void;
 }) {
   const when = new Date(note.createdAt);
   const stamp = Number.isNaN(when.getTime()) ? note.createdAt : when.toLocaleString();
   const seconds = note.durationMs > 0 ? `${Math.max(1, Math.round(note.durationMs / 1000))}s` : null;
+  const voiceOnly = noteNeedsDesktopTranscription(note);
   return (
     <li className="voice-note-row">
       <div>
@@ -335,12 +371,25 @@ function VoiceNoteRow({
           {note.fileName ? <span>· {note.fileName}</span> : null}
           {note.bookHint ? <span>· {note.bookHint}</span> : null}
           {note.hasAudio ? <span>· audio on this computer</span> : null}
+          {voiceOnly ? <span>· voice only</span> : null}
           <span className="badge">{note.status}</span>
         </div>
-        <p className="voice-note-text">{note.text || '(empty take)'}</p>
+        {voiceOnly ? (
+          <>
+            <p className="voice-note-text">{REMOTE_VOICE_TAKE_PLACEHOLDER}</p>
+            {note.hasAudio ? <InboxAudioPlayer noteId={note.id} /> : null}
+          </>
+        ) : (
+          <p className="voice-note-text">{note.text || '(empty take)'}</p>
+        )}
       </div>
-      {onAdd || onDelete ? (
+      {onAdd || onImportAudio || onDelete ? (
         <div className="row wrap">
+          {onImportAudio ? (
+            <button type="button" className="btn primary" onClick={onImportAudio}>
+              Import audio
+            </button>
+          ) : null}
           {onAdd ? (
             <button type="button" className="btn primary" onClick={onAdd}>
               Add to transcription box

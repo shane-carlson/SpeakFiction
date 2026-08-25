@@ -1,4 +1,4 @@
-import { cuesFromSegments, type WordCue } from './wordCues';
+import { cuesFromSegments, normalizeCueUnits, type WordCue } from './wordCues';
 import { applyVocab } from './speechVocab';
 
 type SpeechModule = {
@@ -22,6 +22,7 @@ type SpeechModule = {
 export type TranscribeOpts = {
   contextualStrings?: string[];
   replacements?: Array<{ heard: string; word: string }>;
+  durationMs?: number;
 };
 
 async function loadSpeech(): Promise<SpeechModule | null> {
@@ -65,7 +66,10 @@ export async function transcribeAudioFile(
       resultSub?.remove();
       endSub?.remove();
       errSub?.remove();
-      resolve({ text: applyReplacements(text, opts), words });
+      resolve({
+        text: applyReplacements(text, opts),
+        words: normalizeCueUnits(words, opts?.durationMs || 0),
+      });
     };
 
     const resultSub = speech.addListener?.('result', (event) => {

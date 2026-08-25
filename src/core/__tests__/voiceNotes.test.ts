@@ -70,6 +70,16 @@ describe('voice notes identity and crypto', () => {
     expect(noteNeedsDesktopTranscription({ text: REMOTE_VOICE_TAKE_PLACEHOLDER, hasAudio: true, source: 'phone' })).toBe(
       true,
     );
+    expect(
+      noteNeedsDesktopTranscription({
+        text: 'Voice take. Transcribe on the computer.',
+        hasAudio: true,
+        source: 'phone',
+      }),
+    ).toBe(true);
+    expect(noteNeedsDesktopTranscription({ text: 'the wind howled', hasAudio: true, source: 'phone', recordOnly: true })).toBe(
+      true,
+    );
     expect(noteNeedsDesktopTranscription({ text: 'the wind howled', hasAudio: true, source: 'phone' })).toBe(false);
     expect(noteNeedsDesktopTranscription({ text: 'the wind howled', hasAudio: false, source: 'phone' })).toBe(false);
   });

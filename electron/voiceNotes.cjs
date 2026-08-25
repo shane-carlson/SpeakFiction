@@ -107,6 +107,7 @@ async function decryptPayload(key, envelope) {
       ? parsed.aliases.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
       : [],
     category: typeof parsed.category === 'string' ? parsed.category : undefined,
+    recordOnly: parsed.recordOnly === true,
     audio:
       parsed.audio && typeof parsed.audio === 'object' && typeof parsed.audio.data === 'string' && parsed.audio.data
         ? {
@@ -313,6 +314,10 @@ async function refreshRemote() {
       source: row.source || 'phone',
       fileName: row.fileName,
       hasAudio: Boolean(row.hasAudio || opened.audio?.data || noteAudioExists(row.id)),
+      recordOnly:
+        opened.recordOnly === true ||
+        opened.text === 'Voice only take. Import to transcribe.' ||
+        opened.text === 'Voice take. Transcribe on the computer.',
     });
   }
   for (const id of deletedIds) removeNoteAudio(id);

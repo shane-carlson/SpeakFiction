@@ -38,6 +38,7 @@ export type CompanionPayload = {
   canonical?: string;
   aliases: string[];
   category?: NameCategory;
+  recordOnly?: boolean;
 };
 
 export function catalogFromBooks(
@@ -187,6 +188,7 @@ export function parseCompanionPayload(raw: unknown): CompanionPayload {
     canonical,
     aliases: parseAliases(rec.aliases),
     category,
+    ...(rec.recordOnly === true ? { recordOnly: true } : {}),
   };
 }
 

@@ -2252,6 +2252,11 @@ label {
   white-space: pre-wrap;
   max-width: 52rem;
 }
+.voice-note-audio {
+  display: block;
+  width: min(100%, 28rem);
+  margin-top: 8px;
+}
 
 .handoff-panel {
   border-top: 1px solid var(--border);

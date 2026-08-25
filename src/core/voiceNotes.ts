@@ -27,6 +27,7 @@ export interface VoiceNote {
   source: VoiceNoteSource;
   fileName?: string;
   hasAudio?: boolean;
+  recordOnly?: boolean;
 }
 
 export interface VoiceNoteCipherEnvelope {
@@ -53,14 +54,19 @@ export function createVoiceNoteId(): string {
   return `vn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export const REMOTE_VOICE_TAKE_PLACEHOLDER = 'Voice take. Transcribe on the computer.';
+export const REMOTE_VOICE_TAKE_PLACEHOLDER = 'Voice only take. Import to transcribe.';
+export const LEGACY_REMOTE_VOICE_TAKE_PLACEHOLDER = 'Voice take. Transcribe on the computer.';
 
 export function isRemoteVoiceTakePlaceholder(text: string | undefined): boolean {
-  return (text || '').trim() === REMOTE_VOICE_TAKE_PLACEHOLDER;
+  const value = (text || '').trim();
+  return value === REMOTE_VOICE_TAKE_PLACEHOLDER || value === LEGACY_REMOTE_VOICE_TAKE_PLACEHOLDER;
 }
 
-export function noteNeedsDesktopTranscription(note: Pick<VoiceNote, 'text' | 'hasAudio' | 'source'>): boolean {
+export function noteNeedsDesktopTranscription(
+  note: Pick<VoiceNote, 'text' | 'hasAudio' | 'source'> & { recordOnly?: boolean },
+): boolean {
   if (note.source === 'file') return false;
+  if (note.recordOnly) return Boolean(note.hasAudio);
   return isRemoteVoiceTakePlaceholder(note.text) || (Boolean(note.hasAudio) && !(note.text || '').trim());
 }
 

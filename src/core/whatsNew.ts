@@ -155,6 +155,10 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.26': bullets(
+    'Voice-only phone takes appear in Voice notes as audio you can play',
+    'Import audio on that take transcribes it on this computer',
+  ),
   '0.2.25': bullets(
     'Names you correct on the phone companion are added to this book’s name library',
     'The misheard spelling is stored as an alias, so later dictation can fix it',

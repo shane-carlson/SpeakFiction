@@ -74,7 +74,7 @@ import {
   upsertTake,
   type LibraryTake,
 } from './src/takeLibrary';
-import { downsamplePeaks, estimateWordCues, type WordCue } from './src/wordCues';
+import { downsamplePeaks, wordsForTake, type WordCue } from './src/wordCues';
 
 const logo = require('./assets/speakfiction-logo.png');
 const KEY_STORE = 'sf-companion-license';
@@ -501,12 +501,19 @@ export default function App() {
       heard = await transcribeAudioFile(stored, {
         contextualStrings: contextualStrings(taught),
         replacements: taught.map((item) => ({ heard: item.heard || item.word, word: item.word })),
+        durationMs: duration,
       });
     }
     const text = applyVocab(heard.text, taught);
     if (text) setDraft(text);
     const createdAt = takeAtRef.current;
-    const words = applyVocabToWords(heard.words.length ? heard.words : estimateWordCues(text, duration), taught);
+    const peaks = downsamplePeaks(peaksRef.current);
+    const words = wordsForTake(
+      text,
+      duration,
+      heard.words.length ? applyVocabToWords(heard.words, taught) : undefined,
+      peaks,
+    );
     const take: LibraryTake = {
       id: takeId,
       title: defaultTakeTitle(createdAt),
@@ -518,7 +525,7 @@ export default function App() {
       bookTitle,
       recordOnly: !transcribeRef.current,
       words,
-      peaks: downsamplePeaks(peaksRef.current),
+      peaks,
     };
     setCurrentTakeId(takeId);
     setTakes((prev) => {
@@ -527,8 +534,8 @@ export default function App() {
     });
     setStatus(
       transcribeRef.current
-        ? 'Audio and transcript are linked in Library. Check the text, then send.'
-        : 'Take kept in Library. Send it so the computer can transcribe, or open Library to play it.',
+        ? 'Audio and transcript are in Library. Open Library to check the text or send it.'
+        : 'Take kept in Library. Open Library to send it so the computer can transcribe, or to play it.',
     );
     micBusy.current = false;
   };
@@ -634,6 +641,7 @@ export default function App() {
       title: take?.title,
       bookId: selected?.id,
       bookHint: selected?.title || opts.bookTitle || undefined,
+      recordOnly: opts.recordOnly,
     };
     setStatus(audio ? 'Sending the take and audio…' : 'Sending…');
     let attached = Boolean(audio);
@@ -667,7 +675,7 @@ export default function App() {
     setStatus(
       attached
         ? opts.recordOnly
-          ? 'Sent. The computer will transcribe this take and keep the audio until you delete it.'
+          ? 'Sent. Import the audio in Voice notes to transcribe it.'
           : 'Sent. Audio is saved on the computer until you delete this take here or in the desktop inbox.'
         : audio
           ? 'Sent as text. The notes host could not store this audio file yet.'
@@ -675,34 +683,8 @@ export default function App() {
     );
   };
 
-  const send = async () => {
-    const recordOnly = !transcribeOnPhone;
-    const text = draft.trim() || (recordOnly ? 'Voice take. Transcribe on the computer.' : '');
-    if (!text || syncing) return;
-    setSyncing(true);
-    try {
-      await sendNote({
-        text,
-        durationMs: elapsedMs || (startedAt.current ? Date.now() - startedAt.current : 0),
-        bookId,
-        bookTitle,
-        recordOnly,
-        takeId: currentTakeId,
-      });
-      setDraft('');
-      setElapsedMs(0);
-      accumulatedMs.current = 0;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not send that note.';
-      setStatus(message);
-      Alert.alert('Could not sync', message);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const sendTake = async (take: LibraryTake) => {
-    const text = take.text.trim() || (take.recordOnly ? 'Voice take. Transcribe on the computer.' : '');
+    const text = take.text.trim() || (take.recordOnly ? 'Voice only take. Import to transcribe.' : '');
     if (!text) {
       Alert.alert('Nothing to send', 'This take has no transcript yet. Record it again, or use Record only and send the audio.');
       return;
@@ -734,7 +716,7 @@ export default function App() {
     setStatus(`Sending ${pending.length} take${pending.length === 1 ? '' : 's'}…`);
     try {
       for (const take of pending) {
-        const text = take.text.trim() || (take.recordOnly ? 'Voice take. Transcribe on the computer.' : '');
+        const text = take.text.trim() || (take.recordOnly ? 'Voice only take. Import to transcribe.' : '');
         if (!text) continue;
         await sendNote({
           text,
@@ -1016,28 +998,26 @@ export default function App() {
 
         <View style={styles.dock}>
           {transcribeOnPhone ? (
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              multiline
-              style={styles.area}
-              placeholder="On-device text lands here."
-              placeholderTextColor={colors.textFaint}
-            />
+            <>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                multiline
+                style={styles.area}
+                placeholder="On-device text lands here."
+                placeholderTextColor={colors.textFaint}
+              />
+              {draft.trim() || currentTakeId ? (
+                <Text style={styles.toggleHint}>Open Library to send this take to the desktop inbox.</Text>
+              ) : null}
+            </>
           ) : (
             <Text style={styles.lead}>
               {elapsedMs > 0 && !recording
-                ? `${formatClock(elapsedMs)} take is in Library. Send it, or open Library to play, share, or save a copy.`
-                : 'Record a take. It stays in Library. Send it so the computer can transcribe.'}
+                ? `${formatClock(elapsedMs)} take is in Library. Open Library to play, send, share, or save a copy.`
+                : 'Record a take. It stays in Library. Open Library to send it so the computer can transcribe.'}
             </Text>
           )}
-          <Pressable
-            style={[styles.btnPrimary, (syncing || (!draft.trim() && transcribeOnPhone)) && styles.btnDisabled]}
-            onPress={() => void send()}
-            disabled={syncing || (transcribeOnPhone && !draft.trim())}
-          >
-            <Text style={styles.btnPrimaryText}>{syncing ? 'Sending…' : 'Send to desktop inbox'}</Text>
-          </Pressable>
           {keyLocked ? null : (
             <Pressable style={styles.btn} onPress={openLink}>
               <Text style={styles.btnText}>Scan or paste key</Text>
