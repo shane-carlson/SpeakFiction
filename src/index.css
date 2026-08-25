@@ -2162,6 +2162,23 @@ label {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
+.audio-import-progress {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.audio-import-progress__label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.audio-import-progress .progress > span {
+  transition: width 220ms ease;
+}
+.audio-import-progress--row {
+  margin-top: 10px;
+  max-width: 28rem;
+}
+
 .note-banner.warn {
   border-color: rgba(248, 113, 113, 0.35);
   background: rgba(248, 113, 113, 0.08);

@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.27': bullets(
+    'Import audio shows a progress bar while the take is decoded and transcribed',
+    'Long takes name each part with clock times, so you can see how far the file has gotten',
+    'The same status appears when you import a voice-only phone take from the inbox',
+  ),
   '0.2.26': bullets(
     'Voice-only phone takes appear in Voice notes as audio you can play',
     'Import audio on that take transcribes it on this computer',

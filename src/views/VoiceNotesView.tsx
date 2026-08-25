@@ -10,7 +10,7 @@ import {
   mimeForAudioImport,
 } from '../core/audioImport';
 import { createVoiceNoteId, noteNeedsDesktopTranscription, REMOTE_VOICE_TAKE_PLACEHOLDER, type VoiceNote } from '../core/voiceNotes';
-import { transcribeImportedAudioFile } from '../core/transcribeAudioImport';
+import { transcribeImportedAudioFile, type AudioImportProgress } from '../core/transcribeAudioImport';
 import { openBytesFile, openTextFile } from '../core/localFiles';
 import { useStore } from '../store';
 import { useVoiceNotes } from '../hooks/useVoiceNotes';
@@ -36,6 +36,8 @@ export function VoiceNotesView({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<AudioImportProgress | null>(null);
+  const [importingNoteId, setImportingNoteId] = useState<string | null>(null);
 
   const report = (message: string) => {
     setError(null);
@@ -45,6 +47,8 @@ export function VoiceNotesView({
   const fail = (message: string) => {
     setStatus(null);
     setError(message);
+    setImportProgress(null);
+    setImportingNoteId(null);
   };
 
   const books = useStore((s) => s.books);
@@ -56,43 +60,52 @@ export function VoiceNotesView({
       books.find((item) => note.bookHint && item.title === note.bookHint) ??
       book;
     let text = note.text;
-    if (noteNeedsDesktopTranscription(note)) {
-      const audio = await window.speakfiction?.notes?.readAudio(note.id);
-      if (!audio?.ok || !audio.bytes?.length) {
-        fail(audio?.message || 'This take has no audio on this computer. Send it again from the phone.');
-        return;
-      }
-      setImporting(true);
-      report('Transcribing this take on the computer…');
-      try {
+    try {
+      if (noteNeedsDesktopTranscription(note)) {
+        setImporting(true);
+        setImportingNoteId(note.id);
+        setImportProgress({ fraction: 0.04, label: 'Reading the take from this computer…' });
+        const audio = await window.speakfiction?.notes?.readAudio(note.id);
+        if (!audio?.ok || !audio.bytes?.length) {
+          fail(audio?.message || 'This take has no audio on this computer. Send it again from the phone.');
+          return;
+        }
+        report('Transcribing this take on the computer…');
         const heard = await transcribeImportedAudioFile(
           new Uint8Array(audio.bytes),
           audio.mime || 'audio/mp4',
+          setImportProgress,
         );
         text = heard.text;
         if (!text) {
           fail('The on-device model did not hear words in that file.');
           return;
         }
-      } catch (err) {
-        fail(err instanceof Error ? err.message : 'Could not transcribe that take.');
+      }
+      if (fromAudio) {
+        setImportProgress({ fraction: 0.97, label: 'Adding names and structure cues…' });
+      }
+      const result = importToBox(target.id, text);
+      if (!result.added && !result.cleaned) {
+        fail('Nothing to add. The take was empty after cleanup.');
         return;
-      } finally {
+      }
+      await inbox.setStatus(note.id, 'imported', { text });
+      setImportProgress(null);
+      report(
+        fromAudio
+          ? 'Imported into the transcription box. The audio stays on this computer until you delete the take.'
+          : 'Added to the transcription box. The audio stays on this computer until you delete the take.',
+      );
+      onOpenDictate();
+    } catch (err) {
+      fail(err instanceof Error ? err.message : 'Could not import that take.');
+    } finally {
+      if (noteNeedsDesktopTranscription(note)) {
         setImporting(false);
+        setImportingNoteId(null);
       }
     }
-    const result = importToBox(target.id, text);
-    if (!result.added && !result.cleaned) {
-      fail('Nothing to add. The take was empty after cleanup.');
-      return;
-    }
-    await inbox.setStatus(note.id, 'imported', { text });
-    report(
-      fromAudio
-        ? 'Imported into the transcription box. The audio stays on this computer until you delete the take.'
-        : 'Added to the transcription box. The audio stays on this computer until you delete the take.',
-    );
-    onOpenDictate();
   };
 
   const removeNote = async (note: VoiceNote) => {
@@ -120,25 +133,23 @@ export function VoiceNotesView({
 
   const importAudio = async () => {
     if (!license.mayDictate) return;
-    setImporting(true);
     setError(null);
-    setStatus('Decoding audio on this computer…');
+    const res = await openBytesFile({
+      filters: AUDIO_IMPORT_FILTERS,
+      accept: AUDIO_IMPORT_ACCEPT,
+    });
+    if (!res.ok || !res.bytes) return;
+    if (res.path && !isAudioImportName(res.path)) {
+      fail('Choose a WAV, M4A, MP3, AAC, OGG, FLAC, CAF, or similar audio file.');
+      return;
+    }
+    setImporting(true);
+    setImportProgress({ fraction: 0.03, label: 'Reading the audio file…' });
     try {
-      const res = await openBytesFile({
-        filters: AUDIO_IMPORT_FILTERS,
-        accept: AUDIO_IMPORT_ACCEPT,
-      });
-      if (!res.ok || !res.bytes) {
-        setStatus(null);
-        return;
-      }
-      if (res.path && !isAudioImportName(res.path)) {
-        fail('Choose a WAV, M4A, MP3, AAC, OGG, FLAC, CAF, or similar audio file.');
-        return;
-      }
       const { text, durationMs } = await transcribeImportedAudioFile(
         res.bytes,
         res.mime || mimeForAudioImport(res.path),
+        setImportProgress,
       );
       if (!text) {
         fail('The on-device model did not hear words in that file.');
@@ -157,6 +168,7 @@ export function VoiceNotesView({
       fail(err instanceof Error ? err.message : 'Could not import that audio file.');
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -263,6 +275,7 @@ export function VoiceNotesView({
               {inbox.busy ? 'Refreshing…' : 'Refresh inbox'}
             </button>
           </div>
+          {importProgress && !importingNoteId ? <AudioImportProgressBar progress={importProgress} /> : null}
           <label style={{ display: 'block', marginTop: 14 }}>
             Paste a transcript
             <textarea
@@ -296,9 +309,14 @@ export function VoiceNotesView({
               <VoiceNoteRow
                 key={note.id}
                 note={note}
+                progress={importingNoteId === note.id ? importProgress : null}
                 onAdd={importing || noteNeedsDesktopTranscription(note) ? undefined : () => void landInBox(note)}
-                onImportAudio={importing || !noteNeedsDesktopTranscription(note) ? undefined : () => void landInBox(note)}
-                onDelete={() => void removeNote(note)}
+                onImportAudio={
+                  !noteNeedsDesktopTranscription(note) || (importing && importingNoteId !== note.id)
+                    ? undefined
+                    : () => void landInBox(note)
+                }
+                onDelete={importingNoteId === note.id ? undefined : () => void removeNote(note)}
               />
             ))}
           </ul>
@@ -315,6 +333,27 @@ export function VoiceNotesView({
         )}
       </div>
     </>
+  );
+}
+
+function AudioImportProgressBar({ progress, compact }: { progress: AudioImportProgress; compact?: boolean }) {
+  const percent = Math.round(Math.min(100, Math.max(0, progress.fraction * 100)));
+  return (
+    <div className={`audio-import-progress${compact ? ' audio-import-progress--row' : ''}`}>
+      <div className="audio-import-progress__label" aria-live="polite">
+        {progress.label} {percent}%
+      </div>
+      <div
+        className="progress"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={progress.label}
+      >
+        <span style={{ width: `${Math.max(4, percent)}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -347,11 +386,13 @@ function InboxAudioPlayer({ noteId }: { noteId: string }) {
 
 function VoiceNoteRow({
   note,
+  progress,
   onAdd,
   onImportAudio,
   onDelete,
 }: {
   note: VoiceNote;
+  progress?: AudioImportProgress | null;
   onAdd?: () => void;
   onImportAudio?: () => void;
   onDelete?: () => void;
@@ -378,6 +419,7 @@ function VoiceNoteRow({
           <>
             <p className="voice-note-text">{REMOTE_VOICE_TAKE_PLACEHOLDER}</p>
             {note.hasAudio ? <InboxAudioPlayer noteId={note.id} /> : null}
+            {progress ? <AudioImportProgressBar progress={progress} compact /> : null}
           </>
         ) : (
           <p className="voice-note-text">{note.text || '(empty take)'}</p>
@@ -386,8 +428,8 @@ function VoiceNoteRow({
       {onAdd || onImportAudio || onDelete ? (
         <div className="row wrap">
           {onImportAudio ? (
-            <button type="button" className="btn primary" onClick={onImportAudio}>
-              Import audio
+            <button type="button" className="btn primary" disabled={Boolean(progress)} onClick={onImportAudio}>
+              {progress ? 'Transcribing…' : 'Import audio'}
             </button>
           ) : null}
           {onAdd ? (

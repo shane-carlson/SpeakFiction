@@ -181,6 +181,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.27 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.27')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.27',
+      build: 44,
+      pending: {
+        version: '0.2.27',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.27'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Import audio shows a progress bar while the take is decoded and transcribed',
+      'Long takes name each part with clock times, so you can see how far the file has gotten',
+      'The same status appears when you import a voice-only phone take from the inbox',
+    ]);
+  });
+
   it('uses curated 0.2.26 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.26')).toBe(true);
     const resolved = await resolveWhatsNewNotes({
