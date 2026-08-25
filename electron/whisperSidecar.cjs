@@ -5,7 +5,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { modelsDir, cliPath, serverPath, modelPath, getProfile, nativeCliReady, modelReady } = require('./hardware.cjs');
+const { usesGpuRuntime } = require('./paths.cjs');
 const { ensureGgmlModel, ensureModelsDir, cacheMatch, cachePut } = require('./modelCache.cjs');
+const { ensureCudaCli } = require('./cudaSidecar.cjs');
+const { blockCuda } = require('./nvidia.cjs');
 
 const LITERARY_PROMPT =
   'Literary fiction narration in clear English prose. Complete sentences. No timestamps.';
@@ -66,16 +69,16 @@ function samplesFromPayload(payload) {
   return new Float32Array(0);
 }
 
-function binDir() {
-  return path.dirname(cliPath());
+function binDir(profile) {
+  return path.dirname(cliPath(profile?.runtime));
 }
 
 function isEnglishOnlyModel(modelId) {
   return /\.en(?:\.bin)?$/i.test(String(modelId || ''));
 }
 
-function spawnOpts() {
-  const lib = binDir();
+function spawnOpts(profile) {
+  const lib = binDir(profile);
   const env = { ...process.env };
   if (process.platform === 'darwin') {
     env.DYLD_LIBRARY_PATH = [lib, process.env.DYLD_LIBRARY_PATH].filter(Boolean).join(':');
@@ -91,9 +94,9 @@ function spawnOpts() {
   };
 }
 
-function runCli(args) {
+function runCli(args, profile) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cliPath(), args, spawnOpts());
+    const child = spawn(cliPath(profile?.runtime), args, spawnOpts(profile));
     let out = '';
     let err = '';
     child.stdout.on('data', (d) => {
@@ -155,7 +158,7 @@ function nativeArgs(profile, wav, prompt) {
     hint,
   ];
   if (!isEnglishOnlyModel(profile.modelId)) args.push('-l', 'en');
-  if (!String(profile.runtime).includes('metal')) args.push('--no-gpu');
+  if (!usesGpuRuntime(profile.runtime)) args.push('--no-gpu');
   return args;
 }
 
@@ -230,8 +233,8 @@ async function ensureServer(profile) {
       String(profile.prompt || LITERARY_PROMPT).slice(0, 400),
     ];
     if (!isEnglishOnlyModel(profile.modelId)) args.push('-l', 'en');
-    if (!String(profile.runtime).includes('metal')) args.push('--no-gpu');
-    serverProc = spawn(serverPath(), args, spawnOpts());
+    if (!usesGpuRuntime(profile.runtime)) args.push('--no-gpu');
+    serverProc = spawn(serverPath(profile.runtime), args, spawnOpts(profile));
     serverProc.on('exit', () => {
       if (serverProc) {
         serverProc = null;
@@ -321,9 +324,20 @@ async function transcribeNative(payload, profile) {
         stopServer();
       }
     }
-    const stdout = await withTimeout(runCli(nativeArgs(profile, wav, payload?.prompt)), 90000, 'whisper-cli');
-    scheduleUnload(profile);
-    return parseTranscript(stdout);
+    try {
+      const stdout = await withTimeout(runCli(nativeArgs(profile, wav, payload?.prompt), profile), 90000, 'whisper-cli');
+      scheduleUnload(profile);
+      return parseTranscript(stdout);
+    } catch (err) {
+      if (!String(profile.runtime || '').includes('cuda')) throw err;
+      console.warn('CUDA whisper failed, using CPU', err);
+      blockCuda();
+      stopServer();
+      const cpu = { ...profile, runtime: 'whisper.cpp' };
+      const stdout = await withTimeout(runCli(nativeArgs(cpu, wav, payload?.prompt), cpu), 90000, 'whisper-cli');
+      scheduleUnload(cpu);
+      return parseTranscript(stdout);
+    }
   } finally {
     try {
       fs.unlinkSync(wav);
@@ -340,9 +354,24 @@ function nativeAvailable() {
 async function ensureStt(onProgress) {
   ensureModelsDir();
   let profile = getProfile();
+  if (profile.runtime === 'whisper.cpp-cuda') {
+    try {
+      const scale = modelReady(profile.modelId) ? 1 : 0.45;
+      await ensureCudaCli((percent) => onProgress?.(Math.round(percent * scale)));
+    } catch (err) {
+      console.warn('CUDA whisper unavailable, using CPU', err);
+      blockCuda();
+      stopServer();
+      profile = getProfile();
+    }
+  }
   if (profile.runtime !== 'wasm') {
     if (!modelReady(profile.modelId)) {
-      await ensureGgmlModel(profile.modelId, onProgress);
+      const offset = profile.runtime === 'whisper.cpp-cuda' ? 45 : 0;
+      const span = 100 - offset;
+      await ensureGgmlModel(profile.modelId, (percent) =>
+        onProgress?.(offset + Math.round((percent * span) / 100)),
+      );
       profile = getProfile();
     }
     if (profile.keepResident) {

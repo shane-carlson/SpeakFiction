@@ -173,7 +173,15 @@ ipcMain.handle('notes:publish-library', (_event, books) => voiceNotes.publishLib
   ipcMain.handle('notes:read-audio', (_event, id) => voiceNotes.readNoteAudio(id));
 
 ipcMain.handle('stt:profile', () => getProfile());
-ipcMain.handle('stt:ensure', () => ensureStt());
+ipcMain.handle('stt:ensure', async (event) => {
+  return ensureStt((percent) => {
+    try {
+      event.sender.send('stt:progress', percent);
+    } catch {
+      /* window gone */
+    }
+  });
+});
 ipcMain.handle('stt:unload', () => {
   require('./whisperSidecar.cjs').stopServer();
   return { ok: true };

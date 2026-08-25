@@ -155,6 +155,10 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.29': bullets(
+    'On a well-equipped Windows PC, dictation uses a larger on-device speech model',
+    'If this computer has a capable NVIDIA graphics card, dictation can run on it',
+  ),
   '0.2.28': bullets(
     'Adding a transcribed phone take from Voice notes runs this computer’s speech model over the audio',
     'Names and punctuation are interpreted here, using this book’s name library',

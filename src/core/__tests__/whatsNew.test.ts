@@ -181,6 +181,24 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.29 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.29')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.29',
+      build: 46,
+      pending: {
+        version: '0.2.29',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.29'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'On a well-equipped Windows PC, dictation uses a larger on-device speech model',
+      'If this computer has a capable NVIDIA graphics card, dictation can run on it',
+    ]);
+  });
+
   it('uses curated 0.2.28 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.28')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

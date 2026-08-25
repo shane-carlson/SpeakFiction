@@ -11,7 +11,7 @@ const hardware = require('../../../electron/hardware.cjs') as {
     metal: boolean;
   };
   pickSttProfile: (
-    hw: { platform: string; arch: string; cores: number; ramGB: number; metal: boolean },
+    hw: { platform: string; arch: string; cores: number; ramGB: number; metal: boolean; nvidiaVramGB?: number },
     hasNativeCli: boolean,
   ) => { runtime: string; modelId: string; label: string; keepResident?: boolean; threads?: number };
   nativeCliReady: () => boolean;
@@ -61,9 +61,22 @@ describe('native hardware helpers', () => {
       { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false },
       true,
     );
-    expect(p.modelId).toBe('ggml-small.en.bin');
+    expect(p.modelId).toBe('ggml-medium.en.bin');
     expect(p.keepResident).toBe(false);
-    expect(p.threads).toBeLessThanOrEqual(2);
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.threads).toBeGreaterThan(2);
+    expect(p.threads).toBeLessThanOrEqual(6);
+  });
+
+  it('picks CUDA large-v3-turbo in the Electron picker when NVIDIA VRAM is high', () => {
+    const p = hardware.pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 32, metal: false, nvidiaVramGB: 8 },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp-cuda');
+    expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
+    expect(p.keepResident).toBe(true);
+    expect(p.label).toMatch(/GPU/);
   });
 
   it('does not pass language or task flags to English-only models', () => {
@@ -78,6 +91,7 @@ describe('native hardware helpers', () => {
     expect(args).not.toContain('-l');
     expect(args).not.toContain('--language');
     expect(args).not.toContain('--task');
+    expect(args).toContain('--no-gpu');
     expect(args).toContain('--no-speech-thold');
     expect(args[args.indexOf('--no-speech-thold') + 1]).toBe('0.75');
     const multi = sidecar.nativeArgs(
@@ -86,6 +100,13 @@ describe('native hardware helpers', () => {
     );
     expect(multi).toContain('-l');
     expect(multi).toContain('en');
+    expect(multi).not.toContain('--no-gpu');
+    const cuda = sidecar.nativeArgs(
+      { modelId: 'ggml-large-v3-turbo.bin', threads: 4, beamSize: 5, runtime: 'whisper.cpp-cuda' },
+      'utt.wav',
+    );
+    expect(cuda).not.toContain('--no-gpu');
+    expect(cuda).toContain('-l');
   });
 
   it('resolves the CLI filename for this host', () => {

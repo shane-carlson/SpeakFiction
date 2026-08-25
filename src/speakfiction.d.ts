@@ -10,6 +10,7 @@ export interface SpeakFictionAudioBridge {
 export interface SpeakFictionSttBridge {
   getProfile: () => Promise<import('./core/sttProfile').SttProfile>;
   ensure: () => Promise<import('./core/sttProfile').SttProfile>;
+  onProgress?: (cb: (percent: number) => void) => () => void;
   transcribe: (
     samples: number[] | Float32Array,
     sampleRate: number,

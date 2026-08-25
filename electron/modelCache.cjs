@@ -75,6 +75,7 @@ async function ensureGgmlModel(filename, onProgress) {
 module.exports = {
   ensureModelsDir,
   ensureGgmlModel,
+  downloadToFile,
   cacheMatch,
   cachePut,
   GGML_MODELS,

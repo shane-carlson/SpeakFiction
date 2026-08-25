@@ -144,6 +144,7 @@ export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfi
   onProgress?.(1);
   const bridge = nativeBridge();
   if (bridge) {
+    const stopProgress = onProgress ? bridge.onProgress?.(onProgress) : undefined;
     try {
       cachedProfile = await bridge.ensure();
       if (cachedProfile.runtime !== 'wasm') {
@@ -153,6 +154,8 @@ export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfi
     } catch (err) {
       cachedProfile = pickSttProfile(hardwareFromNavigator(), false);
       console.warn('Native STT ensure failed, using WASM', err);
+    } finally {
+      stopProgress?.();
     }
   } else {
     cachedProfile = pickSttProfile(hardwareFromNavigator(), false);

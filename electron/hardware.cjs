@@ -2,6 +2,7 @@ const os = require('node:os');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { modelsDir, cliPath, serverPath, modelPath, isUsableModelFile } = require('./paths.cjs');
+const { detectNvidiaVramGB } = require('./nvidia.cjs');
 
 function sysctl(key) {
   try {
@@ -52,8 +53,9 @@ function detectHardware() {
 
   const appleSilicon =
     platform === 'darwin' && (arch === 'arm64' || sysctl('hw.optional.arm64') === '1');
-  // STT Metal is Apple Silicon only. Intel Macs and Windows use CPU whisper.
+  // STT Metal is Apple Silicon only. Windows NVIDIA CUDA is detected separately.
   const metal = platform === 'darwin' && arch === 'arm64';
+  const nvidiaVramGB = platform === 'win32' && arch !== 'arm64' ? detectNvidiaVramGB() : 0;
 
   return {
     platform,
@@ -63,6 +65,7 @@ function detectHardware() {
     ramGB,
     metal,
     appleSilicon: Boolean(appleSilicon && arch === 'arm64'),
+    nvidiaVramGB,
   };
 }
 
@@ -78,9 +81,16 @@ function pickThreadCount(hw) {
   const half = Math.max(1, Math.floor(cores / 2));
   const spare = Math.max(1, cores - 2);
   if (hw.platform === 'win32') {
+    const ramGB = Number(hw.ramGB) || 0;
+    if (ramGB >= 32 && cores >= 8) return Math.min(8, Math.max(4, cores - 2));
+    if (ramGB >= 16 && cores >= 6) return Math.min(6, Math.max(2, Math.min(half, spare)));
     return Math.min(2, Math.max(1, Math.min(half, spare)));
   }
   return Math.min(4, Math.max(1, Math.min(half, spare)));
+}
+
+function usesGpuRuntime(runtime) {
+  return /metal|cuda/i.test(String(runtime || ''));
 }
 
 /** Keep in sync with src/core/sttProfile.ts */
@@ -91,7 +101,7 @@ function pickSttProfile(hw, hasNativeCli) {
   const metal = Boolean(hw.metal) && appleSilicon;
   const threads = pickThreadCount({ ...hw, metal });
   const keepResident =
-    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? false : ramGB >= 16;
+    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? ramGB >= 32 && cores >= 8 : ramGB >= 16;
 
   if (hasNativeCli && ramGB < 8) {
     return {
@@ -119,7 +129,43 @@ function pickSttProfile(hw, hasNativeCli) {
     };
   }
   if (hasNativeCli && !appleSilicon) {
-    const intelMedium = hw.platform === 'win32' ? ramGB >= 24 : ramGB >= 16;
+    const nvidia = Number(hw.nvidiaVramGB) || 0;
+    const winCuda = hw.platform === 'win32' && hw.arch !== 'arm64' && nvidia >= 4;
+    if (winCuda) {
+      const turbo = nvidia >= 6 && ramGB >= 8;
+      const gpuThreads = Math.min(4, Math.max(2, threads));
+      return {
+        hardware: hw,
+        runtime: 'whisper.cpp-cuda',
+        modelId: turbo ? 'ggml-large-v3-turbo.bin' : 'ggml-medium.en.bin',
+        threads: gpuThreads,
+        beamSize: turbo ? 5 : 3,
+        keepResident: ramGB >= 16,
+        idleUnloadMs: ramGB >= 16 ? 0 : 20_000,
+        label: `Using ${turbo ? 'large-v3-turbo' : 'whisper-medium.en'} · GPU · ${gpuThreads} threads`,
+      };
+    }
+    if (hw.platform === 'win32') {
+      const winTurbo = ramGB >= 32 && cores >= 8;
+      const winMedium = ramGB >= 16;
+      const modelId = winTurbo
+        ? 'ggml-large-v3-turbo.bin'
+        : winMedium
+          ? 'ggml-medium.en.bin'
+          : 'ggml-small.en.bin';
+      const name = winTurbo ? 'large-v3-turbo' : winMedium ? 'whisper-medium.en' : 'whisper-small.en';
+      return {
+        hardware: hw,
+        runtime: 'whisper.cpp',
+        modelId,
+        threads,
+        beamSize: winTurbo ? 5 : winMedium ? 3 : 1,
+        keepResident,
+        idleUnloadMs: keepResident ? 0 : 20_000,
+        label: `Using ${name} · CPU · ${threads} threads`,
+      };
+    }
+    const intelMedium = ramGB >= 16;
     return {
       hardware: hw,
       runtime: 'whisper.cpp',
@@ -205,32 +251,7 @@ function nativeCliReady() {
 
 function getProfile() {
   const hw = detectHardware();
-  const hasNativeCli = nativeCliReady();
-  const profile = pickSttProfile(hw, hasNativeCli);
-  if (hasNativeCli && profile.runtime !== 'wasm' && !modelReady(profile.modelId)) {
-    const intel = !isAppleSilicon(hw);
-    const fallbacks = intel
-      ? ['ggml-medium.en.bin', 'ggml-small.en.bin', 'ggml-tiny.en.bin']
-      : ['ggml-large-v3-turbo.bin', 'ggml-medium.en.bin', 'ggml-small.en.bin', 'ggml-tiny.en.bin'];
-    const allowed =
-      profile.modelId === 'ggml-tiny.en.bin'
-        ? ['ggml-tiny.en.bin']
-        : intel && profile.modelId === 'ggml-small.en.bin'
-          ? ['ggml-small.en.bin']
-          : fallbacks;
-    const found = allowed.find((name) => modelReady(name));
-    if (found) {
-      return {
-        ...profile,
-        modelId: found,
-        label: profile.label.replace(/Using \S+/, `Using ${found.replace(/^ggml-/, '').replace(/\.bin$/, '')}`),
-      };
-    }
-    // Keep the native profile so first-run download still happens. Dropping to
-    // WASM here made packaged Apple Silicon apps stick on whisper-small.en.
-    return profile;
-  }
-  return profile;
+  return pickSttProfile(hw, nativeCliReady());
 }
 
 module.exports = {
@@ -238,6 +259,7 @@ module.exports = {
   getProfile,
   pickSttProfile,
   pickThreadCount,
+  usesGpuRuntime,
   modelsDir,
   cliPath,
   serverPath,

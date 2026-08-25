@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('speakfiction', {
   stt: {
     getProfile: () => ipcRenderer.invoke('stt:profile'),
     ensure: () => ipcRenderer.invoke('stt:ensure'),
+    onProgress: (cb) => {
+      const listener = (_event, percent) => cb(percent);
+      ipcRenderer.on('stt:progress', listener);
+      return () => ipcRenderer.removeListener('stt:progress', listener);
+    },
     transcribe: (samples, sampleRate, prompt) =>
       ipcRenderer.invoke('stt:transcribe', { samples, sampleRate, prompt }),
     unload: () => ipcRenderer.invoke('stt:unload'),

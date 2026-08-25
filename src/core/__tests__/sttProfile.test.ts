@@ -1,4 +1,4 @@
-import { cpuArchFromHints, pickSttProfile, pickThreadCount, type HardwareInfo } from '../sttProfile';
+import { cpuArchFromHints, pickSttProfile, pickThreadCount, usesGpuRuntime, type HardwareInfo } from '../sttProfile';
 
 const m1Max: HardwareInfo = {
   platform: 'darwin',
@@ -57,6 +57,12 @@ describe('pickSttProfile', () => {
   it('caps threads so weak machines are not oversubscribed', () => {
     expect(pickThreadCount({ platform: 'linux', arch: 'x64', cores: 2, ramGB: 8, metal: false })).toBe(1);
     expect(pickThreadCount(m1Max)).toBe(8);
+    expect(
+      pickThreadCount({ platform: 'win32', arch: 'x64', cores: 8, ramGB: 8, metal: false }),
+    ).toBeLessThanOrEqual(2);
+    expect(
+      pickThreadCount({ platform: 'win32', arch: 'x64', cores: 16, ramGB: 32, metal: false }),
+    ).toBe(8);
   });
 
   it('uses small.en CPU on an 8GB dual-core Intel Mac, never large or Metal', () => {
@@ -108,16 +114,16 @@ describe('pickSttProfile', () => {
     expect(p.label).not.toMatch(/Metal/);
   });
 
-  it('uses small.en CPU on 16GB Windows so Electron still has RAM for Library', () => {
+  it('uses medium.en CPU on 16GB Windows so a stronger PC is not stuck on small', () => {
     const p = pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false },
       true,
     );
     expect(p.runtime).toBe('whisper.cpp');
-    expect(p.modelId).toBe('ggml-small.en.bin');
+    expect(p.modelId).toBe('ggml-medium.en.bin');
     expect(p.keepResident).toBe(false);
-    expect(p.threads).toBeLessThanOrEqual(2);
-    expect(p.modelId).not.toContain('large');
+    expect(p.threads).toBeGreaterThan(2);
+    expect(p.threads).toBeLessThanOrEqual(6);
     expect(p.label).toMatch(/CPU/);
   });
 
@@ -129,7 +135,20 @@ describe('pickSttProfile', () => {
     expect(p.runtime).toBe('whisper.cpp');
     expect(p.modelId).toBe('ggml-medium.en.bin');
     expect(p.keepResident).toBe(false);
-    expect(p.threads).toBeLessThanOrEqual(2);
+    expect(p.threads).toBeGreaterThan(2);
+    expect(p.threads).toBeLessThanOrEqual(6);
+  });
+
+  it('uses large-v3-turbo CPU on 32GB Windows and keeps the server resident', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 32, metal: false },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
+    expect(p.keepResident).toBe(true);
+    expect(p.threads).toBeGreaterThanOrEqual(4);
+    expect(p.label).toMatch(/CPU/);
   });
 
   it('does not treat Windows ARM as Apple Silicon Metal', () => {
@@ -138,9 +157,52 @@ describe('pickSttProfile', () => {
       true,
     );
     expect(p.runtime).toBe('whisper.cpp');
-    expect(p.modelId).toBe('ggml-medium.en.bin');
+    expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
     expect(p.label).not.toMatch(/Metal/);
+    expect(p.keepResident).toBe(true);
+  });
+
+  it('keeps tiny.en on 4GB Windows even when NVIDIA VRAM is present', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 4, metal: false, nvidiaVramGB: 8 },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.modelId).toBe('ggml-tiny.en.bin');
     expect(p.keepResident).toBe(false);
+  });
+
+  it('uses medium.en on GPU when NVIDIA VRAM is 4GB', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false, nvidiaVramGB: 4 },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp-cuda');
+    expect(p.modelId).toBe('ggml-medium.en.bin');
+    expect(p.keepResident).toBe(true);
+    expect(p.threads).toBeLessThanOrEqual(4);
+    expect(p.label).toMatch(/GPU/);
+    expect(usesGpuRuntime(p.runtime)).toBe(true);
+  });
+
+  it('uses large-v3-turbo on GPU when NVIDIA VRAM is 8GB', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false, nvidiaVramGB: 8 },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp-cuda');
+    expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
+    expect(p.keepResident).toBe(true);
+    expect(p.label).toMatch(/GPU/);
+  });
+
+  it('does not use CUDA on Windows ARM even with NVIDIA VRAM reported', () => {
+    const p = pickSttProfile(
+      { platform: 'win32', arch: 'arm64', cores: 8, ramGB: 32, metal: false, nvidiaVramGB: 8 },
+      true,
+    );
+    expect(p.runtime).toBe('whisper.cpp');
+    expect(p.label).not.toMatch(/GPU/);
   });
 
   it('treats Electron process.arch as the CPU architecture, not MacIntel', () => {

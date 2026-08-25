@@ -41,12 +41,34 @@ function binDir() {
   return path.join(repoRoot(), 'models', 'bin');
 }
 
-function cliPath() {
-  return path.join(binDir(), cliName());
+function usesGpuRuntime(runtime) {
+  return /metal|cuda/i.test(String(runtime || ''));
 }
 
-function serverPath() {
-  return path.join(binDir(), serverName());
+function usesCudaRuntime(runtime) {
+  return /cuda/i.test(String(runtime || ''));
+}
+
+/** Downloaded NVIDIA CUDA whisper-cli + DLLs. Not packed into the installer. */
+function cudaBinDir() {
+  const app = electronApp();
+  if (app?.isPackaged) return path.join(app.getPath('userData'), 'whisper-cuda');
+  return path.join(repoRoot(), 'models', 'bin-win-cuda');
+}
+
+function runtimeBinDir(runtime) {
+  if (usesCudaRuntime(runtime)) return cudaBinDir();
+  return binDir();
+}
+
+function cliPath(runtime) {
+  if (usesCudaRuntime(runtime)) return path.join(cudaBinDir(), 'whisper-cli.exe');
+  return path.join(runtimeBinDir(runtime), cliName());
+}
+
+function serverPath(runtime) {
+  if (usesCudaRuntime(runtime)) return path.join(cudaBinDir(), 'whisper-server.exe');
+  return path.join(runtimeBinDir(runtime), serverName());
 }
 
 /** Writable cache for GGML weights and the WASM fallback */
@@ -135,6 +157,8 @@ module.exports = {
   isPackaged,
   repoRoot,
   binDir,
+  cudaBinDir,
+  runtimeBinDir,
   cliName,
   serverName,
   cliPath,
@@ -146,4 +170,6 @@ module.exports = {
   logoPath,
   resolveWindowIconPath,
   windowIconPath,
+  usesGpuRuntime,
+  usesCudaRuntime,
 };
