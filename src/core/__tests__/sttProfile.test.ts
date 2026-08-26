@@ -1,4 +1,14 @@
-import { cpuArchFromHints, pickSttProfile, pickThreadCount, usesGpuRuntime, type HardwareInfo } from '../sttProfile';
+import {
+  cpuAfterCudaFailure,
+  cpuArchFromHints,
+  demoteNativeProfile,
+  isSpeechModelOom,
+  pickSttProfile,
+  pickThreadCount,
+  speechModelOomMessage,
+  usesGpuRuntime,
+  type HardwareInfo,
+} from '../sttProfile';
 
 const m1Max: HardwareInfo = {
   platform: 'darwin',
@@ -139,14 +149,14 @@ describe('pickSttProfile', () => {
     expect(p.threads).toBeLessThanOrEqual(6);
   });
 
-  it('uses large-v3-turbo CPU on 32GB Windows and keeps the server resident', () => {
+  it('uses large-v3-turbo CPU on 32GB Windows without pinning the server in RAM', () => {
     const p = pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 8, ramGB: 32, metal: false },
       true,
     );
     expect(p.runtime).toBe('whisper.cpp');
     expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
-    expect(p.keepResident).toBe(true);
+    expect(p.keepResident).toBe(false);
     expect(p.threads).toBeGreaterThanOrEqual(4);
     expect(p.label).toMatch(/CPU/);
   });
@@ -159,7 +169,7 @@ describe('pickSttProfile', () => {
     expect(p.runtime).toBe('whisper.cpp');
     expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
     expect(p.label).not.toMatch(/Metal/);
-    expect(p.keepResident).toBe(true);
+    expect(p.keepResident).toBe(false);
   });
 
   it('keeps tiny.en on 4GB Windows even when NVIDIA VRAM is present', () => {
@@ -179,8 +189,7 @@ describe('pickSttProfile', () => {
     );
     expect(p.runtime).toBe('whisper.cpp-cuda');
     expect(p.modelId).toBe('ggml-medium.en.bin');
-    expect(p.keepResident).toBe(true);
-    expect(p.threads).toBeLessThanOrEqual(4);
+    expect(p.keepResident).toBe(false);
     expect(p.label).toMatch(/GPU/);
     expect(usesGpuRuntime(p.runtime)).toBe(true);
   });
@@ -192,7 +201,7 @@ describe('pickSttProfile', () => {
     );
     expect(p.runtime).toBe('whisper.cpp-cuda');
     expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
-    expect(p.keepResident).toBe(true);
+    expect(p.keepResident).toBe(false);
     expect(p.label).toMatch(/GPU/);
   });
 
@@ -215,13 +224,54 @@ describe('pickSttProfile', () => {
     ).toBe('arm64');
   });
 
-  it('falls back to WASM on Windows without a native CLI, never q8', () => {
+  it('falls back to WASM tiny.en on Windows without a native CLI, never q8', () => {
     const p = pickSttProfile(
       { platform: 'win32', arch: 'x64', cores: 8, ramGB: 16, metal: false },
       false,
     );
     expect(p.runtime).toBe('wasm');
-    expect(p.modelId).toBe('Xenova/whisper-small.en');
+    expect(p.modelId).toBe('Xenova/whisper-tiny.en');
     expect(p.modelId).not.toMatch(/q8/i);
+  });
+});
+
+describe('demoteNativeProfile', () => {
+  const win = {
+    platform: 'win32',
+    arch: 'x64',
+    cores: 8,
+    ramGB: 32,
+    metal: false,
+  };
+
+  it('steps turbo to medium to small to tiny, then stops', () => {
+    const turbo = pickSttProfile(win, true);
+    const medium = demoteNativeProfile(turbo);
+    expect(medium?.modelId).toBe('ggml-medium.en.bin');
+    expect(medium?.runtime).toBe('whisper.cpp');
+    expect(medium?.keepResident).toBe(false);
+    const small = demoteNativeProfile(medium!);
+    expect(small?.modelId).toBe('ggml-small.en.bin');
+    const tiny = demoteNativeProfile(small!);
+    expect(tiny?.modelId).toBe('ggml-tiny.en.bin');
+    expect(demoteNativeProfile(tiny!)).toBeNull();
+  });
+
+  it('after CUDA failure uses small.en on a machine with enough RAM', () => {
+    const gpu = pickSttProfile({ ...win, nvidiaVramGB: 8 }, true);
+    const cpu = cpuAfterCudaFailure(gpu);
+    expect(cpu.runtime).toBe('whisper.cpp');
+    expect(cpu.modelId).toBe('ggml-small.en.bin');
+    expect(cpu.keepResident).toBe(false);
+  });
+});
+
+describe('isSpeechModelOom', () => {
+  it('recognizes the ONNX session error Windows shows on Dictate', () => {
+    expect(
+      isSpeechModelOom("Can't create a session. ERROR CODE: 6, ERROR_MESSAGE: to:bad_alloc"),
+    ).toBe(true);
+    expect(isSpeechModelOom('Could not start the microphone.')).toBe(false);
+    expect(speechModelOomMessage()).toMatch(/out of memory/i);
   });
 });

@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.30': bullets(
+    'If a larger speech model will not fit in memory, dictation starts with a smaller one instead of failing',
+  ),
   '0.2.29': bullets(
     'On a well-equipped Windows PC, dictation uses a larger on-device speech model',
     'If this computer has a capable NVIDIA graphics card, dictation can run on it',

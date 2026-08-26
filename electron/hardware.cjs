@@ -101,7 +101,7 @@ function pickSttProfile(hw, hasNativeCli) {
   const metal = Boolean(hw.metal) && appleSilicon;
   const threads = pickThreadCount({ ...hw, metal });
   const keepResident =
-    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? ramGB >= 32 && cores >= 8 : ramGB >= 16;
+    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? false : ramGB >= 16;
 
   if (hasNativeCli && ramGB < 8) {
     return {
@@ -140,8 +140,8 @@ function pickSttProfile(hw, hasNativeCli) {
         modelId: turbo ? 'ggml-large-v3-turbo.bin' : 'ggml-medium.en.bin',
         threads: gpuThreads,
         beamSize: turbo ? 5 : 3,
-        keepResident: ramGB >= 16,
-        idleUnloadMs: ramGB >= 16 ? 0 : 20_000,
+        keepResident: false,
+        idleUnloadMs: 20_000,
         label: `Using ${turbo ? 'large-v3-turbo' : 'whisper-medium.en'} · GPU · ${gpuThreads} threads`,
       };
     }
@@ -201,7 +201,7 @@ function pickSttProfile(hw, hasNativeCli) {
       label: `Using whisper-small.en · ${metal ? 'Metal' : 'CPU'} · ${Math.min(threads, 4)} threads`,
     };
   }
-  if (ramGB < 8) {
+  if (hw.platform === 'win32' || ramGB < 8) {
     return {
       hardware: hw,
       runtime: 'wasm',
@@ -249,6 +249,54 @@ function nativeCliReady() {
   }
 }
 
+function nativeModelShortName(modelId) {
+  if (String(modelId).includes('large')) return 'large-v3-turbo';
+  if (String(modelId).includes('medium')) return 'whisper-medium.en';
+  if (String(modelId).includes('small')) return 'whisper-small.en';
+  return 'whisper-tiny.en';
+}
+
+const NATIVE_MODEL_LADDER = [
+  'ggml-large-v3-turbo.bin',
+  'ggml-medium.en.bin',
+  'ggml-small.en.bin',
+  'ggml-tiny.en.bin',
+];
+
+function demoteNativeProfile(profile) {
+  const index = NATIVE_MODEL_LADDER.indexOf(profile.modelId);
+  const nextId = index === -1 ? 'ggml-tiny.en.bin' : NATIVE_MODEL_LADDER[index + 1];
+  if (!nextId || nextId === profile.modelId) return null;
+  const name = nativeModelShortName(nextId);
+  return {
+    ...profile,
+    runtime: 'whisper.cpp',
+    modelId: nextId,
+    threads: 1,
+    beamSize: 1,
+    keepResident: false,
+    idleUnloadMs: 8_000,
+    label: `Using ${name} · CPU · low memory · 1 thread`,
+  };
+}
+
+function cpuAfterCudaFailure(profile) {
+  const ramGB = Number(profile.hardware?.ramGB) || 8;
+  const tiny = ramGB < 8;
+  return {
+    ...profile,
+    runtime: 'whisper.cpp',
+    modelId: tiny ? 'ggml-tiny.en.bin' : 'ggml-small.en.bin',
+    threads: 1,
+    beamSize: 1,
+    keepResident: false,
+    idleUnloadMs: 8_000,
+    label: tiny
+      ? 'Using whisper-tiny.en · low memory · 1 thread'
+      : 'Using whisper-small.en · CPU · 1 thread',
+  };
+}
+
 function getProfile() {
   const hw = detectHardware();
   return pickSttProfile(hw, nativeCliReady());
@@ -260,6 +308,8 @@ module.exports = {
   pickSttProfile,
   pickThreadCount,
   usesGpuRuntime,
+  demoteNativeProfile,
+  cpuAfterCudaFailure,
   modelsDir,
   cliPath,
   serverPath,

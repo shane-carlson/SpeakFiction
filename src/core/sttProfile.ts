@@ -103,7 +103,7 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
   const metal = Boolean(hw.metal) && appleSilicon;
   const threads = pickThreadCount({ ...hw, metal });
   const keepResident =
-    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? ramGB >= 32 && cores >= 8 : ramGB >= 16;
+    appleSilicon ? ramGB >= 12 && cores >= 4 : hw.platform === 'win32' ? false : ramGB >= 16;
 
   if (hasNativeCli && ramGB < 8) {
     return {
@@ -142,8 +142,8 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
         modelId: turbo ? 'ggml-large-v3-turbo.bin' : 'ggml-medium.en.bin',
         threads: gpuThreads,
         beamSize: turbo ? 5 : 3,
-        keepResident: ramGB >= 16,
-        idleUnloadMs: ramGB >= 16 ? 0 : 20_000,
+        keepResident: false,
+        idleUnloadMs: 20_000,
         label: `Using ${turbo ? 'large-v3-turbo' : 'whisper-medium.en'} · GPU · ${gpuThreads} threads`,
       };
     }
@@ -204,8 +204,9 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
     };
   }
 
-  // WASM: never q8. Prefer small.en on capable machines; tiny.en under 8GB.
-  if (ramGB < 8) {
+  // WASM: never q8. Windows and low-RAM machines stay on tiny.en — Chromium
+  // reports deviceMemory as 8GB, and whisper-small.en fp32 OOMs the session.
+  if (hw.platform === 'win32' || ramGB < 8) {
     return {
       hardware: hw,
       runtime: 'wasm',
@@ -239,4 +240,62 @@ export function pickSttProfile(hw: HardwareInfo, hasNativeCli: boolean): SttProf
     idleUnloadMs: 15_000,
     label: `Using whisper-base.en · WASM · ${Math.min(threads, 2)} threads`,
   };
+}
+
+const NATIVE_MODEL_LADDER = [
+  'ggml-large-v3-turbo.bin',
+  'ggml-medium.en.bin',
+  'ggml-small.en.bin',
+  'ggml-tiny.en.bin',
+] as const;
+
+function nativeModelShortName(modelId: string): string {
+  if (modelId.includes('large')) return 'large-v3-turbo';
+  if (modelId.includes('medium')) return 'whisper-medium.en';
+  if (modelId.includes('small')) return 'whisper-small.en';
+  return 'whisper-tiny.en';
+}
+
+/** Next-smaller native model on CPU. Used when GPU or a large model runs out of memory. */
+export function demoteNativeProfile(profile: SttProfile): SttProfile | null {
+  const index = (NATIVE_MODEL_LADDER as readonly string[]).indexOf(profile.modelId);
+  const nextId = index === -1 ? 'ggml-tiny.en.bin' : NATIVE_MODEL_LADDER[index + 1];
+  if (!nextId || nextId === profile.modelId) return null;
+  const name = nativeModelShortName(nextId);
+  return {
+    ...profile,
+    runtime: 'whisper.cpp',
+    modelId: nextId,
+    threads: 1,
+    beamSize: 1,
+    keepResident: false,
+    idleUnloadMs: 8_000,
+    label: `Using ${name} · CPU · low memory · 1 thread`,
+  };
+}
+
+/** After CUDA fails, skip straight to a small CPU model so the same large weights are not loaded again. */
+export function cpuAfterCudaFailure(profile: SttProfile): SttProfile {
+  const ramGB = Number(profile.hardware?.ramGB) || 8;
+  const tiny = ramGB < 8;
+  return {
+    ...profile,
+    runtime: 'whisper.cpp',
+    modelId: tiny ? 'ggml-tiny.en.bin' : 'ggml-small.en.bin',
+    threads: 1,
+    beamSize: 1,
+    keepResident: false,
+    idleUnloadMs: 8_000,
+    label: tiny
+      ? 'Using whisper-tiny.en · low memory · 1 thread'
+      : 'Using whisper-small.en · CPU · 1 thread',
+  };
+}
+
+export function isSpeechModelOom(message: string): boolean {
+  return /bad_alloc|Can't create a session|out of memory/i.test(message);
+}
+
+export function speechModelOomMessage(): string {
+  return 'This computer ran out of memory loading the speech model. Close other apps and press Start again.';
 }

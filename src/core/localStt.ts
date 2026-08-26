@@ -2,7 +2,13 @@ import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@hugging
 import { resampleMono, rms } from './resample';
 import { MIN_DECODE_RMS } from './speechUtterance';
 import { cleanTranscript } from './transcriptCleanup';
-import { hardwareFromNavigator, pickSttProfile, type SttProfile } from './sttProfile';
+import {
+  hardwareFromNavigator,
+  isSpeechModelOom,
+  pickSttProfile,
+  speechModelOomMessage,
+  type SttProfile,
+} from './sttProfile';
 
 export const STT_SAMPLE_RATE = 16_000;
 export { MIN_DECODE_RMS };
@@ -18,7 +24,11 @@ let queue: Promise<unknown> = Promise.resolve();
 let cachedProfile: SttProfile | null = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-export type SttProgress = (percent: number) => void;
+function asSpeechError(err: unknown, fallback: string): Error {
+  const message = err instanceof Error ? err.message : String(err || '');
+  if (isSpeechModelOom(message)) return new Error(speechModelOomMessage());
+  return err instanceof Error ? err : new Error(message || fallback);
+}
 
 function nativeBridge() {
   return window.speakfiction?.stt;
@@ -160,7 +170,11 @@ export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfi
   } else {
     cachedProfile = pickSttProfile(hardwareFromNavigator(), false);
   }
-  await ensureWasm(cachedProfile, onProgress);
+  try {
+    await ensureWasm(cachedProfile, onProgress);
+  } catch (err) {
+    throw asSpeechError(err, 'Could not load the on-device speech model.');
+  }
   return cachedProfile;
 }
 
@@ -208,10 +222,16 @@ export async function transcribePcm(
       scheduleUnload(profile);
       return cleanTranscript(text);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err || '');
+      if (isSpeechModelOom(message)) throw asSpeechError(err, 'Could not load the on-device speech model.');
       console.warn('Native Whisper failed, falling back to WASM', err);
-      const wasmProfile = pickSttProfile(profile.hardware, false);
+      const wasmProfile = pickSttProfile({ ...profile.hardware, ramGB: Math.min(profile.hardware.ramGB, 4) }, false);
       cachedProfile = wasmProfile;
-      return transcribeWasm(audio, wasmProfile, opts.prompt);
+      try {
+        return await transcribeWasm(audio, wasmProfile, opts.prompt);
+      } catch (wasmErr) {
+        throw asSpeechError(wasmErr, 'Transcription failed.');
+      }
     }
   }
   return transcribeWasm(

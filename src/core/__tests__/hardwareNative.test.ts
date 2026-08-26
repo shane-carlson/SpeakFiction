@@ -75,7 +75,7 @@ describe('native hardware helpers', () => {
     );
     expect(p.runtime).toBe('whisper.cpp-cuda');
     expect(p.modelId).toBe('ggml-large-v3-turbo.bin');
-    expect(p.keepResident).toBe(true);
+    expect(p.keepResident).toBe(false);
     expect(p.label).toMatch(/GPU/);
   });
 

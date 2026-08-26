@@ -4,7 +4,7 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { modelsDir, cliPath, serverPath, modelPath, getProfile, nativeCliReady, modelReady } = require('./hardware.cjs');
+const { modelsDir, cliPath, serverPath, modelPath, getProfile, nativeCliReady, modelReady, demoteNativeProfile, cpuAfterCudaFailure } = require('./hardware.cjs');
 const { usesGpuRuntime } = require('./paths.cjs');
 const { ensureGgmlModel, ensureModelsDir, cacheMatch, cachePut } = require('./modelCache.cjs');
 const { ensureCudaCli } = require('./cudaSidecar.cjs');
@@ -307,6 +307,18 @@ function pcmRms(pcm) {
 /** Aligned with MIN_DECODE_RMS in speechUtterance.ts. Near-digital-silence only. */
 const MIN_PCM_RMS = 0.003;
 
+async function decodeWithProfile(profile, wav, prompt) {
+  if (profile.keepResident && serverProc && loadedModel === profile.modelId) {
+    try {
+      return await withTimeout(postInference(wav, profile), 20000, 'whisper-server');
+    } catch {
+      stopServer();
+    }
+  }
+  const stdout = await withTimeout(runCli(nativeArgs(profile, wav, prompt), profile), 90000, 'whisper-cli');
+  return parseTranscript(stdout);
+}
+
 async function transcribeNative(payload, profile) {
   const sampleRate = payload?.sampleRate || 16000;
   const pcm = resampleTo16k(samplesFromPayload(payload), sampleRate);
@@ -314,30 +326,30 @@ async function transcribeNative(payload, profile) {
   if (pcmRms(pcm) < MIN_PCM_RMS) return '';
   const wav = path.join(os.tmpdir(), `sf-whisper-${process.pid}-${Date.now()}.wav`);
   writeWav16k(wav, pcm);
+  let current = profile;
+  let lastErr;
   try {
-    if (profile.keepResident && serverProc && loadedModel === profile.modelId) {
+    for (let i = 0; i < 5; i++) {
       try {
-        const text = await withTimeout(postInference(wav, profile), 20000, 'whisper-server');
-        scheduleUnload(profile);
+        const text = await decodeWithProfile(current, wav, payload?.prompt);
+        scheduleUnload(current);
         return text;
-      } catch {
+      } catch (err) {
+        lastErr = err;
         stopServer();
+        if (String(current.runtime || '').includes('cuda')) {
+          console.warn('CUDA whisper failed, using a smaller CPU model', err);
+          blockCuda();
+          current = cpuAfterCudaFailure(current);
+          continue;
+        }
+        const next = demoteNativeProfile(current);
+        if (!next) break;
+        console.warn(`Native whisper failed on ${current.modelId}, trying ${next.modelId}`, err);
+        current = next;
       }
     }
-    try {
-      const stdout = await withTimeout(runCli(nativeArgs(profile, wav, payload?.prompt), profile), 90000, 'whisper-cli');
-      scheduleUnload(profile);
-      return parseTranscript(stdout);
-    } catch (err) {
-      if (!String(profile.runtime || '').includes('cuda')) throw err;
-      console.warn('CUDA whisper failed, using CPU', err);
-      blockCuda();
-      stopServer();
-      const cpu = { ...profile, runtime: 'whisper.cpp' };
-      const stdout = await withTimeout(runCli(nativeArgs(cpu, wav, payload?.prompt), cpu), 90000, 'whisper-cli');
-      scheduleUnload(cpu);
-      return parseTranscript(stdout);
-    }
+    throw lastErr || new Error('whisper-cli failed');
   } finally {
     try {
       fs.unlinkSync(wav);
@@ -351,35 +363,53 @@ function nativeAvailable() {
   return nativeCliReady();
 }
 
+async function ensureNativeProfile(profile, onProgress) {
+  if (profile.runtime === 'whisper.cpp-cuda') {
+    const scale = modelReady(profile.modelId) ? 1 : 0.45;
+    await ensureCudaCli((percent) => onProgress?.(Math.round(percent * scale)));
+  }
+  if (profile.runtime === 'wasm') return profile;
+  if (!modelReady(profile.modelId)) {
+    const offset = profile.runtime === 'whisper.cpp-cuda' ? 45 : 0;
+    const span = 100 - offset;
+    await ensureGgmlModel(profile.modelId, (percent) =>
+      onProgress?.(offset + Math.round((percent * span) / 100)),
+    );
+  }
+  if (profile.keepResident) {
+    ensureServer(profile).catch(() => stopServer());
+  }
+  return profile;
+}
+
 async function ensureStt(onProgress) {
   ensureModelsDir();
   let profile = getProfile();
-  if (profile.runtime === 'whisper.cpp-cuda') {
+  const seen = new Set();
+  let lastErr;
+  for (let i = 0; i < 5; i++) {
+    const key = `${profile.runtime}:${profile.modelId}`;
+    if (seen.has(key)) break;
+    seen.add(key);
     try {
-      const scale = modelReady(profile.modelId) ? 1 : 0.45;
-      await ensureCudaCli((percent) => onProgress?.(Math.round(percent * scale)));
+      profile = await ensureNativeProfile(profile, onProgress);
+      onProgress?.(100);
+      return profile;
     } catch (err) {
-      console.warn('CUDA whisper unavailable, using CPU', err);
-      blockCuda();
-      stopServer();
-      profile = getProfile();
+      lastErr = err;
+      console.warn('STT ensure failed, trying a smaller model', err);
+      if (String(profile.runtime || '').includes('cuda')) {
+        blockCuda();
+        stopServer();
+        profile = cpuAfterCudaFailure(profile);
+        continue;
+      }
+      const next = demoteNativeProfile(profile);
+      if (!next) break;
+      profile = next;
     }
   }
-  if (profile.runtime !== 'wasm') {
-    if (!modelReady(profile.modelId)) {
-      const offset = profile.runtime === 'whisper.cpp-cuda' ? 45 : 0;
-      const span = 100 - offset;
-      await ensureGgmlModel(profile.modelId, (percent) =>
-        onProgress?.(offset + Math.round((percent * span) / 100)),
-      );
-      profile = getProfile();
-    }
-    if (profile.keepResident) {
-      ensureServer(profile).catch(() => stopServer());
-    }
-  }
-  onProgress?.(100);
-  return profile;
+  throw lastErr || new Error('Could not load the on-device speech model.');
 }
 
 module.exports = {
