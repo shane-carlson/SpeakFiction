@@ -120,13 +120,25 @@ function modelPath(filename) {
   return path.join(modelsDir(), filename);
 }
 
+function resolveLogoPath({
+  packaged = isPackaged(),
+  resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : '',
+  root = repoRoot(),
+  exists = (file) => fs.existsSync(file),
+} = {}) {
+  if (packaged && resourcesPath) return path.join(resourcesPath, 'speakfiction-logo.png');
+  const rounded = path.join(root, 'build', 'icon.png');
+  if (exists(rounded)) return rounded;
+  return path.join(root, 'public', 'speakfiction-logo.png');
+}
+
 function logoPath() {
-  if (isPackaged()) return path.join(process.resourcesPath, 'speakfiction-logo.png');
-  return path.join(repoRoot(), 'public', 'speakfiction-logo.png');
+  return resolveLogoPath();
 }
 
 /**
- * Windows taskbar / window chrome need a multi-size .ico. Mac dock stays on the PNG.
+ * Windows taskbar / window chrome need a multi-size .ico. Mac dock uses a PNG
+ * with rounded-rect alpha (build/icon.png), not the source logo on black.
  * `exists` is injectable so tests can cover packaged NSIS layout without Electron.
  */
 function resolveWindowIconPath({
@@ -143,8 +155,7 @@ function resolveWindowIconPath({
     const repoIco = path.join(root, 'build', 'icon.ico');
     if (exists(repoIco)) return repoIco;
   }
-  if (packaged && resourcesPath) return path.join(resourcesPath, 'speakfiction-logo.png');
-  return path.join(root, 'public', 'speakfiction-logo.png');
+  return resolveLogoPath({ packaged, resourcesPath, root, exists });
 }
 
 function windowIconPath() {
@@ -167,6 +178,7 @@ module.exports = {
   modelPath,
   isUsableModelFile,
   logoPath,
+  resolveLogoPath,
   resolveWindowIconPath,
   windowIconPath,
   usesGpuRuntime,

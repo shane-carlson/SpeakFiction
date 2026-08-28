@@ -10,6 +10,7 @@ dist-electron/
 release/
 build/icon.icns
 build/icon.ico
+build/icon.png
 build/icon.iconset/
 build/.ico-tmp/
 *.log

@@ -7,7 +7,6 @@ const win = process.env.SF_WIN === '1' || process.argv.includes('--win');
 const intel = !win && (process.env.SF_MAC_ARCH === 'x64' || process.argv.includes('--intel'));
 const binDir = path.join(root, 'models', win ? 'bin-win-x64' : intel ? 'bin-x64' : 'bin');
 const cli = path.join(binDir, win ? 'whisper-cli.exe' : 'whisper-cli');
-const icns = path.join(root, 'build', 'icon.icns');
 
 function run(command, args, extraEnv = {}) {
   const result = spawnSync(command, args, {
@@ -69,8 +68,6 @@ if (intel) {
   }
 }
 
-if (!fs.existsSync(icns) || process.argv.includes('--force-icon')) {
-  run('bash', [path.join(root, 'scripts', 'make-icns.sh')]);
-}
+run(process.execPath, [path.join(root, 'scripts', 'make-icns.cjs')]);
 
 console.log(`Packaging prerequisites ready (${intel ? 'Intel x64' : 'Apple Silicon arm64'}).`);

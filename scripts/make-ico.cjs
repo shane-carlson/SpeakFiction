@@ -11,6 +11,7 @@ const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const PNG_ICO_MIN = 256;
 
 const root = path.join(__dirname, '..');
+const ROUNDED_PNG = path.join(root, 'build', 'icon.png');
 const src = path.join(root, 'public', 'speakfiction-logo.png');
 const dest = path.join(root, 'build', 'icon.ico');
 const tmpDir = path.join(root, 'build', '.ico-tmp');
@@ -136,6 +137,8 @@ function encodePngRgba(width, height, rgba) {
 /**
  * Source logo is a squircle composited on black with no alpha. Make pixels
  * outside a 22.5% rounded rect transparent so Explorer/taskbar are not a black box.
+ * Also punch leftover near-black canvas inside that rect (the painted mark is
+ * tighter than 22.5%, so those pixels would otherwise stay as square black corners).
  */
 function applyRoundedIconAlpha(size, rgba) {
   const out = Buffer.from(rgba);
@@ -144,6 +147,12 @@ function applyRoundedIconAlpha(size, rgba) {
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const i = (y * size + x) * 4;
+      const inCorner = (x < r || x > max - r) && (y < r || y > max - r);
+      const lum = (out[i] + out[i + 1] + out[i + 2]) / 3;
+      if (inCorner && lum <= 28) {
+        out[i + 3] = 0;
+        continue;
+      }
       const inBand = (x >= r && x <= max - r) || (y >= r && y <= max - r);
       if (inBand) continue;
       const cx = x < r ? r : max - r;
@@ -252,6 +261,23 @@ function renderPng(px) {
   return null;
 }
 
+/** RGBA PNG with black canvas corners punched out. sips often drops alpha, so re-encode. */
+function roundedPngFromRgba(size, rgba) {
+  return encodePngRgba(size, size, applyRoundedIconAlpha(size, rgba));
+}
+
+function ensureRoundedLogoPng(file = ROUNDED_PNG, { force = false } = {}) {
+  if (!fs.existsSync(src)) throw new Error(`Missing logo: ${src}`);
+  if (!force && fs.existsSync(file) && fs.statSync(file).mtimeMs >= fs.statSync(src).mtimeMs) {
+    return file;
+  }
+  const decoded = decodePng(fs.readFileSync(src));
+  const png = roundedPngFromRgba(decoded.width, decoded.rgba);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, png);
+  return file;
+}
+
 function main() {
   if (!fs.existsSync(src)) {
     console.error(`Missing logo: ${src}`);
@@ -282,9 +308,13 @@ if (require.main === module) main();
 module.exports = {
   ICO_SIZES,
   PNG_ICO_MIN,
+  ROUNDED_PNG,
   decodePng,
   encodePngRgba,
   applyRoundedIconAlpha,
+  roundedPngFromRgba,
+  ensureRoundedLogoPng,
+  renderPng,
   dibFromRgba,
   writeIcoFromRgba,
   listIcoSizes,

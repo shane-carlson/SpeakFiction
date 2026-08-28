@@ -7,6 +7,7 @@ const packingWin =
 const intel = process.env.SF_MAC_ARCH === 'x64';
 const macArch = intel ? 'x64' : 'arm64';
 const ico = path.join(__dirname, 'build', 'icon.ico');
+const roundedPng = path.join(__dirname, 'build', 'icon.png');
 if (packingWin && !fs.existsSync(ico)) {
   spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'make-ico.cjs')], { stdio: 'inherit' });
 }
@@ -84,7 +85,7 @@ module.exports = {
   extraResources: [
     ...whisperExtraResources(),
     {
-      from: 'public/speakfiction-logo.png',
+      from: fs.existsSync(roundedPng) ? 'build/icon.png' : 'public/speakfiction-logo.png',
       to: 'speakfiction-logo.png',
     },
     ...(packingWin && hasIco ? [{ from: 'build/icon.ico', to: 'icon.ico' }] : []),

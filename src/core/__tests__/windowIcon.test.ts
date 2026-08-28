@@ -1,10 +1,18 @@
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const paths = require('../../../electron/paths.cjs') as {
   logoPath: () => string;
+  resolveLogoPath: (opts?: {
+    packaged?: boolean;
+    resourcesPath?: string;
+    root?: string;
+    exists?: (file: string) => boolean;
+  }) => string;
   resolveWindowIconPath: (opts?: {
     platform?: string;
     packaged?: boolean;
@@ -20,11 +28,30 @@ const ico = require('../../../scripts/make-ico.cjs') as {
   listIcoSizes: (buf: Buffer) => number[];
   listIcoEntries: (buf: Buffer) => { size: number; png: boolean; dib: boolean }[];
   applyRoundedIconAlpha: (size: number, rgba: Buffer) => Buffer;
+  decodePng: (buf: Buffer) => { width: number; height: number; rgba: Buffer };
+  roundedPngFromRgba: (size: number, rgba: Buffer) => Buffer;
+  ensureRoundedLogoPng: (file?: string, opts?: { force?: boolean }) => string;
 };
 
 describe('window icon paths', () => {
-  it('keeps the Mac dock on the PNG logo', () => {
-    expect(paths.logoPath()).toMatch(/speakfiction-logo\.png$/);
+  it('prefers the rounded PNG for the Mac dock when it exists', () => {
+    expect(
+      paths.resolveLogoPath({
+        packaged: false,
+        root: '/repo',
+        exists: (file) => file === path.join('/repo', 'build', 'icon.png'),
+      }),
+    ).toBe(path.join('/repo', 'build', 'icon.png'));
+  });
+
+  it('falls back to the source logo PNG', () => {
+    expect(
+      paths.resolveLogoPath({
+        packaged: false,
+        root: '/repo',
+        exists: () => false,
+      }),
+    ).toBe(path.join('/repo', 'public', 'speakfiction-logo.png'));
   });
 
   it('uses a packaged .ico on Windows and PNG on Mac', () => {
@@ -48,6 +75,18 @@ describe('window icon paths', () => {
         exists: () => true,
       }),
     ).toBe(path.join(resourcesPath, 'speakfiction-logo.png'));
+  });
+
+  it('uses the rounded PNG on Mac when unpackaged', () => {
+    expect(
+      paths.resolveWindowIconPath({
+        platform: 'darwin',
+        packaged: false,
+        resourcesPath: '',
+        root: '/repo',
+        exists: (file) => file === path.join('/repo', 'build', 'icon.png'),
+      }),
+    ).toBe(path.join('/repo', 'build', 'icon.png'));
   });
 
   it('falls back to repo ico then PNG when unpackaged on Windows', () => {
@@ -103,6 +142,39 @@ describe('ICO writer', () => {
     const out = ico.applyRoundedIconAlpha(size, rgba);
     expect(out[3]).toBe(0);
     expect(out[mid + 3]).toBe(255);
+    const insideArc = (1 * size + Math.floor(size * 0.16)) * 4;
+    expect(out[insideArc + 3]).toBe(0);
+  });
+
+  it('punches the real logo corners and keeps the book', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../public/speakfiction-logo.png'));
+    const decoded = ico.decodePng(src);
+    expect(decoded.rgba[3]).toBe(255);
+    const out = ico.applyRoundedIconAlpha(decoded.width, decoded.rgba);
+    expect(out[3]).toBe(0);
+    const mid = ((decoded.width / 2) * decoded.width + decoded.width / 2) * 4;
+    expect(out[mid + 3]).toBe(255);
+    const r = decoded.width * 0.225;
+    let leftoverBlack = 0;
+    for (let y = 0; y < r; y += 1) {
+      for (let x = 0; x < r; x += 1) {
+        const i = (y * decoded.width + x) * 4;
+        const lum = (out[i] + out[i + 1] + out[i + 2]) / 3;
+        if (lum <= 28 && out[i + 3] > 0) leftoverBlack += 1;
+      }
+    }
+    expect(leftoverBlack).toBe(0);
+    const roundtrip = ico.decodePng(ico.roundedPngFromRgba(decoded.width, decoded.rgba));
+    expect(roundtrip.rgba[3]).toBe(0);
+    expect(roundtrip.rgba[mid + 3]).toBe(255);
+  });
+
+  it('writes a rounded dock PNG with transparent corners', () => {
+    const dest = path.join(os.tmpdir(), `speakfiction-icon-${process.pid}.png`);
+    ico.ensureRoundedLogoPng(dest, { force: true });
+    const decoded = ico.decodePng(fs.readFileSync(dest));
+    expect(decoded.rgba[3]).toBe(0);
+    fs.unlinkSync(dest);
   });
 });
 
