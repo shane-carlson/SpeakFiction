@@ -90,6 +90,7 @@ module.exports = {
     ...(packingWin && hasIco ? [{ from: 'build/icon.ico', to: 'icon.ico' }] : []),
   ],
   afterPack: './scripts/afterPack.cjs',
+  afterSign: './scripts/afterSign.cjs',
   publish: {
     provider: 'github',
     owner: 'shane-carlson',
