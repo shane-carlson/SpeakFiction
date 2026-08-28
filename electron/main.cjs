@@ -315,6 +315,13 @@ function createWindow() {
   });
   windowState.applyZoom(win, placed);
   windowState.track(win);
+  if (process.platform === 'win32' && /\.ico$/i.test(iconFile)) {
+    try {
+      win.setIcon(iconFile);
+    } catch {
+      /* exe icon from afterPack still applies */
+    }
+  }
   win.once('ready-to-show', () => {
     if (!win.isDestroyed()) win.show();
   });

@@ -137,10 +137,9 @@ function resolveWindowIconPath({
   exists = (file) => fs.existsSync(file),
 } = {}) {
   if (platform === 'win32') {
-    if (packaged && resourcesPath) {
-      const packed = path.join(resourcesPath, 'icon.ico');
-      if (exists(packed)) return packed;
-    }
+    // Packaged Windows must not fall back to PNG: the taskbar ignores it and
+    // shows a blank document. afterPack copies icon.ico next to the asar.
+    if (packaged && resourcesPath) return path.join(resourcesPath, 'icon.ico');
     const repoIco = path.join(root, 'build', 'icon.ico');
     if (exists(repoIco)) return repoIco;
   }

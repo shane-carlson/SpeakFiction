@@ -36,7 +36,7 @@ describe('window icon paths', () => {
         packaged: true,
         resourcesPath,
         root,
-        exists: (file) => file === path.join(resourcesPath, 'icon.ico'),
+        exists: () => false,
       }),
     ).toBe(path.join(resourcesPath, 'icon.ico'));
     expect(
@@ -103,5 +103,45 @@ describe('ICO writer', () => {
     const out = ico.applyRoundedIconAlpha(size, rgba);
     expect(out[3]).toBe(0);
     expect(out[mid + 3]).toBe(255);
+  });
+});
+
+describe('Windows exe icon embed', () => {
+  it('flags truncated 128 and 256 PE entries from Wine rcedit', () => {
+    const embed = require('../../../scripts/embed-win-icon.cjs') as {
+      iconGroupGaps: (
+        peIcons: { width: number; dataSize: number }[],
+        icoEntries: { size: number; bytes: number }[],
+      ) => { size: number; bytes: number }[];
+    };
+    const icoEntries = [
+      { size: 16, bytes: 1128 },
+      { size: 24, bytes: 2440 },
+      { size: 32, bytes: 4264 },
+      { size: 48, bytes: 9640 },
+      { size: 64, bytes: 16936 },
+      { size: 128, bytes: 67624 },
+      { size: 256, bytes: 80593 },
+    ];
+    const truncated = [
+      { width: 16, dataSize: 1128 },
+      { width: 24, dataSize: 2440 },
+      { width: 32, dataSize: 4264 },
+      { width: 48, dataSize: 9640 },
+      { width: 64, dataSize: 16936 },
+      { width: 128, dataSize: 2088 },
+      { width: 0, dataSize: 15057 },
+    ];
+    expect(embed.iconGroupGaps(truncated, icoEntries).map((g) => g.size)).toEqual([128, 256]);
+    const complete = [
+      { width: 16, dataSize: 1128 },
+      { width: 24, dataSize: 2440 },
+      { width: 32, dataSize: 4264 },
+      { width: 48, dataSize: 9640 },
+      { width: 64, dataSize: 16936 },
+      { width: 128, dataSize: 67624 },
+      { width: 0, dataSize: 80593 },
+    ];
+    expect(embed.iconGroupGaps(complete, icoEntries)).toEqual([]);
   });
 });

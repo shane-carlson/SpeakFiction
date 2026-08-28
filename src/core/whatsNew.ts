@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.31': bullets(
+    'Windows taskbar and Start menu show the SpeakFiction logo instead of a blank document',
+  ),
   '0.2.30': bullets(
     'If a larger speech model will not fit in memory, dictation starts with a smaller one instead of failing',
   ),

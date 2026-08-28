@@ -11,6 +11,9 @@ if (packingWin && !fs.existsSync(ico)) {
   spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'make-ico.cjs')], { stdio: 'inherit' });
 }
 const hasIco = fs.existsSync(ico);
+if (packingWin && !hasIco) {
+  throw new Error('Windows pack requires build/icon.ico (scripts/make-ico.cjs failed)');
+}
 
 function updaterModules() {
   const seen = new Set();

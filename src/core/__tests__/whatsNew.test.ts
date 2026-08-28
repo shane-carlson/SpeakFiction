@@ -181,6 +181,23 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.31 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.31')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.31',
+      build: 48,
+      pending: {
+        version: '0.2.31',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.31'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Windows taskbar and Start menu show the SpeakFiction logo instead of a blank document',
+    ]);
+  });
+
   it('uses curated 0.2.30 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.30')).toBe(true);
     const resolved = await resolveWhatsNewNotes({
