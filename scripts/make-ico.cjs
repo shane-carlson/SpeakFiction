@@ -112,7 +112,34 @@ function pngChunk(type, data) {
   return Buffer.concat([len, typeBuf, data, crc]);
 }
 
-/** Unfiltered RGBA PNG (color type 6) for the 256 ICO entry. */
+/** Unfiltered RGB PNG (color type 2) — App Store icons cannot have an alpha channel. */
+function encodePngRgb(width, height, rgba) {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const stride = 1 + width * 3;
+  const raw = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y += 1) {
+    raw[y * stride] = 0;
+    const row = raw.subarray(y * stride + 1, (y + 1) * stride);
+    for (let x = 0; x < width; x += 1) {
+      const si = (y * width + x) * 4;
+      const di = x * 3;
+      row[di] = rgba[si];
+      row[di + 1] = rgba[si + 1];
+      row[di + 2] = rgba[si + 2];
+    }
+  }
+  return Buffer.concat([
+    sig,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', zlib.deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 function encodePngRgba(width, height, rgba) {
   const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const ihdr = Buffer.alloc(13);
@@ -311,6 +338,7 @@ module.exports = {
   ROUNDED_PNG,
   decodePng,
   encodePngRgba,
+  encodePngRgb,
   applyRoundedIconAlpha,
   roundedPngFromRgba,
   ensureRoundedLogoPng,

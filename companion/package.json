@@ -8,7 +8,12 @@
     "start:tunnel": "expo start --tunnel",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "prebuild": "expo prebuild"
+    "prebuild": "expo prebuild",
+    "icons": "node scripts/prepare-store-icons.cjs",
+    "eas:build": "eas build --profile production --platform all",
+    "eas:ios": "eas build --profile production --platform ios",
+    "eas:android": "eas build --profile production --platform android",
+    "eas:submit": "eas submit --profile production --platform all"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

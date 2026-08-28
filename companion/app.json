@@ -6,6 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "primaryColor": "#7c5cff",
+    "scheme": "speakfiction",
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
@@ -14,21 +16,38 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "one.readywriter.speakfiction.companion",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
+        "CFBundleDisplayName": "SpeakFiction",
+        "LSApplicationCategoryType": "public.app-category.productivity",
         "NSMicrophoneUsageDescription": "SpeakFiction records voice notes on this phone. Speech becomes text here, then only the text is sent to your desktop inbox.",
         "NSSpeechRecognitionUsageDescription": "SpeakFiction turns a take into text on this phone. Audio is not sent to a hosted transcriber.",
         "NSCameraUsageDescription": "SpeakFiction scans the QR code on your computer to link this phone. The camera is not used to send the book."
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          }
+        ]
       }
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "package": "one.readywriter.speakfiction.companion",
-      "permissions": [
-        "RECORD_AUDIO",
-        "CAMERA"
-      ],
+      "versionCode": 1,
+      "blockedPermissions": ["com.google.android.gms.permission.AD_ID"],
+      "permissions": ["RECORD_AUDIO", "CAMERA"],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0e1016"
       }
     },

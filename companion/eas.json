@@ -11,6 +11,28 @@
     "preview": {
       "distribution": "internal"
     },
-    "production": {}
+    "production": {
+      "distribution": "store",
+      "autoIncrement": false,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleTeamId": "AM3TB889SG",
+        "sku": "speakfiction-notes"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": true
+      }
+    }
   }
 }
