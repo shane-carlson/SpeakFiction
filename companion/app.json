@@ -23,19 +23,23 @@
       "infoPlist": {
         "CFBundleDisplayName": "SpeakFiction",
         "LSApplicationCategoryType": "public.app-category.productivity",
-        "NSMicrophoneUsageDescription": "SpeakFiction records voice notes on this phone. Speech becomes text here, then only the text is sent to your desktop inbox.",
-        "NSSpeechRecognitionUsageDescription": "SpeakFiction turns a take into text on this phone. Audio is not sent to a hosted transcriber.",
+        "NSMicrophoneUsageDescription": "SpeakFiction records voice notes on this phone.",
+        "NSSpeechRecognitionUsageDescription": "SpeakFiction turns a take into text on this phone.",
         "NSCameraUsageDescription": "SpeakFiction scans the QR code on your computer to link this phone. The camera is not used to send the book."
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
           },
           {
             "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
-            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
           }
         ]
       }
@@ -44,8 +48,16 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "one.readywriter.speakfiction.companion",
       "versionCode": 1,
-      "blockedPermissions": ["com.google.android.gms.permission.AD_ID"],
-      "permissions": ["RECORD_AUDIO", "CAMERA"],
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0e1016"
@@ -69,6 +81,12 @@
       ],
       "expo-asset",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e179721b-330e-4793-9714-7aaa83579737"
+      }
+    },
+    "owner": "shane.carlson"
   }
 }
