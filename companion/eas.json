@@ -29,7 +29,11 @@
     "production": {
       "ios": {
         "appleTeamId": "AM3TB889SG",
-        "sku": "speakfiction-notes"
+        "sku": "speakfiction-notes",
+        "ascAppId": "6806346808",
+        "ascApiKeyPath": "$EXPO_ASC_API_KEY_PATH",
+        "ascApiKeyId": "KD4Q37RVDP",
+        "ascApiKeyIssuerId": "7284ff8d-3ceb-4a26-9b1c-20e5f6d7a1c3"
       },
       "android": {
         "track": "internal",
