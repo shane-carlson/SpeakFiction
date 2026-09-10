@@ -30,7 +30,7 @@ export function PauseIcon({ className }: { className?: string }) {
 /** Keeps the PNG mounted so record/pause does not decode it again. */
 export function MicToggleFace({ recording, className }: { recording: boolean; className?: string }) {
   return (
-    <span className={className} style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+    <span className={className} style={{ display: 'grid', placeItems: 'center' }}>
       <MicIcon hidden={recording} />
       {recording ? <PauseIcon /> : null}
     </span>

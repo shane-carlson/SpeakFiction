@@ -683,7 +683,7 @@ export function DictationView({
             />
             <button
               type="button"
-              className="btn ghost compact"
+              className="btn compact dictate-notes-btn"
               onClick={() => setActiveTab('notes')}
             >
               Voice notes

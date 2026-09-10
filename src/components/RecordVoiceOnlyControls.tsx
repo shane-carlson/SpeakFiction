@@ -39,7 +39,9 @@ export function RecordVoiceOnlyControls({
         }
       >
         <MicToggleFace recording={recording} className="desktop-record-mic" />
-        {recording ? 'Stop' : compact ? RECORD_VOICE_ONLY_LABEL : 'Record'}
+        <span className="desktop-record-label">
+          {recording ? 'Stop' : compact ? RECORD_VOICE_ONLY_LABEL : 'Record'}
+        </span>
       </button>
       {recording ? (
         <span className="hint desktop-record-meter" aria-live="polite">
