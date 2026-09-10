@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { isGenreId, isThemeId, resolveThemeId, themeDisplayName } from '../theme';
+import {
+  isGenreId,
+  isThemeId,
+  isThemeMode,
+  resolveThemeId,
+  resolveThemeMode,
+  themeDisplayName,
+  themeModeLabel,
+} from '../theme';
 
 describe('resolveThemeId', () => {
   it('follows the book genre when themeId is auto', () => {
@@ -44,5 +52,22 @@ describe('isThemeId', () => {
     expect(isGenreId('ya')).toBe(true);
     expect(isThemeId('pastel')).toBe(false);
     expect(isThemeId(undefined)).toBe(false);
+  });
+});
+
+describe('resolveThemeMode', () => {
+  it('follows the OS until Light or Dark is chosen', () => {
+    expect(resolveThemeMode('system', true)).toBe('dark');
+    expect(resolveThemeMode('system', false)).toBe('light');
+    expect(resolveThemeMode('light', true)).toBe('light');
+    expect(resolveThemeMode('dark', false)).toBe('dark');
+  });
+
+  it('labels system with the resolved OS appearance', () => {
+    expect(themeModeLabel('system', 'dark')).toBe('System (Dark)');
+    expect(themeModeLabel('system', 'light')).toBe('System (Light)');
+    expect(themeModeLabel('light', 'light')).toBe('Light');
+    expect(isThemeMode('system')).toBe(true);
+    expect(isThemeMode('sepia')).toBe(false);
   });
 });

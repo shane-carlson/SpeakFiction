@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignVoiceNoteBook,
+  createRecordVoiceOnlyNote,
   decryptNotePayload,
   encryptNotePayload,
   isSpeakFictionLicenseKey,
@@ -7,7 +9,9 @@ import {
   noteCanDesktopHear,
   noteNeedsDesktopTranscription,
   notesAccountHash,
+  RECORD_VOICE_ONLY_LABEL,
   REMOTE_VOICE_TAKE_PLACEHOLDER,
+  resolveVoiceNoteBookId,
   transcriptAfterDesktopHear,
   type VoiceNote,
 } from '../voiceNotes';
@@ -118,5 +122,40 @@ describe('voice notes identity and crypto', () => {
       [note({ id: 'gone', status: 'inbox', text: 'Voice take. Transcribe on the computer.', hasAudio: true })],
     );
     expect(merged.find((item) => item.id === 'gone')).toBeUndefined();
+  });
+});
+
+describe('record voice only book assignment', () => {
+  it('tags a new take with the current book', () => {
+    const created = createRecordVoiceOnlyNote({ id: 'bk-ash', title: 'Ash' }, 1500, 'mac');
+    expect(created).toMatchObject({
+      source: 'desktop',
+      recordOnly: true,
+      hasAudio: true,
+      bookId: 'bk-ash',
+      bookHint: 'Ash',
+      text: REMOTE_VOICE_TAKE_PLACEHOLDER,
+      durationMs: 1500,
+      platform: 'mac',
+    });
+  });
+
+  it('resolves the assigned book, then title hint, then fallback', () => {
+    const books = [
+      { id: 'bk-ash', title: 'Ash' },
+      { id: 'bk-ember', title: 'Ember' },
+    ];
+    expect(resolveVoiceNoteBookId({ bookId: 'bk-ember', bookHint: 'Ash' }, books, 'bk-ash')).toBe('bk-ember');
+    expect(resolveVoiceNoteBookId({ bookHint: 'Ember' }, books, 'bk-ash')).toBe('bk-ember');
+    expect(resolveVoiceNoteBookId({}, books, 'bk-ash')).toBe('bk-ash');
+    expect(resolveVoiceNoteBookId({ bookId: 'missing' }, books)).toBe('bk-ash');
+  });
+
+  it('writes bookId and title onto the take', () => {
+    expect(assignVoiceNoteBook({ id: 'bk-ember', title: 'Ember' })).toEqual({
+      bookId: 'bk-ember',
+      bookHint: 'Ember',
+    });
+    expect(RECORD_VOICE_ONLY_LABEL).toBe('Record Voice Only');
   });
 });

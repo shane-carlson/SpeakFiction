@@ -127,7 +127,7 @@ export interface SpeakFictionNotesBridge {
   setStatus: (
     id: string,
     status: import('./core/voiceNotes').VoiceNoteStatus,
-    extra?: Partial<Pick<import('./core/voiceNotes').VoiceNote, 'text' | 'hasAudio' | 'durationMs'>>,
+    extra?: Partial<Pick<import('./core/voiceNotes').VoiceNote, 'text' | 'hasAudio' | 'durationMs' | 'bookId' | 'bookHint'>>,
   ) => Promise<{ ok: boolean; notes: import('./core/voiceNotes').VoiceNote[] }>;
   publishLibrary: (
     books: import('./core/companionLibrary').CompanionBook[],

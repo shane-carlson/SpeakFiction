@@ -1,7 +1,7 @@
 // Electron main process. In dev it loads the Vite server; in production it
 // loads the built renderer from ./dist. Kept as CommonJS (.cjs) so it runs
 // without a separate compile step even though the project is ESM.
-const { app, BrowserWindow, screen, shell, ipcMain, systemPreferences, session, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, screen, shell, ipcMain, systemPreferences, session, nativeImage, dialog, nativeTheme } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const windowState = require('./windowState.cjs');
@@ -302,7 +302,7 @@ function createWindow() {
   const placed = windowState.clampWindowBounds(windowState.load(), displays, primary);
   const win = new BrowserWindow({
     ...windowState.browserWindowOptions(placed),
-    backgroundColor: '#0e1016',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0e1016' : '#f3efe6',
     // Default macOS chrome: title bar, traffic lights, drag-to-move, double-click zoom.
     ...(process.platform !== 'darwin' ? { autoHideMenuBar: true } : {}),
     // Windows taskbar uses the window/exe ICO; a PNG NativeImage is ignored there.

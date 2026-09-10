@@ -56,6 +56,46 @@ export function createVoiceNoteId(): string {
 
 export const REMOTE_VOICE_TAKE_PLACEHOLDER = 'Voice only take. Import to transcribe.';
 export const LEGACY_REMOTE_VOICE_TAKE_PLACEHOLDER = 'Voice take. Transcribe on the computer.';
+export const RECORD_VOICE_ONLY_LABEL = 'Record Voice Only';
+
+export function createRecordVoiceOnlyNote(
+  book: { id: string; title: string },
+  durationMs: number,
+  platform = 'desktop',
+): VoiceNote {
+  return {
+    id: createVoiceNoteId(),
+    createdAt: new Date().toISOString(),
+    status: 'inbox',
+    durationMs,
+    platform,
+    text: REMOTE_VOICE_TAKE_PLACEHOLDER,
+    bookId: book.id,
+    bookHint: book.title,
+    source: 'desktop',
+    hasAudio: true,
+    recordOnly: true,
+  };
+}
+
+/** Book this take should land in when imported into a transcription box. */
+export function resolveVoiceNoteBookId(
+  note: Pick<VoiceNote, 'bookId' | 'bookHint'>,
+  books: Array<{ id: string; title: string }>,
+  fallbackId?: string,
+): string | undefined {
+  if (note.bookId && books.some((item) => item.id === note.bookId)) return note.bookId;
+  const hinted = note.bookHint?.trim()
+    ? books.find((item) => item.title === note.bookHint)
+    : undefined;
+  if (hinted) return hinted.id;
+  if (fallbackId && books.some((item) => item.id === fallbackId)) return fallbackId;
+  return books[0]?.id;
+}
+
+export function assignVoiceNoteBook(book: { id: string; title: string }): Pick<VoiceNote, 'bookId' | 'bookHint'> {
+  return { bookId: book.id, bookHint: book.title };
+}
 
 export function isRemoteVoiceTakePlaceholder(text: string | undefined): boolean {
   const value = (text || '').trim();

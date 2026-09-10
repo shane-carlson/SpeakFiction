@@ -7,6 +7,7 @@ import {
   draftFromElement,
   draftText,
   draftToHtml,
+  isTranscriptInsertAtEnd,
   joinDraft,
   joinDraftAt,
   normalizeDictationDraft,
@@ -116,6 +117,23 @@ describe('joinDraftAt', () => {
     expect(draftText(joinDraftAt(plainDraft('Hello.'), 'World.', 6))).toBe(
       draftText(joinDraft(plainDraft('Hello.'), 'World.')),
     );
+  });
+});
+
+describe('isTranscriptInsertAtEnd', () => {
+  it('treats a missing caret as append-at-end', () => {
+    expect(isTranscriptInsertAtEnd(plainDraft('Hello.'), null)).toBe(true);
+    expect(isTranscriptInsertAtEnd(plainDraft('Hello.'), undefined)).toBe(true);
+    expect(isTranscriptInsertAtEnd(plainDraft('Hello.'), 6)).toBe(true);
+  });
+
+  it('is false when the caret sits inside the draft', () => {
+    expect(isTranscriptInsertAtEnd(plainDraft('Hello. World.'), 7)).toBe(false);
+    expect(isTranscriptInsertAtEnd(plainDraft('Hello.'), 0)).toBe(false);
+  });
+
+  it('is true on an empty box', () => {
+    expect(isTranscriptInsertAtEnd([], 0)).toBe(true);
   });
 });
 

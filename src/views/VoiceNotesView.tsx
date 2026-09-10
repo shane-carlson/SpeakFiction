@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Book } from '../core/types';
 import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
@@ -12,23 +12,25 @@ import {
 import { mergeSeriesNameLibrary } from '../core/seriesNames';
 import { whisperInboxPrompt, whisperPrompt } from '../core/whisperPrompt';
 import {
+  assignVoiceNoteBook,
   createVoiceNoteId,
   noteCanDesktopHear,
   noteNeedsDesktopTranscription,
+  RECORD_VOICE_ONLY_LABEL,
   REMOTE_VOICE_TAKE_PLACEHOLDER,
+  resolveVoiceNoteBookId,
   transcriptAfterDesktopHear,
   type VoiceNote,
 } from '../core/voiceNotes';
-import { encodePcmWav, NAME_VOICE_MIME } from '../core/pcmWav';
 import { transcribeImportedAudioFile, type AudioImportProgress } from '../core/transcribeAudioImport';
 import { openBytesFile, openTextFile } from '../core/localFiles';
 import { useStore } from '../store';
 import { useVoiceNotes } from '../hooks/useVoiceNotes';
-import { recordPcmUntilStop } from '../hooks/pcmCapture';
+import { useRecordVoiceOnly } from '../hooks/useRecordVoiceOnly';
 import type { useLicense } from '../hooks/useLicense';
 import { LicenseGate } from '../components/LicenseGate';
 import { CompanionLinkSetup } from '../components/CompanionLinkSetup';
-import { MicToggleFace } from '../components/MicIcon';
+import { RecordVoiceOnlyControls } from '../components/RecordVoiceOnlyControls';
 
 export function VoiceNotesView({
   book,
@@ -51,10 +53,7 @@ export function VoiceNotesView({
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<AudioImportProgress | null>(null);
   const [importingNoteId, setImportingNoteId] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [recordElapsedMs, setRecordElapsedMs] = useState(0);
-  const [recordLevel, setRecordLevel] = useState(0);
-  const recordAbort = useRef<AbortController | null>(null);
+  const voiceOnly = useRecordVoiceOnly();
 
   const report = (message: string) => {
     setError(null);
@@ -69,15 +68,15 @@ export function VoiceNotesView({
   };
 
   const books = useStore((s) => s.books);
+  const setActiveBook = useStore((s) => s.setActiveBook);
 
   const landInBox = async (note: VoiceNote) => {
     const hearOnDesktop = noteCanDesktopHear(note);
     const fromAudio = hearOnDesktop || note.source === 'file';
-    const target =
-      books.find((item) => item.id === note.bookId) ??
-      books.find((item) => note.bookHint && item.title === note.bookHint) ??
-      book;
-    const names = mergeSeriesNameLibrary(books, target).map((entry) => entry.canonical);
+      const targetId =
+        resolveVoiceNoteBookId(note, books, book.id) ?? book.id;
+      const target = books.find((item) => item.id === targetId) ?? book;
+      const names = mergeSeriesNameLibrary(books, target).map((entry) => entry.canonical);
     let text = note.text;
     try {
       if (hearOnDesktop) {
@@ -124,6 +123,7 @@ export function VoiceNotesView({
       }
       await inbox.setStatus(note.id, 'imported', { text });
       setImportProgress(null);
+      setActiveBook(target.id);
       report(
         fromAudio
           ? 'Imported into the transcription box. The audio stays on this computer until you delete the take.'
@@ -164,66 +164,29 @@ export function VoiceNotesView({
   };
 
   const stopDesktopRecording = () => {
-    recordAbort.current?.abort();
+    voiceOnly.stop();
   };
 
   const recordDesktopTake = async () => {
-    if (!license.mayDictate || importing || recording) return;
+    if (!license.mayDictate || importing || voiceOnly.recording) return;
     setError(null);
-    const ac = new AbortController();
-    recordAbort.current = ac;
-    setRecording(true);
-    setRecordElapsedMs(0);
-    setRecordLevel(0);
-    const started = Date.now();
-    const tick = window.setInterval(() => setRecordElapsedMs(Date.now() - started), 200);
-    try {
-      const take = await recordPcmUntilStop(audioSettings, {
-        onLevel: setRecordLevel,
-        signal: ac.signal,
-      });
-      if (take.durationMs < 500 || take.samples.length === 0) {
-        fail('That take was too short. Hold record, speak, then stop.');
-        return;
-      }
-      const wav = encodePcmWav(take.samples, take.sampleRate);
-      const note: VoiceNote = {
-        id: createVoiceNoteId(),
-        createdAt: new Date().toISOString(),
-        status: 'inbox',
-        durationMs: take.durationMs,
-        platform: window.speakfiction?.platform || 'desktop',
-        text: REMOTE_VOICE_TAKE_PLACEHOLDER,
-        bookId: book.id,
-        bookHint: book.title,
-        source: 'desktop',
-        hasAudio: true,
-        recordOnly: true,
-        title: 'Desktop take',
-      };
-      const saved = await inbox.writeAudio(note.id, { mime: NAME_VOICE_MIME, bytes: wav });
-      if (!saved.ok) {
-        fail(saved.message || 'Could not save that recording on this computer.');
-        return;
-      }
-      await inbox.addLocal(note);
+    const result = await voiceOnly.start({
+      book,
+      audioSettings,
+      mayDictate: license.mayDictate,
+      writeAudio: inbox.writeAudio,
+      addLocal: inbox.addLocal,
+    });
+    if (result.ok) {
       report('Saved a voice-only take. Import it below to transcribe.');
-    } catch (err) {
-      fail(err instanceof Error ? err.message : 'Could not record that take.');
-    } finally {
-      window.clearInterval(tick);
-      if (recordAbort.current === ac) recordAbort.current = null;
-      setRecording(false);
-      setRecordElapsedMs(0);
-      setRecordLevel(0);
+    } else {
+      fail(result.message);
     }
   };
 
-  useEffect(() => {
-    return () => {
-      recordAbort.current?.abort();
-    };
-  }, []);
+  const assignNoteBook = async (note: VoiceNote, nextBook: { id: string; title: string }) => {
+    await inbox.setStatus(note.id, note.status, assignVoiceNoteBook(nextBook));
+  };
 
   const importAudio = async () => {
     if (!license.mayDictate) return;
@@ -330,6 +293,62 @@ export function VoiceNotesView({
         </div>
       </div>
 
+      <div className="card voice-notes-desktop">
+        <h3>{RECORD_VOICE_ONLY_LABEL}</h3>
+        <p className="sub">
+          Record a voice-only take on this computer. It stays here as audio until you import it to
+          transcribe into the transcription box. Choose the book on the take itself. Nothing is
+          inserted into the manuscript until you do that yourself.
+        </p>
+        <RecordVoiceOnlyControls
+          recording={voiceOnly.recording}
+          elapsedMs={voiceOnly.elapsedMs}
+          level={voiceOnly.level}
+          disabled={importing || !license.mayDictate}
+          onToggle={() => (voiceOnly.recording ? stopDesktopRecording() : void recordDesktopTake())}
+        />
+        {desktopNotes.length === 0 ? (
+          <p className="hint" style={{ marginTop: 14 }}>
+            No voice-only takes yet. Record one to keep the audio here.
+          </p>
+        ) : (
+          <ul className="voice-note-list">
+            {desktopNotes.map((note) => (
+              <VoiceNoteRow
+                key={note.id}
+                note={note}
+                books={books}
+                fallbackBookId={book.id}
+                progress={importingNoteId === note.id ? importProgress : null}
+                onAssignBook={(next) => void assignNoteBook(note, next)}
+                onAdd={
+                  note.status !== 'inbox' ||
+                  noteNeedsDesktopTranscription(note) ||
+                  (importing && importingNoteId !== note.id)
+                    ? undefined
+                    : () => void landInBox(note)
+                }
+                onImportAudio={
+                  note.status !== 'inbox' ||
+                  !noteNeedsDesktopTranscription(note) ||
+                  (importing && importingNoteId !== note.id)
+                    ? undefined
+                    : () => void landInBox(note)
+                }
+                onDelete={importingNoteId === note.id ? undefined : () => void removeNote(note)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {(status || error || inbox.error) && (
+        <div className={`note-banner ${error || inbox.error ? 'warn' : ''}`} style={{ marginBottom: 18 }}>
+          <span className="ico">{error || inbox.error ? '⚠️' : '✅'}</span>
+          <div>{error ?? inbox.error ?? status}</div>
+        </div>
+      )}
+
       <div className="note-banner" style={{ marginBottom: 18 }}>
         <span className="ico">🎙️</span>
         <div>
@@ -340,13 +359,6 @@ export function VoiceNotesView({
       </div>
 
       <LicenseGate license={license} />
-
-      {(status || error || inbox.error) && (
-        <div className={`note-banner ${error || inbox.error ? 'warn' : ''}`} style={{ marginBottom: 18 }}>
-          <span className="ico">{error || inbox.error ? '⚠️' : '✅'}</span>
-          <div>{error ?? inbox.error ?? status}</div>
-        </div>
-      )}
 
       <div className="grid cols-2" style={{ marginBottom: 16 }}>
         <div className="card">
@@ -391,76 +403,12 @@ export function VoiceNotesView({
         <CompanionLinkSetup paired={inbox.paired} />
       </div>
 
-      <div className="card voice-notes-desktop">
-        <h3>Desktop recorded</h3>
-        <p className="sub">
-          Record a voice-only take on this computer. It stays here as audio until you import it to
-          transcribe into the transcription box. Nothing is inserted into the manuscript until you
-          do that yourself.
-        </p>
-        <div className="row wrap" style={{ alignItems: 'center', gap: 12 }}>
-          <button
-            type="button"
-            className={`btn ${recording ? 'danger' : 'primary'} desktop-record-btn`}
-            disabled={importing || !license.mayDictate}
-            onClick={() => (recording ? stopDesktopRecording() : void recordDesktopTake())}
-            aria-pressed={recording}
-            aria-label={recording ? 'Stop recording' : 'Record a voice-only take'}
-          >
-            <MicToggleFace recording={recording} className="desktop-record-mic" />
-            {recording ? 'Stop' : 'Record'}
-          </button>
-          {recording ? (
-            <span className="hint desktop-record-meter" aria-live="polite">
-              Recording {formatElapsed(recordElapsedMs)}
-              <span
-                className="desktop-record-level"
-                style={{ ['--level' as string]: `${Math.min(100, recordLevel)}%` }}
-              />
-            </span>
-          ) : (
-            <span className="hint">Voice only — transcribe when you import the take.</span>
-          )}
-        </div>
-        {desktopNotes.length === 0 ? (
-          <p className="hint" style={{ marginTop: 14 }}>
-            No desktop takes yet. Record one to keep the audio here.
-          </p>
-        ) : (
-          <ul className="voice-note-list">
-            {desktopNotes.map((note) => (
-              <VoiceNoteRow
-                key={note.id}
-                note={note}
-                progress={importingNoteId === note.id ? importProgress : null}
-                onAdd={
-                  note.status !== 'inbox' ||
-                  noteNeedsDesktopTranscription(note) ||
-                  (importing && importingNoteId !== note.id)
-                    ? undefined
-                    : () => void landInBox(note)
-                }
-                onImportAudio={
-                  note.status !== 'inbox' ||
-                  !noteNeedsDesktopTranscription(note) ||
-                  (importing && importingNoteId !== note.id)
-                    ? undefined
-                    : () => void landInBox(note)
-                }
-                onDelete={importingNoteId === note.id ? undefined : () => void removeNote(note)}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-
       <div className="card voice-notes-inbox">
         <h3>Inbox</h3>
         <p className="sub">
           Add a transcribed phone take to run this computer’s speech model over the audio, then names,
-          cues, and genre punctuation. Voice-only takes play here first — import the audio to
-          transcribe. Desktop recordings live in Desktop recorded above. Insert into the manuscript
-          stays a separate step.
+          cues, and genre punctuation. Voice-only takes live in {RECORD_VOICE_ONLY_LABEL} above.
+          Insert into the manuscript stays a separate step.
         </p>
         {inboxNotes.length === 0 ? (
           <p className="hint">No waiting notes. Import a file or send a take from the phone.</p>
@@ -499,13 +447,6 @@ export function VoiceNotesView({
       </div>
     </>
   );
-}
-
-function formatElapsed(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 function AudioImportProgressBar({ progress, compact }: { progress: AudioImportProgress; compact?: boolean }) {
@@ -556,15 +497,21 @@ function InboxAudioPlayer({ noteId }: { noteId: string }) {
   return <audio className="voice-note-audio" controls preload="metadata" src={url} />;
 }
 
-function VoiceNoteRow({
+export function VoiceNoteRow({
   note,
+  books,
+  fallbackBookId,
   progress,
+  onAssignBook,
   onAdd,
   onImportAudio,
   onDelete,
 }: {
   note: VoiceNote;
+  books?: Array<{ id: string; title: string }>;
+  fallbackBookId?: string;
   progress?: AudioImportProgress | null;
+  onAssignBook?: (book: { id: string; title: string }) => void;
   onAdd?: () => void;
   onImportAudio?: () => void;
   onDelete?: () => void;
@@ -573,6 +520,10 @@ function VoiceNoteRow({
   const stamp = Number.isNaN(when.getTime()) ? note.createdAt : when.toLocaleString();
   const seconds = note.durationMs > 0 ? `${Math.max(1, Math.round(note.durationMs / 1000))}s` : null;
   const voiceOnly = noteNeedsDesktopTranscription(note);
+  const assignedBookId = books?.length
+    ? resolveVoiceNoteBookId(note, books, fallbackBookId)
+    : undefined;
+  const showBookSelect = Boolean(onAssignBook && books && books.length > 0);
   return (
     <li className="voice-note-row">
       <div>
@@ -583,14 +534,14 @@ function VoiceNoteRow({
               : note.source === 'file'
                 ? 'Audio file'
                 : note.source === 'desktop'
-                  ? 'Desktop'
+                  ? RECORD_VOICE_ONLY_LABEL
                   : 'Text'}
           </b>
           <span>· {stamp}</span>
           {seconds ? <span>· {seconds}</span> : null}
           {note.title ? <span>· {note.title}</span> : null}
           {note.fileName ? <span>· {note.fileName}</span> : null}
-          {note.bookHint ? <span>· {note.bookHint}</span> : null}
+          {!showBookSelect && note.bookHint ? <span>· {note.bookHint}</span> : null}
           {note.hasAudio ? <span>· audio on this computer</span> : null}
           {voiceOnly ? <span>· voice only</span> : null}
           <span className="badge">{note.status}</span>
@@ -603,8 +554,27 @@ function VoiceNoteRow({
         {note.hasAudio ? <InboxAudioPlayer noteId={note.id} /> : null}
         {progress ? <AudioImportProgressBar progress={progress} compact /> : null}
       </div>
-      {onAdd || onImportAudio || onDelete ? (
-        <div className="row wrap">
+      {onAdd || onImportAudio || onDelete || showBookSelect ? (
+        <div className="row wrap voice-note-actions">
+          {showBookSelect ? (
+            <label className="voice-note-book">
+              Add to
+              <select
+                value={assignedBookId ?? ''}
+                aria-label="Book for this take"
+                onChange={(e) => {
+                  const next = books?.find((item) => item.id === e.target.value);
+                  if (next) onAssignBook?.(next);
+                }}
+              >
+                {books?.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {onImportAudio ? (
             <button type="button" className="btn primary" disabled={Boolean(progress)} onClick={onImportAudio}>
               {progress ? 'Transcribing…' : 'Import audio'}

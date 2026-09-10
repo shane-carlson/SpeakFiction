@@ -123,6 +123,16 @@ export function caretAfterJoin(
   return o + (nextLen - prevLen);
 }
 
+/** True when the next words should append (no mid-box insert pin). */
+export function isTranscriptInsertAtEnd(
+  draft: DictationDraft,
+  caret: number | null | undefined,
+): boolean {
+  const n = draftText(draft).length;
+  if (n === 0 || caret == null || !Number.isFinite(caret)) return true;
+  return caret >= n;
+}
+
 export function appendCueText(draft: DictationDraft, cue: string): DictationDraft {
   const text = draftText(draft);
   const pad = text && !/[ \n]$/.test(text) ? ' ' : '';
@@ -398,8 +408,8 @@ export function offsetsFromDomRange(root: HTMLElement, range: Range): { start: n
   return a <= b ? { start: a, end: b } : { start: b, end: a };
 }
 
-/** Place a collapsed caret at a draftText offset after rebuilding contenteditable HTML. */
-export function setDomCaretFromOffset(root: HTMLElement, offset: number): void {
+/** Collapsed DOM range at a draftText offset, without touching the window selection. */
+export function rangeAtDraftOffset(root: HTMLElement, offset: number): Range {
   const target = Math.max(0, offset);
   let pos = 0;
   let started = false;
@@ -458,6 +468,12 @@ export function setDomCaretFromOffset(root: HTMLElement, offset: number): void {
     range.collapse(false);
   }
   range.collapse(true);
+  return range;
+}
+
+/** Place a collapsed caret at a draftText offset after rebuilding contenteditable HTML. */
+export function setDomCaretFromOffset(root: HTMLElement, offset: number): void {
+  const range = rangeAtDraftOffset(root, offset);
   const sel = window.getSelection();
   sel?.removeAllRanges();
   sel?.addRange(range);

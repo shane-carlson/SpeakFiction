@@ -103,7 +103,7 @@ export function useVoiceNotes() {
     async (
       id: string,
       status: VoiceNoteStatus,
-      extra?: Partial<Pick<VoiceNote, 'text' | 'hasAudio' | 'durationMs'>>,
+      extra?: Partial<Pick<VoiceNote, 'text' | 'hasAudio' | 'durationMs' | 'bookId' | 'bookHint'>>,
     ) => {
       pending.current[id] = status;
       const optimistic = mergeVoiceNotes(

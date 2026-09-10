@@ -2,7 +2,7 @@ import type { AdaptiveModelState, Book, InlineMark, Manuscript, ManuscriptImage,
 import { emptyAdaptiveState } from './adaptiveModel';
 import { DEFAULT_TENSE } from './tense';
 import { DEFAULT_PERSPECTIVE } from './perspective';
-import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isGenreId, isThemeId, type ThemeId, type ThemeMode } from './theme';
+import { DEFAULT_THEME_ID, DEFAULT_THEME_MODE, isGenreId, isThemeId, isThemeMode, type ThemeId, type ThemeMode } from './theme';
 import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './audioSettings';
 import { isManuscriptImageMime } from './manuscriptMedia';
 import { INLINE_MARK_KINDS } from './richText';
@@ -319,7 +319,7 @@ export function parseBackup(json: string): SpeakFictionBackup {
       series,
       books,
       activeBookId: typeof rec.activeBookId === 'string' ? rec.activeBookId : books[0]?.id ?? null,
-      themeMode: rec.themeMode === 'light' || rec.themeMode === 'dark' ? rec.themeMode : DEFAULT_THEME_MODE,
+      themeMode: isThemeMode(rec.themeMode) ? rec.themeMode : DEFAULT_THEME_MODE,
       themeId: isThemeId(typeof rec.themeId === 'string' ? rec.themeId : null) ? rec.themeId as ThemeId : DEFAULT_THEME_ID,
       audioSettings: normalizeAudio(rec.audioSettings),
       sttProfileLabel: typeof rec.sttProfileLabel === 'string' ? rec.sttProfileLabel : null,

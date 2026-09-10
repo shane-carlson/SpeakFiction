@@ -434,6 +434,8 @@ async function setStatus(id, status, extra) {
   if (typeof patch.text === 'string') safe.text = patch.text;
   if (typeof patch.hasAudio === 'boolean') safe.hasAudio = patch.hasAudio;
   if (Number.isFinite(Number(patch.durationMs))) safe.durationMs = Number(patch.durationMs);
+  if (typeof patch.bookId === 'string') safe.bookId = patch.bookId.trim() || undefined;
+  if (typeof patch.bookHint === 'string') safe.bookHint = patch.bookHint.trim() || undefined;
   const notes =
     status === 'deleted'
       ? readLocal().filter((n) => n.id !== id)

@@ -181,6 +181,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.34 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.34')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.34',
+      build: 51,
+      pending: {
+        version: '0.2.34',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.34'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Record Voice Only sits at the top of Voice notes, and you can start a take from Dictate',
+      'Choose which book a voice-only take is added to from the take itself',
+      'When the transcription caret is not at the end, a marker shows where the next words will land',
+      'Appearance can follow your computer’s light or dark setting',
+    ]);
+  });
+
   it('uses curated 0.2.33 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.33')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

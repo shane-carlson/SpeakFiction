@@ -53,7 +53,8 @@ describe('persisted session fields', () => {
 
   it('accepts appearance values and rejects junk', () => {
     expect(normalizeThemeMode('light', 'dark')).toBe('light');
-    expect(normalizeThemeMode('sepia', 'dark')).toBe('dark');
+    expect(normalizeThemeMode('system', 'dark')).toBe('system');
+    expect(normalizeThemeMode('sepia', 'system')).toBe('system');
     expect(normalizeThemeId('horror', 'auto')).toBe('horror');
     expect(normalizeThemeId('romance', 'auto')).toBe('romance');
     expect(normalizeThemeId('queer-lit', 'auto')).toBe('queer-lit');

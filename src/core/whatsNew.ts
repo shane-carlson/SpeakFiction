@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.34': bullets(
+    'Record Voice Only sits at the top of Voice notes, and you can start a take from Dictate',
+    'Choose which book a voice-only take is added to from the take itself',
+    'When the transcription caret is not at the end, a marker shows where the next words will land',
+    'Appearance can follow your computer’s light or dark setting',
+  ),
   '0.2.33': bullets(
     'Delete a scene or section the same way as a chapter, even when it is still empty',
     'Empty paragraphs can be removed with Backspace or ✕ before you type into them',

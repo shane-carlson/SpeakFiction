@@ -14,7 +14,7 @@ import { WhatsNewModal } from './components/WhatsNewModal';
 import { HelpTicketModal } from './components/HelpTicketModal';
 import { ViewErrorBoundary } from './components/ViewErrorBoundary';
 import type { TicketKind } from './core/ticket';
-import { applyDocumentTheme } from './core/theme';
+import { applyDocumentTheme, readOsPrefersDark, resolveThemeMode, subscribeOsPrefersDark } from './core/theme';
 import type { AppTab } from './core/persistedState';
 import { useLicense } from './hooks/useLicense';
 import { useUpdater } from './hooks/useUpdater';
@@ -46,10 +46,14 @@ export default function App() {
   const sidebarCollapsed = useStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useStore((s) => s.setSidebarCollapsed);
   const activeBook = books.find((b) => b.id === activeBookId) ?? books[0] ?? null;
+  const [osPrefersDark, setOsPrefersDark] = useState(readOsPrefersDark);
+  const resolvedMode = resolveThemeMode(themeMode, osPrefersDark);
+
+  useEffect(() => subscribeOsPrefersDark(setOsPrefersDark), []);
 
   useLayoutEffect(() => {
-    applyDocumentTheme(themeMode, themeId, activeBook?.genreId);
-  }, [themeMode, themeId, activeBook?.genreId]);
+    applyDocumentTheme(resolvedMode, themeId, activeBook?.genreId);
+  }, [resolvedMode, themeId, activeBook?.genreId]);
 
   useEffect(() => {
     return window.speakfiction?.help?.onOpenTicket((kind) => {

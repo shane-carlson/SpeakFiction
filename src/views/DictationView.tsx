@@ -36,11 +36,14 @@ import { MicToggleFace } from '../components/MicIcon';
 import { DictationCues } from '../components/DictationCues';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
+import { RecordVoiceOnlyControls } from '../components/RecordVoiceOnlyControls';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useRecordVoiceOnly } from '../hooks/useRecordVoiceOnly';
 import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
 import type { DictationCommand } from '../core/voiceCommands';
 import type { InlineMarkKind } from '../core/types';
+import { RECORD_VOICE_ONLY_LABEL } from '../core/voiceNotes';
 import {
   MANUSCRIPT_SPLIT_DEFAULT,
   MANUSCRIPT_SPLIT_MAX,
@@ -225,6 +228,32 @@ export function DictationView({
     promptNames: seriesNames.map((entry) => entry.canonical),
   });
   const profileLabel = speech.profileLabel || savedProfileLabel;
+  const setActiveTab = useStore((s) => s.setActiveTab);
+  const voiceOnly = useRecordVoiceOnly();
+  const [voiceOnlyStatus, setVoiceOnlyStatus] = useState<string | null>(null);
+
+  const toggleVoiceOnly = useCallback(async () => {
+    if (voiceOnly.recording) {
+      voiceOnly.stop();
+      return;
+    }
+    if (speech.session !== 'stopped') speech.stop();
+    setVoiceOnlyStatus(null);
+    const result = await voiceOnly.start({
+      book,
+      audioSettings,
+      mayDictate: license.mayDictate,
+    });
+    setVoiceOnlyStatus(
+      result.ok ? 'Saved to Voice notes. Import it there to transcribe.' : result.message,
+    );
+  }, [
+    audioSettings,
+    book,
+    license.mayDictate,
+    speech,
+    voiceOnly,
+  ]);
 
   useEffect(() => {
     onListeningChange?.(speech.session === 'listening');
@@ -609,7 +638,7 @@ export function DictationView({
             <button
               className={`mic-btn ${speech.session === 'listening' ? 'recording' : ''} ${speech.session === 'paused' ? 'paused' : ''}`}
               onClick={() => (speech.session === 'listening' ? speech.pause() : void speech.start())}
-              disabled={!speech.supported || !license.mayDictate}
+              disabled={!speech.supported || !license.mayDictate || voiceOnly.recording}
               title={
                 !license.mayDictate
                   ? 'License required to dictate'
@@ -644,6 +673,36 @@ export function DictationView({
             </div>
           </div>
 
+          <div className="dictate-voice-only">
+            <RecordVoiceOnlyControls
+              compact
+              recording={voiceOnly.recording}
+              elapsedMs={voiceOnly.elapsedMs}
+              level={voiceOnly.level}
+              disabled={!license.mayDictate}
+              onToggle={() => void toggleVoiceOnly()}
+            />
+            <button
+              type="button"
+              className="btn ghost compact"
+              onClick={() => setActiveTab('notes')}
+            >
+              Voice notes
+            </button>
+            {voiceOnlyStatus ? (
+              <span
+                className="hint"
+                style={{ color: voiceOnlyStatus.startsWith('Saved') ? undefined : 'var(--warn)' }}
+              >
+                {voiceOnlyStatus}
+              </span>
+            ) : (
+              <span className="hint">
+                {RECORD_VOICE_ONLY_LABEL} saves audio without transcribing into this box.
+              </span>
+            )}
+          </div>
+
           <DictationCues open={dictateCuesOpen} onOpenChange={setDictateCuesOpen} />
 
           <AudioSettingsPanel />
@@ -670,8 +729,10 @@ export function DictationView({
             {DICTATION_COMMAND_CHIPS.map((c) => (
               <button
                 key={c}
+                type="button"
                 className="badge"
                 style={{ cursor: 'pointer' }}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => appendCue(c)}
               >
                 + {c}
@@ -682,6 +743,7 @@ export function DictationView({
               className="badge"
               style={{ cursor: 'pointer' }}
               title="Mark the last sentence in the dictation box as struck. Struck text stays visible and is omitted on insert."
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 captureVoiceCommand(book.id);
                 setDraft(strikeLastSentence);

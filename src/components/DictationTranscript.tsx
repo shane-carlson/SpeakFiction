@@ -8,12 +8,16 @@ import {
 import {
   draftFromElement,
   draftToHtml,
+  isTranscriptInsertAtEnd,
   offsetsFromDomRange,
+  rangeAtDraftOffset,
   serializeDraft,
   setDomCaretFromOffset,
   type DictationDraft,
 } from '../core/dictationDraft';
 import { AppContextMenu } from './AppContextMenu';
+
+export const TRANSCRIPT_INSERT_HINT = 'Transcription will be inserted here';
 
 function rangeFromPoint(x: number, y: number): Range | null {
   const doc = document as Document & {
@@ -61,9 +65,13 @@ export function DictationTranscript({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const lastSerialized = useRef<string | null>(null);
   const caretRef = useRef(caret ?? 0);
   const empty = serializeDraft(value) === '[]';
+  const insertAtEnd = isTranscriptInsertAtEnd(value, caret);
+  const [hovering, setHovering] = useState(false);
+  const [pin, setPin] = useState<{ top: number; left: number; height: number } | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -82,6 +90,48 @@ export function DictationTranscript({
     lastSerialized.current = serialized;
     if (document.activeElement === el) setDomCaretFromOffset(el, caretRef.current);
   }, [value]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const wrap = wrapRef.current;
+    if (!el || !wrap) return;
+
+    const measure = () => {
+      if (isTranscriptInsertAtEnd(value, caret)) {
+        setPin(null);
+        return;
+      }
+      const offset = typeof caret === 'number' ? caret : caretRef.current;
+      const range = rangeAtDraftOffset(el, offset);
+      const caretBox =
+        typeof range.getBoundingClientRect === 'function'
+          ? range.getBoundingClientRect()
+          : new DOMRect(0, 0, 0, 0);
+      const wrapBox = wrap.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const line = Number.parseFloat(cs.lineHeight) || Number.parseFloat(cs.fontSize) * 1.45 || 18;
+      const height = caretBox.height > 1 ? caretBox.height : line;
+      let top = caretBox.top - wrapBox.top;
+      let left = caretBox.left - wrapBox.left;
+      if (caretBox.height < 1 && caretBox.width < 1 && caretBox.top === 0 && caretBox.left === 0) {
+        top = 8;
+        left = 12;
+      }
+      setPin({ top, left, height });
+    };
+
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    ro?.observe(wrap);
+    el.addEventListener('scroll', measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro?.disconnect();
+      el.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+    };
+  }, [value, caret]);
 
   const reportCaret = useCallback(
     (offset: number) => {
@@ -110,73 +160,102 @@ export function DictationTranscript({
       })
     : [];
 
+  const showHint = hovering && !insertAtEnd && pin;
+
   return (
     <>
       <div
-        ref={ref}
-        id={id}
-        className={`dictation-transcript${empty ? ' is-empty' : ''}${className ? ` ${className}` : ''}`}
-        contentEditable
-        role="textbox"
-        aria-multiline="true"
-        data-placeholder={placeholder}
-        suppressContentEditableWarning
-        spellCheck={true}
-        onInput={() => {
-          const el = ref.current;
-          if (!el) return;
-          const next = draftFromElement(el);
-          lastSerialized.current = serializeDraft(next);
-          onChange(next);
-          readCaret();
-        }}
-        onPaste={(e) => {
-          e.preventDefault();
-          const text = e.clipboardData.getData('text/plain');
-          if (!text) return;
-          document.execCommand('insertText', false, text);
-        }}
-        onKeyUp={readCaret}
-        onMouseUp={readCaret}
-        onSelect={readCaret}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
+        ref={wrapRef}
+        className="dictation-transcript-wrap"
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        <div
+          ref={ref}
+          id={id}
+          className={`dictation-transcript${empty ? ' is-empty' : ''}${className ? ` ${className}` : ''}`}
+          contentEditable
+          role="textbox"
+          aria-multiline="true"
+          aria-describedby={insertAtEnd ? undefined : `${id}-insert-pin`}
+          data-placeholder={placeholder}
+          suppressContentEditableWarning
+          spellCheck={true}
+          onInput={() => {
+            const el = ref.current;
+            if (!el) return;
+            const next = draftFromElement(el);
+            lastSerialized.current = serializeDraft(next);
+            onChange(next);
+            readCaret();
+          }}
+          onPaste={(e) => {
             e.preventDefault();
-          }
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const el = ref.current;
-          if (!el) return;
-
-          const sel = window.getSelection();
-          let range: Range | null =
-            sel && sel.rangeCount > 0 && !sel.isCollapsed && rangeInside(el, sel.getRangeAt(0))
-              ? sel.getRangeAt(0)
-              : null;
-
-          if (!range) {
-            const pointed = rangeFromPoint(e.clientX, e.clientY);
-            if (rangeInside(el, pointed)) {
-              range = pointed;
-              sel?.removeAllRanges();
-              sel?.addRange(pointed);
-            } else if (sel && sel.rangeCount > 0 && rangeInside(el, sel.getRangeAt(0))) {
-              range = sel.getRangeAt(0);
+            const text = e.clipboardData.getData('text/plain');
+            if (!text) return;
+            document.execCommand('insertText', false, text);
+          }}
+          onKeyUp={readCaret}
+          onMouseUp={readCaret}
+          onSelect={readCaret}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
+              e.preventDefault();
             }
-          }
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const el = ref.current;
+            if (!el) return;
 
-          const offsets = range ? offsetsFromDomRange(el, range) : { start: caretRef.current, end: caretRef.current };
-          reportCaret(offsets.start === offsets.end ? offsets.start : offsets.start);
-          setMenu({
-            x: e.clientX,
-            y: e.clientY,
-            start: offsets.start,
-            end: offsets.end,
-          });
-        }}
-      />
+            const sel = window.getSelection();
+            let range: Range | null =
+              sel && sel.rangeCount > 0 && !sel.isCollapsed && rangeInside(el, sel.getRangeAt(0))
+                ? sel.getRangeAt(0)
+                : null;
+
+            if (!range) {
+              const pointed = rangeFromPoint(e.clientX, e.clientY);
+              if (rangeInside(el, pointed)) {
+                range = pointed;
+                sel?.removeAllRanges();
+                sel?.addRange(pointed);
+              } else if (sel && sel.rangeCount > 0 && rangeInside(el, sel.getRangeAt(0))) {
+                range = sel.getRangeAt(0);
+              }
+            }
+
+            const offsets = range ? offsetsFromDomRange(el, range) : { start: caretRef.current, end: caretRef.current };
+            reportCaret(offsets.start === offsets.end ? offsets.start : offsets.start);
+            setMenu({
+              x: e.clientX,
+              y: e.clientY,
+              start: offsets.start,
+              end: offsets.end,
+            });
+          }}
+        />
+        {pin && !insertAtEnd && (
+          <div
+            id={`${id}-insert-pin`}
+            className="dictation-insert-pin"
+            role="note"
+            aria-label={TRANSCRIPT_INSERT_HINT}
+            style={{ top: pin.top, left: pin.left, height: pin.height }}
+          >
+            <span className="dictation-insert-pin-bar" aria-hidden="true" />
+            {showHint && (
+              <div
+                className={`dictation-insert-hint card${pin.top < 36 ? ' is-below' : ''}`}
+                role="tooltip"
+              >
+                {TRANSCRIPT_INSERT_HINT}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {menu && (
         <AppContextMenu
           x={menu.x}

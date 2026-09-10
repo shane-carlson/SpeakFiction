@@ -1,6 +1,13 @@
 import { GENRE_LIST } from '../core/genres';
-import { resolveThemeId, themeDisplayName } from '../core/theme';
-import type { ThemeId } from '../core/theme';
+import {
+  readOsPrefersDark,
+  resolveThemeId,
+  resolveThemeMode,
+  themeDisplayName,
+  themeModeLabel,
+  type ThemeId,
+  type ThemeMode,
+} from '../core/theme';
 import { useStore } from '../store';
 
 export function ThemeSwitcher() {
@@ -13,27 +20,28 @@ export function ThemeSwitcher() {
   const book = books.find((b) => b.id === activeBookId) ?? books[0] ?? null;
   const resolved = resolveThemeId(themeId, book?.genreId);
   const label = themeDisplayName(themeId, resolved);
+  const resolvedMode = resolveThemeMode(themeMode, readOsPrefersDark());
+  const modes: Array<{ id: ThemeMode; label: string }> = [
+    { id: 'system', label: 'System' },
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+  ];
 
   return (
     <div className="theme-switcher">
       <div className="theme-switcher-label">Appearance</div>
       <div className="theme-mode-seg" role="group" aria-label="Color mode">
-        <button
-          type="button"
-          className={themeMode === 'light' ? 'on' : ''}
-          aria-pressed={themeMode === 'light'}
-          onClick={() => setThemeMode('light')}
-        >
-          Light
-        </button>
-        <button
-          type="button"
-          className={themeMode === 'dark' ? 'on' : ''}
-          aria-pressed={themeMode === 'dark'}
-          onClick={() => setThemeMode('dark')}
-        >
-          Dark
-        </button>
+        {modes.map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            className={themeMode === mode.id ? 'on' : ''}
+            aria-pressed={themeMode === mode.id}
+            onClick={() => setThemeMode(mode.id)}
+          >
+            {mode.label}
+          </button>
+        ))}
       </div>
       <label className="theme-palette-label">
         Palette
@@ -52,7 +60,7 @@ export function ThemeSwitcher() {
         </select>
       </label>
       <div className="theme-switcher-current">
-        {label} · {themeMode === 'dark' ? 'Dark' : 'Light'}
+        {label} · {themeModeLabel(themeMode, resolvedMode)}
       </div>
     </div>
   );

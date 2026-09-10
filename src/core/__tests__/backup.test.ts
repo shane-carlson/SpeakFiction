@@ -116,6 +116,21 @@ describe('backup serialize/deserialize', () => {
     expect(parsed.sttProfileLabel).toBe('whisper-cli');
   });
 
+  it('round-trips a system appearance preference', () => {
+    const backup = serializeLibraryBackup({
+      series: [series],
+      books: [book],
+      activeBookId: book.id,
+      themeMode: 'system',
+      themeId: 'auto',
+      audioSettings: { ...DEFAULT_AUDIO_SETTINGS },
+    });
+    const parsed = parseBackup(backupToJson(backup));
+    expect(parsed.kind).toBe(BACKUP_KIND_LIBRARY);
+    if (parsed.kind !== BACKUP_KIND_LIBRARY) return;
+    expect(parsed.themeMode).toBe('system');
+  });
+
   it('fills defaults for missing library settings', () => {
     const parsed = parseBackup(
       JSON.stringify({
@@ -127,6 +142,7 @@ describe('backup serialize/deserialize', () => {
     expect(parsed.kind).toBe(BACKUP_KIND_LIBRARY);
     if (parsed.kind !== BACKUP_KIND_LIBRARY) return;
     expect(parsed.themeMode).toBe(DEFAULT_THEME_MODE);
+    expect(parsed.themeMode).toBe('system');
     expect(parsed.themeId).toBe(DEFAULT_THEME_ID);
     expect(parsed.audioSettings).toEqual(DEFAULT_AUDIO_SETTINGS);
   });

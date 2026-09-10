@@ -782,12 +782,19 @@ body.is-resizing iframe {
 .dictate-console .audio-settings .field {
   margin-bottom: 6px;
 }
+.dictate-console .field:has(.dictation-transcript-wrap),
 .dictate-console .field:has(.dictation-transcript) {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   margin-bottom: 8px;
+}
+.dictate-console .dictation-transcript-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .dictate-console .dictation-transcript {
   flex: 1 1 auto;
@@ -1005,6 +1012,10 @@ select:focus,
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.dictation-transcript-wrap {
+  position: relative;
+  width: 100%;
+}
 .dictation-transcript {
   min-height: 22em;
   height: 22em;
@@ -1018,6 +1029,8 @@ select:focus,
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text);
+  caret-color: var(--accent);
+  caret-shape: bar;
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: 13px;
@@ -1025,6 +1038,58 @@ select:focus,
   outline: none;
   cursor: text;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dictation-insert-pin {
+  position: absolute;
+  z-index: 2;
+  width: 12px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.dictation-insert-pin-bar {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px var(--accent-soft), 0 0 8px var(--accent-glow);
+  animation: dictation-insert-pulse 1.6s ease-in-out infinite;
+}
+.dictation-insert-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  z-index: 3;
+  width: max-content;
+  max-width: min(240px, 70vw);
+  padding: 6px 10px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.dictation-insert-hint.is-below {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+@keyframes dictation-insert-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 .dictation-transcript.is-empty::before {
   content: attr(data-placeholder);
@@ -1841,6 +1906,12 @@ label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ms-editor-dictate .dictation-transcript-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .ms-editor-dictate .dictation-transcript,
 .dictation-transcript.is-compact {
   flex: 1 1 auto;
@@ -2290,9 +2361,37 @@ label {
   width: min(100%, 28rem);
   margin-top: 8px;
 }
+.voice-note-actions {
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 12rem;
+}
+.voice-note-book {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+.voice-note-book select {
+  width: 100%;
+  min-width: 10rem;
+}
 
 .voice-notes-desktop {
   margin-bottom: 16px;
+}
+.record-voice-only-controls {
+  align-items: center;
+  gap: 12px;
+}
+.dictate-voice-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
 }
 .desktop-record-btn {
   display: inline-flex;
@@ -2373,7 +2472,7 @@ label {
 }
 .theme-mode-seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
   padding: 3px;
   background: var(--bg-input);

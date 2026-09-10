@@ -1,5 +1,5 @@
 import type { GenreId } from './types';
-import { isThemeId, type ThemeId, type ThemeMode } from './theme';
+import { isThemeId, isThemeMode, type ThemeId, type ThemeMode } from './theme';
 import {
   normalizeDictationDraft,
   type DictationDraft,
@@ -60,7 +60,7 @@ export function normalizeManuscriptPlace(raw: unknown): Record<string, Manuscrip
 }
 
 export function normalizeThemeMode(value: unknown, fallback: ThemeMode): ThemeMode {
-  return value === 'light' || value === 'dark' ? value : fallback;
+  return isThemeMode(value) ? value : fallback;
 }
 
 export function normalizeThemeId(value: unknown, fallback: ThemeId): ThemeId {
