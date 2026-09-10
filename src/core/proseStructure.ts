@@ -8,7 +8,7 @@ export const PARA_MARK = '\uE001';
 const DASH = { em: '\u2014', en: '\u2013', hyphen: '-' } as const;
 
 const SPEECH_VERBS =
-  'said|says|say|asked|asks|whispered|whispers|muttered|replied|answered|shouted|yelled|cried|called|murmured|snapped|hissed|growled|added|continued|demanded|explained|remarked|warned|pleaded|gasped|inquired|told';
+  'said|says|say|asked|asks|whispered|whispers|muttered|replied|answered|shouted|yelled|cried|called|murmured|snapped|hissed|growled|added|continued|demanded|explained|remarked|warned|pleaded|gasped|inquired|told|spoke|began|offered|insisted|agreed|laughed|breathed|noted|observed|declared|announced|interrupted|countered|retorted|queried|echoed|bellowed|screamed|sighed|chuckled|teased|promised|lied|joked|barked|exclaimed|protested|repeated|sobbed|stammered|urged|vowed|blurted|chided|confessed|drawled|groaned|moaned|scoffed|scolded|whined|wondered';
 
 const STT_TAG_VERBS = `${SPEECH_VERBS}|goes|go|went|going`;
 
@@ -21,7 +21,22 @@ const MOTION =
   /^(to|into|toward|towards|from|out|away|home|back|up|down|through|across|over|around|inside|outside|downstairs|upstairs)\b/i;
 
 const SPEECH_START =
-  /^(you|you'd|you'll|you're|your|i|i'm|i'll|i've|i'd|we|we'd|we'll|we're|don't|didn't|can't|won't|let's|wait|stop|run|come|look|listen|please|yes|no|yeah|hey|hello|hi|go|get|stay|leave|never|what|where|why|who|how|when|are|is|did|do|can|could|would|okay|ok|oh|ah|nope)\b/i;
+  /^(you|you'd|you'll|you're|you've|your|i|i'm|i'll|i've|i'd|we|we'd|we'll|we're|don't|didn't|can't|cannot|won't|let's|wait|stop|run|come|look|listen|please|yes|no|yeah|hey|hello|hi|go|get|stay|leave|never|what|where|why|who|how|when|are|is|did|do|can|could|would|okay|ok|oh|ah|nope|maybe|perhaps|sure|fine|alright|anyway|tell|thank|thanks|sorry|well|honestly|actually|really)\b/i;
+
+const TRAILING_SPEECH_WORDS = 24;
+const LEADING_SPEECH_WORDS = 28;
+const LEADING_HEAD_WORDS = 16;
+const NAME_ONLY_WORDS = 28;
+const UNTAGGED_MAX_WORDS = 32;
+
+const UNTAGGED_MINI =
+  /^(wait|stop|yes|no|yeah|hey|hello|hi|nope|okay|ok|please|oh|thanks|sorry)$/i;
+const UNTAGGED_SPEECH_START =
+  /^(you|you'd|you'll|you're|you've|your|don't|didn't|can't|cannot|won't|let's|wait|stop|please|yes|no|yeah|hey|hello|hi|nope|okay|ok|oh|listen|never|maybe|perhaps|sure|fine|alright|anyway|thank|thanks|sorry)\b/i;
+const QUESTION_START = /^(what|where|why|who|how)\b/i;
+const WHEN_QUESTION = /^when\s+(are|is|did|do|will|were|was|can|could|would)\b/i;
+const NOT_A_SPEAKER =
+  /^(The|A|An|When|If|After|Before|As|Although|Though|While|Because|Since|Then|There|This|That|These|Those|And|But|Or|So|Not|It|He|She|They|We|I|My|His|Her|Their|Our|Your|Yes|No|Oh|Well)$/;
 
 export interface ProseStructureOptions {
   /** Canonical character names from the name library; used as speakers. */
@@ -78,8 +93,28 @@ function looksLikeSpeech(s: string): boolean {
   if (!t || isQuoted(t)) return false;
   if (MOTION.test(t)) return false;
   if (SPEECH_START.test(t)) return true;
-  if (/[?!]$/.test(t) && wordCount(t) <= 14) return true;
+  if (/[?!]$/.test(t) && wordCount(t) <= LEADING_SPEECH_WORDS) return true;
   return false;
+}
+
+function looksLikeUntaggedDialogue(s: string): boolean {
+  const raw = s.trim();
+  if (!raw || isQuoted(raw) || MOTION.test(raw) || INDIRECT.test(raw)) return false;
+  const words = wordCount(raw);
+  if (words > UNTAGGED_MAX_WORDS) return false;
+  const bare = raw.replace(/[.!?]+$/g, '').trim();
+  if (words === 1 && !UNTAGGED_MINI.test(bare) && !/[?!]$/.test(raw)) return false;
+  if (/[?!]$/.test(raw)) return true;
+  if (UNTAGGED_SPEECH_START.test(raw)) return true;
+  if (QUESTION_START.test(raw) && words <= TRAILING_SPEECH_WORDS) return true;
+  if (WHEN_QUESTION.test(raw)) return true;
+  return false;
+}
+
+function firstSpeechSpan(text: string): string {
+  const trimmed = text.trim();
+  const punct = trimmed.match(/^(.+?[.!?])(?:\s+|$)/s);
+  return punct ? punct[1].trim() : trimmed;
 }
 
 function mapOutsideQuotes(text: string, fn: (narration: string) => string): string {
@@ -110,24 +145,24 @@ function extractTrailingSpeech(before: string): { narration: string; speech: str
   if (!trimmed) return { narration: '', speech: '' };
 
   const sent = trimmed.match(/^(.*[.!?])\s+([^.!?]+)$/);
-  if (sent && (looksLikeSpeech(sent[2]) || wordCount(sent[2]) <= 12)) {
+  if (sent && (looksLikeSpeech(sent[2]) || wordCount(sent[2]) <= TRAILING_SPEECH_WORDS)) {
     return { narration: sent[1], speech: sent[2] };
   }
 
   const words = trimmed.split(/\s+/);
   for (let i = 0; i < words.length; i++) {
     const rest = words.slice(i).join(' ');
-    if (wordCount(rest) <= 14 && looksLikeSpeech(rest)) {
+    if (wordCount(rest) <= LEADING_SPEECH_WORDS && looksLikeSpeech(rest)) {
       return {
         narration: i > 0 ? words.slice(0, i).join(' ') : '',
         speech: rest,
       };
     }
   }
-  if (wordCount(trimmed) <= 12 && !INDIRECT.test(trimmed)) {
+  if (wordCount(trimmed) <= TRAILING_SPEECH_WORDS && !INDIRECT.test(trimmed)) {
     return { narration: '', speech: trimmed };
   }
-  if (wordCount(trimmed) <= 12) return { narration: '', speech: trimmed };
+  if (wordCount(trimmed) <= TRAILING_SPEECH_WORDS) return { narration: '', speech: trimmed };
   return { narration: trimmed, speech: '' };
 }
 
@@ -143,14 +178,14 @@ function extractLeadingSpeech(after: string): { speech: string; rest: string } {
     return { speech: '', rest: trimmed };
   }
   const punct = trimmed.match(/^(.+?[.!?])\s+(.+)$/s);
-  if (punct && wordCount(punct[1]) <= 14 && punct[1].replace(/[.!?]+$/g, '').trim()) {
+  if (punct && wordCount(punct[1]) <= LEADING_SPEECH_WORDS && punct[1].replace(/[.!?]+$/g, '').trim()) {
     return { speech: punct[1], rest: punct[2] };
   }
-  if (wordCount(trimmed) <= 12) return { speech: trimmed, rest: '' };
+  if (wordCount(trimmed) <= TRAILING_SPEECH_WORDS) return { speech: trimmed, rest: '' };
   const words = trimmed.split(/\s+/);
-  const head = words.slice(0, 8).join(' ');
+  const head = words.slice(0, LEADING_HEAD_WORDS).join(' ');
   if (looksLikeSpeech(head) || !INDIRECT.test(head)) {
-    return { speech: head, rest: words.slice(8).join(' ') };
+    return { speech: head, rest: words.slice(LEADING_HEAD_WORDS).join(' ') };
   }
   return { speech: '', rest: trimmed };
 }
@@ -238,17 +273,71 @@ function wrapTaggedDialogue(core: string, open: string, close: string, who: stri
   return parts.join('');
 }
 
+function wrapUntaggedSpeech(inner: string, open: string, close: string): string {
+  let trimmed = inner.trim().replace(/^[,]+/g, '').replace(/[,]+$/g, '');
+  if (!trimmed || isQuoted(trimmed)) return inner.trim();
+  trimmed = capitalizeSpan(trimmed);
+  if (!/[.!?]$/.test(trimmed)) trimmed = `${trimmed}.`;
+  return `${open}${trimmed}${close}`;
+}
+
 function wrapNameOnlyDialogue(core: string, open: string, close: string, names: string[]): string {
   const named = nameAlternation(names);
   if (!named) return core;
   const re = new RegExp(`\\b(${named})\\s+(?!${STT_TAG_VERBS}\\b)([^]+)`, 'g');
   return core.replace(re, (full, speaker: string, rest: string) => {
-    const trimmed = rest.trim();
-    if (!looksLikeSpeech(trimmed) || isQuoted(trimmed) || wordCount(trimmed) > 14) return full;
-    const end = trimmed.match(/[.!?]+$/)?.[0] ?? '.';
-    const speech = trimmed.replace(/[.!?]+$/, '');
-    return `${wrapSpeech(speech, open, close, true)} ${speaker} said${end}`;
+    if (/[\u201C"]/.test(full)) return full;
+    const span = firstSpeechSpan(rest);
+    if (!looksLikeSpeech(span) || isQuoted(span) || wordCount(span) > NAME_ONLY_WORDS) return full;
+    const end = span.match(/[.!?]+$/)?.[0] ?? '.';
+    const speech = span.replace(/[.!?]+$/, '');
+    const after = rest.trim().slice(span.length).trim();
+    const tail = after ? ` ${after}` : '';
+    return `${wrapSpeech(speech, open, close, true)} ${speaker} said${end}${tail}`;
   });
+}
+
+function wrapBareSpeakerDialogue(core: string, open: string, close: string): string {
+  const re = new RegExp(`\\b([A-Z][\\w']+(?:\\s+[A-Z][\\w']+)?)\\s+(?!${STT_TAG_VERBS}\\b)([^]+)`, 'g');
+  return core.replace(re, (full, speaker: string, rest: string) => {
+    const first = speaker.split(/\s+/)[0] ?? speaker;
+    if (NOT_A_SPEAKER.test(speaker) || NOT_A_SPEAKER.test(first) || /[\u201C"]/.test(full)) return full;
+    const span = firstSpeechSpan(rest);
+    if (isQuoted(span) || wordCount(span) > NAME_ONLY_WORDS) return full;
+    if (!looksLikeUntaggedDialogue(span)) return full;
+    const end = span.match(/[.!?]+$/)?.[0] ?? '.';
+    const speech = span.replace(/[.!?]+$/, '');
+    const after = rest.trim().slice(span.length).trim();
+    const tail = after ? ` ${after}` : '';
+    return `${wrapSpeech(speech, open, close, true)} ${speaker} said${end}${tail}`;
+  });
+}
+
+function wrapUntaggedDialogue(core: string, open: string, close: string): string {
+  if (!core.trim() || /[\u201C"]/.test(core)) return core;
+
+  const sentences = splitSentences(core);
+  if (sentences.length > 1) {
+    return sentences
+      .map((sentence) => {
+        if (isQuoted(sentence) || !looksLikeUntaggedDialogue(sentence)) return sentence;
+        return wrapUntaggedSpeech(sentence, open, close);
+      })
+      .join(' ');
+  }
+
+  const trimmed = core.trim();
+  if (looksLikeUntaggedDialogue(trimmed)) return wrapUntaggedSpeech(trimmed, open, close);
+
+  const words = trimmed.split(/\s+/);
+  for (let i = 1; i < words.length; i++) {
+    const rest = words.slice(i).join(' ');
+    if (!looksLikeUntaggedDialogue(rest)) continue;
+    const narr = words.slice(0, i).join(' ');
+    const narrPart = /[.!?]$/.test(narr) ? `${narr} ` : `${narr.replace(/[,]$/, '')}. `;
+    return `${narrPart}${wrapUntaggedSpeech(rest, open, close)}`;
+  }
+  return core;
 }
 
 /** Wrap unquoted speech that has a clear said/asked tag. Preserves outer whitespace. */
@@ -267,6 +356,8 @@ export function wrapImpliedDialogue(
   core = normalizeSttTags(core, who);
   core = wrapTaggedDialogue(core, open, close, who);
   core = wrapNameOnlyDialogue(core, open, close, characterNames);
+  core = wrapBareSpeakerDialogue(core, open, close);
+  core = wrapUntaggedDialogue(core, open, close);
 
   const joined = core
     .replace(/[ \t]+/g, ' ')

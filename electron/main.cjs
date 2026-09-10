@@ -170,7 +170,8 @@ ipcMain.handle('notes:refresh', () => voiceNotes.refreshRemote());
 ipcMain.handle('notes:add-local', (_event, note) => voiceNotes.addLocal(note));
 ipcMain.handle('notes:set-status', (_event, id, status, extra) => voiceNotes.setStatus(id, status, extra));
 ipcMain.handle('notes:publish-library', (_event, books) => voiceNotes.publishLibrary(books));
-  ipcMain.handle('notes:read-audio', (_event, id) => voiceNotes.readNoteAudio(id));
+ipcMain.handle('notes:read-audio', (_event, id) => voiceNotes.readNoteAudio(id));
+ipcMain.handle('notes:write-audio', (_event, id, payload) => voiceNotes.writeAudio(id, payload));
 
 ipcMain.handle('stt:profile', () => getProfile());
 ipcMain.handle('stt:ensure', async (event) => {

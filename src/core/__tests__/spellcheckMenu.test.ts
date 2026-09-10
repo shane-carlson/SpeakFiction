@@ -79,8 +79,8 @@ describe('withSpellcheckItems', () => {
       'Insert new paragraph',
       'Insert image',
     ]);
-    expect(items.find((i) => i.id === CHAPTER_UNWRAP_ID)?.group).toBe('chapter');
-    expect(items.find((i) => i.id === CHAPTER_DELETE_ID)?.group).toBe('chapter');
+    expect(items.find((i) => i.id === CHAPTER_UNWRAP_ID)?.group).toBe('heading');
+    expect(items.find((i) => i.id === CHAPTER_DELETE_ID)?.group).toBe('heading');
   });
 
   it('leads with Unselect insertion point when a gap is marked', () => {
@@ -89,9 +89,14 @@ describe('withSpellcheckItems', () => {
     expect(items.map((i) => i.label)).toContain('Insert dictation here');
   });
 
-  it('leads with both chapter actions when the heading is spelled correctly', () => {
-    const items = buildManuscriptContextMenu(true, null, { chapterHeading: true });
-    expect(items.map((i) => i.label).slice(0, 2)).toEqual([CHAPTER_UNWRAP_LABEL, CHAPTER_DELETE_LABEL]);
+  it('puts scene unwrap and delete on a scene heading', () => {
+    const items = buildManuscriptContextMenu(true, null, { headingKind: 'scene' });
+    expect(items.map((i) => i.label).slice(0, 2)).toEqual(['Remove scene header', 'Delete scene']);
+  });
+
+  it('puts section unwrap and delete on a section heading', () => {
+    const items = buildManuscriptContextMenu(true, null, { headingKind: 'section' });
+    expect(items.map((i) => i.label).slice(0, 2)).toEqual(['Remove section header', 'Delete section']);
   });
 });
 

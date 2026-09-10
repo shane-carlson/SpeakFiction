@@ -1,6 +1,6 @@
 import { openMicrophone } from './useLocalAudio';
 import type { AudioSettings } from '../core/audioSettings';
-import { rms } from '../core/resample';
+import { concatFloat32, rms } from '../core/resample';
 import { UtteranceSlicer, type ReadyUtterance } from '../core/speechUtterance';
 
 export type PcmFrameHandler = (frame: Float32Array, sampleRate: number) => void;
@@ -133,4 +133,36 @@ export async function recordOnePcmUtterance(
     opts.signal?.removeEventListener('abort', onAbort);
     await capture.stop();
   }
+}
+
+/** Record until the caller aborts. Used for voice-only desktop takes. */
+export async function recordPcmUntilStop(
+  settings: AudioSettings,
+  opts: { onLevel?: (n: number) => void; signal: AbortSignal },
+): Promise<{ samples: Float32Array; sampleRate: number; durationMs: number }> {
+  const chunks: Float32Array[] = [];
+  let sampleRate = 48_000;
+  const capture = await startPcmCapture(settings, (frame, rate) => {
+    sampleRate = rate;
+    chunks.push(new Float32Array(frame));
+    opts.onLevel?.(Math.min(100, rms(frame) * 900));
+  });
+
+  const waitForStop = new Promise<void>((resolve) => {
+    if (opts.signal.aborted) {
+      resolve();
+      return;
+    }
+    opts.signal.addEventListener('abort', () => resolve(), { once: true });
+  });
+
+  try {
+    await waitForStop;
+  } finally {
+    await capture.stop();
+  }
+
+  const samples = concatFloat32(chunks);
+  const durationMs = sampleRate > 0 ? Math.round((samples.length / sampleRate) * 1000) : 0;
+  return { samples, sampleRate, durationMs };
 }

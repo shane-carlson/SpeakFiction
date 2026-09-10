@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('speakfiction', {
     setStatus: (id, status, extra) => ipcRenderer.invoke('notes:set-status', id, status, extra),
     publishLibrary: (books) => ipcRenderer.invoke('notes:publish-library', books),
     readAudio: (id) => ipcRenderer.invoke('notes:read-audio', id),
+    writeAudio: (id, payload) => ipcRenderer.invoke('notes:write-audio', id, payload),
   },
   updater: {
     getStatus: () => ipcRenderer.invoke('updater:status'),

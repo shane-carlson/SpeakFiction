@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { ChapterRemoveControl } from '../ChapterRemoveControl';
-import { CHAPTER_DELETE_LABEL, CHAPTER_UNWRAP_LABEL } from '../../core/manuscriptContextMenu';
+import { ChapterRemoveControl, HeadingRemoveControl } from '../ChapterRemoveControl';
+import { CHAPTER_DELETE_LABEL, CHAPTER_UNWRAP_LABEL, headingLabels } from '../../core/manuscriptContextMenu';
 
 describe('ChapterRemoveControl', () => {
   it('shows both chapter actions on X hover and calls unwrap vs delete', () => {
@@ -28,5 +28,17 @@ describe('ChapterRemoveControl', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: CHAPTER_DELETE_LABEL }));
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onUnwrap).not.toHaveBeenCalled();
+  });
+
+  it('shows scene unwrap and delete labels', () => {
+    const onUnwrap = vi.fn();
+    const onDelete = vi.fn();
+    const labels = headingLabels('scene');
+    render(<HeadingRemoveControl kind="scene" onUnwrap={onUnwrap} onDelete={onDelete} />);
+    fireEvent.mouseEnter(screen.getByRole('button', { name: labels.aria }));
+    expect(screen.getByRole('menuitem', { name: labels.unwrap })).toBeVisible();
+    expect(screen.getByRole('menuitem', { name: labels.delete })).toBeVisible();
+    fireEvent.click(screen.getByRole('menuitem', { name: labels.delete }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });

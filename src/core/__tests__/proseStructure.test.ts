@@ -64,6 +64,46 @@ describe('wrapImpliedDialogue', () => {
     expect(out).toContain('\u201CYou should not have come,');
     expect(out).toContain('Aelith said');
   });
+
+  it('quotes a capitalized speaker even without a name-library entry', () => {
+    const out = wrapImpliedDialogue('Kaeldros wait for me', '\u201C', '\u201D');
+    expect(out).toContain('\u201CWait for me,');
+    expect(out).toContain('Kaeldros said');
+  });
+
+  it('quotes untagged speech when people are speaking to one another', () => {
+    expect(wrapImpliedDialogue('wait you cannot go in there', '\u201C', '\u201D')).toMatch(
+      /^\u201CWait you cannot go in there\./,
+    );
+    expect(wrapImpliedDialogue('what do you want', '\u201C', '\u201D')).toMatch(/^\u201CWhat do you want\./);
+  });
+
+  it('quotes trailing untagged speech after narration', () => {
+    const out = wrapImpliedDialogue(
+      'the wind howled you should not have come',
+      '\u201C',
+      '\u201D',
+    );
+    expect(out).toContain('the wind howled');
+    expect(out).toContain('\u201CYou should not have come.');
+  });
+
+  it('quotes a longer trailing said-tag instead of dropping it', () => {
+    const out = wrapImpliedDialogue(
+      'you should not have come all this way in the dark she said',
+      '\u201C',
+      '\u201D',
+    );
+    expect(out).toContain('\u201CYou should not have come all this way in the dark,');
+    expect(out).toContain('she said');
+  });
+
+  it('does not quote first-person narration or when-clauses', () => {
+    expect(wrapImpliedDialogue('I walked to the door', '\u201C', '\u201D')).toBe('I walked to the door');
+    expect(wrapImpliedDialogue('When the door opened he ran', '\u201C', '\u201D')).toBe(
+      'When the door opened he ran',
+    );
+  });
 });
 
 describe('fixDialogueTagCommas', () => {
@@ -131,9 +171,9 @@ describe('applyProseStructure', () => {
     expect(applyProseStructure('The wind howled.', literary)).toBe('The wind howled.');
   });
 
-  it('commas direct address around a capitalized name', () => {
+  it('commas direct address around a capitalized name and quotes it as speech', () => {
     expect(applyProseStructure('Yes Kaeldros we must ride.', literary)).toBe(
-      'Yes, Kaeldros, we must ride.',
+      '\u201CYes, Kaeldros, we must ride.\u201D',
     );
   });
 

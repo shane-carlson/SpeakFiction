@@ -12,12 +12,14 @@ export function RichParagraph({
   marks,
   onChange,
   onPlace,
+  onEmptyBackspace,
   onModKey,
 }: {
   value: string;
   marks?: InlineMark[];
   onChange: (text: string, marks: InlineMark[]) => void;
   onPlace: (selStart: number, selEnd: number) => void;
+  onEmptyBackspace?: () => void;
   onModKey?: (key: 'b' | 'i' | 'u') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -89,6 +91,11 @@ export function RichParagraph({
         focused.current = false;
       }}
       onKeyDown={(e) => {
+        if (e.key === 'Backspace' && !(value ?? '').trim() && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          e.preventDefault();
+          onEmptyBackspace?.();
+          return;
+        }
         const meta = e.metaKey || e.ctrlKey;
         if (!meta || e.altKey) return;
         const key = e.key.toLowerCase();

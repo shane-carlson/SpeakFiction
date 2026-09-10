@@ -5,6 +5,8 @@ import { REMOTE_VOICE_TAKE_PLACEHOLDER } from '../voiceNotes';
 describe('whisperPrompt', () => {
   it('keeps the literary base when the book has no names yet', () => {
     expect(whisperPrompt([])).toBe(LITERARY_WHISPER_PROMPT);
+    expect(LITERARY_WHISPER_PROMPT).toMatch(/dialogue/i);
+    expect(LITERARY_WHISPER_PROMPT).toMatch(/said/i);
   });
 
   it('appends trained names so Whisper can hear Fae instead of stay', () => {

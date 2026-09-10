@@ -87,6 +87,23 @@ describe('voice notes identity and crypto', () => {
     expect(noteCanDesktopHear({ hasAudio: true, source: 'phone' })).toBe(true);
     expect(noteCanDesktopHear({ hasAudio: false, source: 'phone' })).toBe(false);
     expect(noteCanDesktopHear({ hasAudio: true, source: 'file' })).toBe(false);
+    expect(noteCanDesktopHear({ hasAudio: true, source: 'desktop' })).toBe(true);
+    expect(
+      noteNeedsDesktopTranscription({
+        text: REMOTE_VOICE_TAKE_PLACEHOLDER,
+        hasAudio: true,
+        source: 'desktop',
+        recordOnly: true,
+      }),
+    ).toBe(true);
+    expect(
+      noteNeedsDesktopTranscription({
+        text: 'the wind howled',
+        hasAudio: true,
+        source: 'desktop',
+        recordOnly: true,
+      }),
+    ).toBe(false);
   });
 
   it('keeps the phone transcript when desktop STT hears silence', () => {

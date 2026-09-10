@@ -19,7 +19,14 @@ import type { ManuscriptPlace } from '../core/persistedState';
 import { offsetsFromDomRange } from '../core/dictationDraft';
 import { ingestManuscriptImage } from '../core/mediaStore';
 import { mimeFromFile } from '../core/manuscriptMedia';
-import { buildManuscriptContextMenu, applyChapterHeadingMenuAction, UNSELECT_INSERT_ID } from '../core/manuscriptContextMenu';
+import {
+  applyHeadingMenuAction,
+  buildManuscriptContextMenu,
+  headingLabels,
+  isManuscriptHeadingKind,
+  UNSELECT_INSERT_ID,
+  type ManuscriptHeadingKind,
+} from '../core/manuscriptContextMenu';
 import {
   SPELLCHECK_ADD_ID,
   manuscriptSpellcheckGate,
@@ -29,7 +36,7 @@ import {
   type SpellcheckHit,
 } from '../core/spellcheckMenu';
 import { AppContextMenu } from './AppContextMenu';
-import { ChapterRemoveControl } from './ChapterRemoveControl';
+import { HeadingRemoveControl } from './ChapterRemoveControl';
 import { RichParagraph } from './RichParagraph';
 import { ManuscriptImageFrame } from './ManuscriptImageFrame';
 
@@ -216,7 +223,7 @@ export function ManuscriptView({
     x: number;
     y: number;
     dest: ManuscriptInsertAt;
-    chapterHeading?: boolean;
+    headingKind?: ManuscriptHeadingKind;
     field?: SpellField | null;
     spell?: SpellcheckHit | null;
   } | null>(null);
@@ -285,13 +292,13 @@ export function ManuscriptView({
     e.stopPropagation();
     const dest = destFromEvent(e, blocks);
     const destBlock = dest.atBlockId ? blocks.find((b) => b.id === dest.atBlockId) : undefined;
-    const chapterHeading = destBlock?.type === 'chapter';
+    const headingKind = isManuscriptHeadingKind(destBlock?.type) ? destBlock.type : undefined;
     if (dest.atBlockId) {
       report(dest.atBlockId, dest.splitOffset, dest.splitOffset);
     }
     const token = ++menuGen.current;
     const field = spellFieldFromTarget(e.target);
-    const base = { x: e.clientX, y: e.clientY, dest, field, chapterHeading };
+    const base = { x: e.clientX, y: e.clientY, dest, field, headingKind };
     const waitMs = window.speakfiction?.spellcheck?.onContextMenu ? 150 : 0;
     const immediate = manuscriptSpellcheckGate.takeImmediate();
     if (immediate || waitMs === 0) {
@@ -335,13 +342,14 @@ export function ManuscriptView({
       return;
     }
     if (
-      applyChapterHeadingMenuAction(id, {
+      applyHeadingMenuAction(id, {
         unwrapHeading: () => {
           if (menu.dest.atBlockId) unwrapHeading(book.id, menu.dest.atBlockId);
         },
-        deleteChapter: () => {
+        deleteHeading: () => {
           if (!menu.dest.atBlockId) return;
-          const ok = window.confirm('Delete this chapter and all of its content?');
+          const kind = menu.headingKind ?? 'chapter';
+          const ok = window.confirm(headingLabels(kind).confirm);
           if (ok) deleteBlockRange(book.id, menu.dest.atBlockId);
         },
       })
@@ -452,7 +460,7 @@ export function ManuscriptView({
       x={menu.x}
       y={menu.y}
       items={buildManuscriptContextMenu(Boolean(canInsertDictation), menu.spell, {
-        chapterHeading: menu.chapterHeading,
+        headingKind: menu.headingKind,
         canUnselectInsert: place?.atIndex != null,
       })}
       onClose={closeMenu}
@@ -623,10 +631,11 @@ export function ManuscriptView({
                     report(b.id, e.currentTarget.selectionStart ?? 0, e.currentTarget.selectionEnd ?? 0)
                   }
                 />
-                <ChapterRemoveControl
+                <HeadingRemoveControl
+                  kind="chapter"
                   onUnwrap={() => unwrapHeading(book.id, b.id)}
                   onDelete={() => {
-                    const ok = window.confirm('Delete this chapter and all of its content?');
+                    const ok = window.confirm(headingLabels('chapter').confirm);
                     if (ok) deleteBlockRange(book.id, b.id);
                   }}
                 />
@@ -650,6 +659,14 @@ export function ManuscriptView({
                   onChange={(e) => updateBlockTitle(book.id, b.id, e.target.value)}
                   onFocus={(e) => report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)}
                 />
+                <HeadingRemoveControl
+                  kind="scene"
+                  onUnwrap={() => unwrapHeading(book.id, b.id)}
+                  onDelete={() => {
+                    const ok = window.confirm(headingLabels('scene').confirm);
+                    if (ok) deleteBlockRange(book.id, b.id);
+                  }}
+                />
               </div>
             );
           } else if (b.type === 'section') {
@@ -669,6 +686,14 @@ export function ManuscriptView({
                   draggable={false}
                   onChange={(e) => updateBlockTitle(book.id, b.id, e.target.value)}
                   onFocus={(e) => report(b.id, e.target.selectionStart ?? 0, e.target.selectionEnd ?? 0)}
+                />
+                <HeadingRemoveControl
+                  kind="section"
+                  onUnwrap={() => unwrapHeading(book.id, b.id)}
+                  onDelete={() => {
+                    const ok = window.confirm(headingLabels('section').confirm);
+                    if (ok) deleteBlockRange(book.id, b.id);
+                  }}
                 />
               </div>
             );
@@ -753,12 +778,14 @@ export function ManuscriptView({
                   marks={b.marks}
                   onChange={(text: string, marks: InlineMark[]) => updateBlockText(book.id, b.id, text, marks)}
                   onPlace={(start, end) => report(b.id, start, end)}
+                  onEmptyBackspace={() => deleteBlock(book.id, b.id)}
                   onModKey={(key) => {
                     report(b.id, place?.selectionStart, place?.selectionEnd);
                     formatAtPlace(key);
                   }}
                 />
                 <button
+                  type="button"
                   className="btn ghost ms-block-remove is-absolute"
                   onClick={() => deleteBlock(book.id, b.id)}
                   aria-label="Delete paragraph"

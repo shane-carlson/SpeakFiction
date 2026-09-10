@@ -11,7 +11,7 @@ export const NOTES_ACCOUNT_SALT = 'speakfiction-account-v1:';
 export const VOICE_NOTE_STATUSES = ['inbox', 'imported', 'dismissed', 'deleted'] as const;
 export type VoiceNoteStatus = (typeof VOICE_NOTE_STATUSES)[number];
 
-export const VOICE_NOTE_SOURCES = ['phone', 'file', 'paste'] as const;
+export const VOICE_NOTE_SOURCES = ['phone', 'file', 'paste', 'desktop'] as const;
 export type VoiceNoteSource = (typeof VOICE_NOTE_SOURCES)[number];
 
 export interface VoiceNote {
@@ -66,15 +66,18 @@ export function noteNeedsDesktopTranscription(
   note: Pick<VoiceNote, 'text' | 'hasAudio' | 'source'> & { recordOnly?: boolean },
 ): boolean {
   if (note.source === 'file') return false;
+  if (note.source === 'desktop') {
+    return Boolean(note.hasAudio) && (isRemoteVoiceTakePlaceholder(note.text) || !(note.text || '').trim());
+  }
   if (note.recordOnly) return Boolean(note.hasAudio);
   return isRemoteVoiceTakePlaceholder(note.text) || (Boolean(note.hasAudio) && !(note.text || '').trim());
 }
 
-/** Phone audio on this computer — desktop Whisper should hear it, even if the phone already typed a transcript. */
+/** Audio on this computer that desktop Whisper should hear. */
 export function noteCanDesktopHear(
   note: Pick<VoiceNote, 'hasAudio' | 'source'>,
 ): boolean {
-  return note.source === 'phone' && Boolean(note.hasAudio);
+  return (note.source === 'phone' || note.source === 'desktop') && Boolean(note.hasAudio);
 }
 
 /** Prefer the computer’s hearing; keep the phone’s words if desktop STT came back empty. */

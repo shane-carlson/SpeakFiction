@@ -133,6 +133,10 @@ export interface SpeakFictionNotesBridge {
     books: import('./core/companionLibrary').CompanionBook[],
   ) => Promise<{ ok: boolean; books?: import('./core/companionLibrary').CompanionBook[]; message?: string }>;
   readAudio: (id: string) => Promise<{ ok: boolean; mime?: string; bytes?: number[]; message?: string }>;
+  writeAudio: (
+    id: string,
+    payload: { mime: string; bytes: Uint8Array | number[] },
+  ) => Promise<{ ok: boolean; message?: string }>;
 }
 
 export interface SpeakFictionUpdaterBridge {

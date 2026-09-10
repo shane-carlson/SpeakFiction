@@ -125,13 +125,34 @@ function audioDir() {
   return dir;
 }
 
-function writeNoteAudio(id, mime, dataB64) {
+function writeNoteAudioBuf(id, mime, buf) {
   removeNoteAudio(id);
   const ext = /wav/i.test(mime) ? 'wav' : /caf/i.test(mime) ? 'caf' : 'm4a';
   const dest = path.join(audioDir(), `${id}.${ext}`);
-  fs.writeFileSync(dest, Buffer.from(dataB64, 'base64'));
+  fs.writeFileSync(dest, buf);
   fs.writeFileSync(`${dest}.meta.json`, `${JSON.stringify({ mime })}\n`);
   return dest;
+}
+
+function writeNoteAudio(id, mime, dataB64) {
+  return writeNoteAudioBuf(id, mime, Buffer.from(dataB64, 'base64'));
+}
+
+function bytesToBuffer(raw) {
+  if (!raw) return Buffer.alloc(0);
+  if (Buffer.isBuffer(raw)) return raw;
+  if (raw instanceof Uint8Array) return Buffer.from(raw);
+  if (Array.isArray(raw)) return Buffer.from(raw);
+  if (raw.type === 'Buffer' && Array.isArray(raw.data)) return Buffer.from(raw.data);
+  return Buffer.alloc(0);
+}
+
+async function writeAudio(id, payload) {
+  const mime = typeof payload?.mime === 'string' && payload.mime.trim() ? payload.mime.trim() : 'audio/wav';
+  const buf = bytesToBuffer(payload?.bytes);
+  if (!id || !buf.length) return { ok: false, message: 'No audio to save.' };
+  writeNoteAudioBuf(id, mime, buf);
+  return { ok: true };
 }
 
 function noteAudioExists(id) {
@@ -369,7 +390,7 @@ async function addLocal(note) {
   const next = [note, ...notes.filter((n) => n.id !== note.id)];
   writeLocal(next);
   const key = storedKey();
-  if (SF_KEY_RE.test(key) && note.text) {
+  if (SF_KEY_RE.test(key) && note.text && note.source !== 'desktop') {
     try {
       if (!sessionToken) await openSession();
       if (sessionToken) {
@@ -453,6 +474,7 @@ module.exports = {
   addLocal,
   setStatus,
   readNoteAudio,
+  writeAudio,
   openSession,
   DEFAULT_NOTES_URL,
 };

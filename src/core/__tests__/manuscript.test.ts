@@ -435,6 +435,19 @@ describe('unwrapHeading vs deleteMovableRange', () => {
     expect(chapterOrder(next).map((c) => c.number)).toEqual([1]);
     expect(next.at(-1)?.text).toBe('Aelith waited on the lowest step.');
   });
+
+  it('unwraps a scene heading and deletes a scene range', () => {
+    const blocks = sampleBook();
+    const scene = blocks.find((b) => b.type === 'scene');
+    expect(scene).toBeTruthy();
+    const unwrapped = unwrapHeading(blocks, scene!.id);
+    expect(unwrapped.find((b) => b.id === scene!.id)).toBeUndefined();
+    expect(unwrapped.some((b) => b.type === 'paragraph')).toBe(true);
+
+    const rangeGone = deleteMovableRange(blocks, scene!.id);
+    expect(rangeGone.find((b) => b.id === scene!.id)).toBeUndefined();
+    expect(rangeGone.length).toBeLessThan(unwrapped.length);
+  });
 });
 
 describe('insertTableBlock', () => {

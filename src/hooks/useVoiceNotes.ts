@@ -88,6 +88,17 @@ export function useVoiceNotes() {
     [apply],
   );
 
+  const writeAudio = useCallback(
+    async (id: string, payload: { mime: string; bytes: Uint8Array | number[] }) => {
+      const bridge = notesBridge();
+      if (!bridge?.writeAudio) {
+        return { ok: false as const, message: 'Voice notes audio is only saved in the desktop app.' };
+      }
+      return bridge.writeAudio(id, payload);
+    },
+    [],
+  );
+
   const setStatus = useCallback(
     async (
       id: string,
@@ -117,5 +128,5 @@ export function useVoiceNotes() {
     [apply],
   );
 
-  return { notes, paired, displayKey, busy, error, refresh, addLocal, setStatus };
+  return { notes, paired, displayKey, busy, error, refresh, addLocal, writeAudio, setStatus };
 }
