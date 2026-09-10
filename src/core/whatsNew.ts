@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.35': bullets(
+    'Record Voice Only is a smaller chip on Dictate and Voice notes',
+  ),
   '0.2.34': bullets(
     'Record Voice Only sits at the top of Voice notes, and you can start a take from Dictate',
     'Choose which book a voice-only take is added to from the take itself',

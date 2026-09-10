@@ -43,7 +43,6 @@ import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
 import type { DictationCommand } from '../core/voiceCommands';
 import type { InlineMarkKind } from '../core/types';
-import { RECORD_VOICE_ONLY_LABEL } from '../core/voiceNotes';
 import {
   MANUSCRIPT_SPLIT_DEFAULT,
   MANUSCRIPT_SPLIT_MAX,
@@ -696,11 +695,7 @@ export function DictationView({
               >
                 {voiceOnlyStatus}
               </span>
-            ) : (
-              <span className="hint">
-                {RECORD_VOICE_ONLY_LABEL} saves audio without transcribing into this box.
-              </span>
-            )}
+            ) : null}
           </div>
 
           <DictationCues open={dictateCuesOpen} onOpenChange={setDictateCuesOpen} />

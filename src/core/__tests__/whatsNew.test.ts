@@ -181,6 +181,23 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.35 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.35')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.35',
+      build: 52,
+      pending: {
+        version: '0.2.35',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.35'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Record Voice Only is a smaller chip on Dictate and Voice notes',
+    ]);
+  });
+
   it('uses curated 0.2.34 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.34')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

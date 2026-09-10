@@ -23,31 +23,34 @@ export function RecordVoiceOnlyControls({
   compact?: boolean;
   onToggle: () => void;
 }) {
-  const idleLabel = compact ? RECORD_VOICE_ONLY_LABEL : 'Record';
-  const stopLabel = compact ? 'Stop voice-only' : 'Stop';
   return (
-    <div className={`row wrap record-voice-only-controls${compact ? ' is-compact' : ''}`}>
+    <div className={`record-voice-only-controls${compact ? ' is-compact' : ''}`}>
       <button
         type="button"
-        className={`btn ${recording ? 'danger' : compact ? 'ghost' : 'primary'} desktop-record-btn`}
+        className={`btn compact desktop-record-btn${recording ? ' is-recording' : ''}`}
         disabled={disabled && !recording}
         onClick={onToggle}
         aria-pressed={recording}
         aria-label={recording ? 'Stop recording' : RECORD_VOICE_ONLY_LABEL}
+        title={
+          recording
+            ? 'Stop this voice-only take'
+            : 'Save audio without transcribing into the box'
+        }
       >
         <MicToggleFace recording={recording} className="desktop-record-mic" />
-        {recording ? stopLabel : idleLabel}
+        {recording ? 'Stop' : compact ? RECORD_VOICE_ONLY_LABEL : 'Record'}
       </button>
       {recording ? (
         <span className="hint desktop-record-meter" aria-live="polite">
-          Recording {formatVoiceOnlyElapsed(elapsedMs)}
+          {formatVoiceOnlyElapsed(elapsedMs)}
           <span
             className="desktop-record-level"
             style={{ ['--level' as string]: `${Math.min(100, level)}%` }}
           />
         </span>
       ) : compact ? null : (
-        <span className="hint">Voice only — transcribe when you import the take.</span>
+        <span className="hint">Transcribe when you import the take.</span>
       )}
     </div>
   );

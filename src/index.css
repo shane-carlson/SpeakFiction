@@ -2383,42 +2383,72 @@ label {
   margin-bottom: 16px;
 }
 .record-voice-only-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 .dictate-voice-only {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin: 0 0 10px;
-}
-.desktop-record-btn {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
-  min-height: 40px;
+  margin: 0 0 8px;
+}
+.dictate-voice-only .hint {
+  font-size: 11px;
+  line-height: 1.3;
+}
+.btn.compact.desktop-record-btn {
+  min-height: 0;
+  padding: 3px 10px 3px 7px;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: none;
+}
+.btn.compact.desktop-record-btn:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-elev));
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.btn.compact.desktop-record-btn.is-recording {
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.btn.compact.desktop-record-btn.is-recording:hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 .desktop-record-mic {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
+  width: 13px;
+  height: 13px;
+  flex: none;
 }
 .desktop-record-mic img,
 .desktop-record-mic svg {
-  width: 22px;
-  height: 22px;
+  width: 13px;
+  height: 13px;
 }
 .desktop-record-meter {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .desktop-record-level {
   display: inline-block;
-  width: 88px;
-  height: 8px;
+  width: 48px;
+  height: 4px;
   border-radius: 99px;
   background: var(--border);
   position: relative;
