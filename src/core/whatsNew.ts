@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.33': bullets(
+    'Delete a scene or section the same way as a chapter, even when it is still empty',
+    'Empty paragraphs can be removed with Backspace or ✕ before you type into them',
+    'Record a voice-only take on this computer from Voice notes, then import it to transcribe',
+    'Dialogue between characters is quoted more often, even without saying “he said”',
+  ),
   '0.2.31': bullets(
     'Windows taskbar and Start menu show the SpeakFiction logo instead of a blank document',
   ),
