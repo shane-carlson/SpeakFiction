@@ -2,7 +2,7 @@ import { isRemoteVoiceTakePlaceholder } from './voiceNotes';
 
 /** Whisper decoder prompt: names from the book/series library, kept short. */
 export const LITERARY_WHISPER_PROMPT =
-  'Literary fiction narration and character dialogue in clear English prose. Complete sentences. Speakers said, asked, and replied. No timestamps.';
+  'Literary fiction narration and character dialogue in clear English prose. Paragraph-length passages. Speakers said, asked, and replied. No timestamps.';
 
 const MAX_PROMPT_CHARS = 400;
 const MAX_INBOX_PROMPT_CHARS = 720;

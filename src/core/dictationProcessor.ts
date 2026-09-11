@@ -39,7 +39,7 @@ export interface ProcessResult {
  *   3. Structure prose: assumed dialogue quotes, tag commas, light punctuation.
  *   4. Align conservative narration (dialogue tags) to the book tense.
  *   5. Align first-person tags after quotes; leave third/second prose alone.
- *   6. Split speakers / narration vs dialogue into paragraph marks.
+ *   6. New paragraph when the speaker changes; narration stays with tagged dialogue.
  *   7. Split out spoken structural cues (chapter/scene/section/paragraph).
  *   8. Update the on-device adaptive model.
  */
@@ -88,7 +88,7 @@ export function processTranscript(transcript: string, options: ProcessOptions): 
   const { adaptive } = options;
   const learn = options.learn ?? true;
   const pulled = extractNewCharacterCues(transcript);
-  const normalized = pulled.remainder.replace(/\n+/g, ` ${PARA_MARK} `);
+  const normalized = pulled.remainder.replace(/\n{2,}/g, ` ${PARA_MARK} `).replace(/\n/g, ' ');
   const { text: voiced, corrections } = runProsePipeline(normalized, options);
   const paragraphed = splitSpeakerParagraphs(voiced);
   const segments = explodeParagraphMarks(parseAudioCues(paragraphed));

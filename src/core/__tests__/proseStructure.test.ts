@@ -192,9 +192,15 @@ describe('splitSpeakerParagraphs', () => {
     expect(explodeParagraphMarks([{ type: 'text', text: out }])).toHaveLength(3);
   });
 
-  it('splits narration and dialogue into separate paragraphs', () => {
+  it('keeps narration with the tagged line it belongs to', () => {
     const text = 'The wind howled. \u201CStay,\u201D she said.';
-    expect(splitSpeakerParagraphs(text)).toContain(PARA_MARK);
+    expect(splitSpeakerParagraphs(text)).not.toContain(PARA_MARK);
+    expect(splitSpeakerParagraphs(text)).toMatch(/howled.*Stay/s);
+  });
+
+  it('keeps a same-speaker continuation in one paragraph', () => {
+    const text = '\u201CStay,\u201D she said. \u201CNot as a king.\u201D';
+    expect(splitSpeakerParagraphs(text)).not.toContain(PARA_MARK);
   });
 });
 

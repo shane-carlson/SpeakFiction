@@ -137,6 +137,29 @@ describe('processTranscript', () => {
     expect(blocks[1].text).toMatch(/Get out/);
   });
 
+  it('keeps narration with the tagged line in one paragraph', () => {
+    const result = processTranscript(
+      'the wind howled period open quote stay close quote she said period',
+      { entries, genre, adaptive: emptyAdaptiveState() },
+    );
+    const blocks = appendSegments([], result.segments).filter((b) => b.type === 'paragraph');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text).toMatch(/wind howled/i);
+    expect(blocks[0].text).toMatch(/Stay/);
+  });
+
+  it('does not treat a single Whisper newline as a paragraph break', () => {
+    const result = processTranscript('the wind howled.\nthe rain fell.', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+    });
+    const blocks = appendSegments([], result.segments).filter((b) => b.type === 'paragraph');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text).toMatch(/wind howled/i);
+    expect(blocks[0].text).toMatch(/rain fell/i);
+  });
+
   it('aligns dialogue tags to the book tense without rewriting quoted speech', () => {
     const result = processTranscript(
       'open quote we ride at dawn close quote he says period',

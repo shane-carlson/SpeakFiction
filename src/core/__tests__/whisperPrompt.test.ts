@@ -7,6 +7,8 @@ describe('whisperPrompt', () => {
     expect(whisperPrompt([])).toBe(LITERARY_WHISPER_PROMPT);
     expect(LITERARY_WHISPER_PROMPT).toMatch(/dialogue/i);
     expect(LITERARY_WHISPER_PROMPT).toMatch(/said/i);
+    expect(LITERARY_WHISPER_PROMPT).toMatch(/paragraph-length/i);
+    expect(LITERARY_WHISPER_PROMPT).not.toMatch(/complete sentences/i);
   });
 
   it('appends trained names so Whisper can hear Fae instead of stay', () => {

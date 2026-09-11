@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.41': bullets(
+    'Narration stays with the spoken line it belongs to, so paragraphs run longer until a new speaker starts',
+  ),
   '0.2.40': bullets(
     'First-person narration stays narration — lines with “you” or a question are not quoted unless someone is clearly speaking',
   ),

@@ -104,6 +104,20 @@ describe('joinDraft', () => {
     const prev = plainDraft('Hello.');
     expect(joinDraft(prev, '  ')).toEqual(prev);
   });
+
+  it('keeps a tagged line and the next untagged quote in one paragraph', () => {
+    const prev = plainDraft('\u201CStay,\u201D she said.');
+    expect(draftText(joinDraft(prev, '\u201CNot as a king.\u201D'))).toBe(
+      '\u201CStay,\u201D she said. \u201CNot as a king.\u201D',
+    );
+  });
+
+  it('starts a new paragraph when a different speaker answers', () => {
+    const prev = plainDraft('\u201CHello,\u201D he said.');
+    expect(draftText(joinDraft(prev, '\u201CGet out,\u201D she said.'))).toBe(
+      '\u201CHello,\u201D he said.\n\n\u201CGet out,\u201D she said.',
+    );
+  });
 });
 
 describe('joinDraftAt', () => {

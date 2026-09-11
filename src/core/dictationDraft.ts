@@ -1,7 +1,4 @@
-/**
- * Structured dictation-box draft: mixed struck / unstruck spans.
- * Struck sentences stay visible in the box and are omitted on insert.
- */
+import { shouldStartDialogueParagraph } from './proseStructure';
 
 export interface DraftSpan {
   text: string;
@@ -73,7 +70,7 @@ function trimTrailingWhitespace(draft: DictationDraft): DictationDraft {
 function chunkForInsert(before: string, after: string, next: string): string {
   const b = next.replace(/^\s+/, '');
   const a = before.replace(/\s+$/, '');
-  if (/[\u201C"][^\n]*$/.test(a) && /^[\u201C"]/.test(b)) {
+  if (shouldStartDialogueParagraph(a, b)) {
     const padAfter = after ? (/^[ \n]/.test(after) ? '' : ' ') : ' ';
     return `\n\n${b}${padAfter}`;
   }
@@ -89,7 +86,7 @@ export function joinDraft(prev: DictationDraft, next: string): DictationDraft {
   }
   const a = prevFull.replace(/\s+$/, '');
   const b = next.replace(/^\s+/, '');
-  const joiner = /[\u201C"][^\n]*$/.test(a) && /^[\u201C"]/.test(b) ? '\n\n' : ' ';
+  const joiner = shouldStartDialogueParagraph(a, b) ? '\n\n' : ' ';
   return compactDraft([...trimTrailingWhitespace(prev), { text: `${joiner}${b}`, struck: false }]);
 }
 

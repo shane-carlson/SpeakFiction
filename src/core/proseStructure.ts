@@ -523,24 +523,54 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-/** New paragraph when narration/dialogue switches, or when the speaker changes. */
+function isDialogueSentence(sentence: string): boolean {
+  return /[\u201C"]/.test(sentence);
+}
+
+function lastSentence(text: string): string {
+  const sentences = splitSentences(text.replace(/\s+$/, ''));
+  return sentences[sentences.length - 1] ?? text.trim();
+}
+
+function firstSentence(text: string): string {
+  const sentences = splitSentences(text.replace(/^\s+/, ''));
+  return sentences[0] ?? text.trim();
+}
+
+/**
+ * True when the next span should start a new paragraph: a known speaker change.
+ * Untagged quotes and narration stay with the line they follow.
+ */
+export function shouldStartDialogueParagraph(before: string, next: string): boolean {
+  const prev = lastSentence(before);
+  const incoming = firstSentence(next);
+  if (!isDialogueSentence(prev) || !/^[\u201C"]/.test(incoming.trim())) return false;
+  const prevSpeaker = speakerOf(prev);
+  const nextSpeaker = speakerOf(incoming);
+  return Boolean(prevSpeaker && nextSpeaker && prevSpeaker !== nextSpeaker);
+}
+
+/** New paragraph on a speaker change. Narration stays with adjacent tagged dialogue. */
 export function splitSpeakerParagraphs(text: string): string {
   const sentences = splitSentences(text);
   if (sentences.length <= 1) return text;
   const out: string[] = [];
-  let prevKind: 'dialogue' | 'narration' | null = null;
+  let prevWasDialogue = false;
   let prevSpeaker: string | null = null;
   for (const sentence of sentences) {
-    const kind = /[\u201C"]/.test(sentence) ? 'dialogue' : 'narration';
-    const speaker = kind === 'dialogue' ? speakerOf(sentence) : null;
+    const dialogue = isDialogueSentence(sentence);
+    const tagged = dialogue ? speakerOf(sentence) : null;
     const speakerChanged = Boolean(
-      prevKind === 'dialogue' && kind === 'dialogue' && prevSpeaker && speaker && prevSpeaker !== speaker,
+      dialogue && prevWasDialogue && prevSpeaker && tagged && prevSpeaker !== tagged,
     );
-    const kindChanged = prevKind !== null && prevKind !== kind;
-    if (kindChanged || speakerChanged) out.push(PARA_MARK);
+    if (speakerChanged) out.push(PARA_MARK);
     out.push(sentence);
-    prevKind = kind;
-    prevSpeaker = kind === 'dialogue' ? speaker ?? prevSpeaker : null;
+    if (dialogue) {
+      prevWasDialogue = true;
+      if (tagged) prevSpeaker = tagged;
+    } else {
+      prevWasDialogue = false;
+    }
   }
   return out.join(' ').replace(new RegExp(`\\s*${PARA_MARK}\\s*`, 'g'), ` ${PARA_MARK} `).trim();
 }
