@@ -784,15 +784,16 @@ body.is-resizing iframe {
 }
 .dictate-console .field:has(.dictation-transcript-wrap),
 .dictate-console .field:has(.dictation-transcript) {
-  flex: 1 1 auto;
-  min-height: 0;
+  /* Fill leftover height, but do not shrink when Cues opens — that overlayed the insert buttons. */
+  flex: 1 0 auto;
+  min-height: 8em;
   display: flex;
   flex-direction: column;
   margin-bottom: 8px;
 }
 .dictate-console .dictation-transcript-wrap {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 6.5em;
   display: flex;
   flex-direction: column;
 }
@@ -2402,6 +2403,7 @@ label {
   margin: 2px 0 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .dictate-voice-only .hint {
   font-size: 11px;

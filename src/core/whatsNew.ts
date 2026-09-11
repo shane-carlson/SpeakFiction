@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.39': bullets(
+    'Opening Cues on Dictate scrolls the console instead of covering Insert into manuscript',
+  ),
   '0.2.38': bullets(
     'Manuscript versions save recovery points as you write, so you can review and restore an earlier draft',
   ),
