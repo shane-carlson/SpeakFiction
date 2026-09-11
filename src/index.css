@@ -2399,7 +2399,9 @@ label {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin: 0 0 8px;
+  margin: 2px 0 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 .dictate-voice-only .hint {
   font-size: 11px;

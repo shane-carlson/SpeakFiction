@@ -181,6 +181,23 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.37 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.37')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.37',
+      build: 54,
+      pending: {
+        version: '0.2.37',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.37'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'A divider on Dictate separates Record Voice Only from the standard dictation controls',
+    ]);
+  });
+
   it('uses curated 0.2.36 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.36')).toBe(true);
     const resolved = await resolveWhatsNewNotes({
