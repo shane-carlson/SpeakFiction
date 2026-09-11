@@ -181,6 +181,23 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.40 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.40')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.40',
+      build: 57,
+      pending: {
+        version: '0.2.40',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.40'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'First-person narration stays narration — lines with “you” or a question are not quoted unless someone is clearly speaking',
+    ]);
+  });
+
   it('uses curated 0.2.39 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.39')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

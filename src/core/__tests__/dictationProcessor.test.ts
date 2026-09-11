@@ -53,6 +53,16 @@ describe('processTranscript', () => {
     expect(out.newCharacters).toEqual([]);
   });
 
+  it('cleanupDictationText leaves first-person narration unquoted', () => {
+    const out = cleanupDictationText('I knew you would come back', {
+      entries,
+      genre,
+      perspective: 'first',
+    });
+    expect(out.text).not.toMatch(/[\u201C"]/);
+    expect(out.text).toMatch(/I knew you would come back/i);
+  });
+
   it('strips New Character plus a repeated name from the transcription box', () => {
     const out = cleanupDictationText('New Character. Andreos. Andreos. the wind howled period', {
       entries,

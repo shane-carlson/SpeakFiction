@@ -104,6 +104,43 @@ describe('wrapImpliedDialogue', () => {
       'When the door opened he ran',
     );
   });
+
+  it('does not quote first-person narrative that only happens to contain you or a question', () => {
+    const open = '\u201C';
+    const cases = [
+      'I knew you would come back',
+      'Maybe I should have stayed',
+      'Never had I seen such a storm',
+      'What was I supposed to do',
+      'How long had I waited',
+      'Sure enough the door was locked',
+      'Anyway I kept walking',
+      "Don't think I didn't notice",
+    ];
+    for (const line of cases) {
+      expect(wrapImpliedDialogue(line, open, '\u201D', [], 'first')).not.toContain(open);
+      expect(wrapImpliedDialogue(line, open, '\u201D')).not.toContain(open);
+    }
+  });
+
+  it('does not treat a name plus first-person recollection as speech', () => {
+    const out = wrapImpliedDialogue('Aelith I had known for years', '\u201C', '\u201D', ['Aelith']);
+    expect(out).not.toContain('\u201C');
+    expect(out).not.toMatch(/Aelith said/);
+  });
+
+  it('still quotes tagged first-person speech', () => {
+    const out = wrapImpliedDialogue('I knew you would come back she said', '\u201C', '\u201D');
+    expect(out).toContain('\u201CI knew you would come back,');
+    expect(out).toContain('she said');
+  });
+
+  it('leaves second-person narration unquoted unless it is a command or mini', () => {
+    expect(wrapImpliedDialogue('you walked to the door', '\u201C', '\u201D', [], 'second')).not.toContain(
+      '\u201C',
+    );
+    expect(wrapImpliedDialogue('wait for me', '\u201C', '\u201D', [], 'second')).toMatch(/^\u201CWait for me\./);
+  });
 });
 
 describe('fixDialogueTagCommas', () => {
@@ -182,5 +219,13 @@ describe('applyProseStructure', () => {
     const out = applyProseStructure(spoken, literary);
     expect(out).toMatch(/\u201CHello,/);
     expect(out).toMatch(/he said\./);
+  });
+
+  it('does not wrap first-person narrative questions or you-clauses as dialogue', () => {
+    const out = applyProseStructure('I knew you would come back. What was I supposed to do?', literary, {
+      perspective: 'first',
+    });
+    expect(out).not.toContain('\u201C');
+    expect(out).toMatch(/I knew you would come back/);
   });
 });

@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.40': bullets(
+    'First-person narration stays narration — lines with “you” or a question are not quoted unless someone is clearly speaking',
+  ),
   '0.2.39': bullets(
     'Opening Cues on Dictate scrolls the console instead of covering Insert into manuscript',
   ),

@@ -60,6 +60,7 @@ function runProsePipeline(
   const punctuated = applyPunctuation(named.text, options.genre);
   const structured = applyProseStructure(punctuated, options.genre, {
     characterNames: characterNamesOf(options.entries),
+    perspective,
   });
   const tensed = applyTenseCleanup(structured, tense);
   const voiced = applyPerspectiveCleanup(tensed, perspective);

@@ -1,4 +1,4 @@
-import type { GenreProfile } from './types';
+import type { GenreProfile, PerspectiveId } from './types';
 import type { Segment } from './audioCues';
 import { capitalizeSentences } from './punctuation';
 
@@ -21,7 +21,7 @@ const MOTION =
   /^(to|into|toward|towards|from|out|away|home|back|up|down|through|across|over|around|inside|outside|downstairs|upstairs)\b/i;
 
 const SPEECH_START =
-  /^(you|you'd|you'll|you're|you've|your|i|i'm|i'll|i've|i'd|we|we'd|we'll|we're|don't|didn't|can't|cannot|won't|let's|wait|stop|run|come|look|listen|please|yes|no|yeah|hey|hello|hi|go|get|stay|leave|never|what|where|why|who|how|when|are|is|did|do|can|could|would|okay|ok|oh|ah|nope|maybe|perhaps|sure|fine|alright|anyway|tell|thank|thanks|sorry|well|honestly|actually|really)\b/i;
+  /^(you|you'd|you'll|you're|you've|your|i|i'm|i'll|i've|i'd|we|we'd|we'll|we're|don't|didn't|can't|cannot|won't|let's|wait|stop|run|come|look|listen|please|yes|no|yeah|hey|hello|hi|go|get|stay|leave|what|where|why|who|how|okay|ok|oh|ah|nope|tell|thank|thanks|sorry|well)\b/i;
 
 const TRAILING_SPEECH_WORDS = 24;
 const LEADING_SPEECH_WORDS = 28;
@@ -31,8 +31,16 @@ const UNTAGGED_MAX_WORDS = 32;
 
 const UNTAGGED_MINI =
   /^(wait|stop|yes|no|yeah|hey|hello|hi|nope|okay|ok|please|oh|thanks|sorry)$/i;
-const UNTAGGED_SPEECH_START =
-  /^(you|you'd|you'll|you're|you've|your|don't|didn't|can't|cannot|won't|let's|wait|stop|please|yes|no|yeah|hey|hello|hi|nope|okay|ok|oh|listen|never|maybe|perhaps|sure|fine|alright|anyway|thank|thanks|sorry)\b/i;
+/** Address, command, or vocative — not hedge/narration openers like maybe/never/anyway. */
+const UNTAGGED_ADDRESS =
+  /^(you|you'd|you'll|you're|you've|your|don't|didn't|can't|cannot|won't|let's|wait|stop|please|yes|no|yeah|hey|hello|hi|nope|okay|ok|oh|thank|thanks|sorry)\b/i;
+const UNTAGGED_IMPERATIVE =
+  /^(wait|stop|run|come|look|go|get|stay|leave|don't|let's|please)\b/i;
+const FIRST_PERSON_START = /^(i|i'm|i'll|i've|i'd|we|we'd|we'll|we're|we've)\b/i;
+const FIRST_PERSON_ANY =
+  /\b(i|i'm|i'll|i've|i'd|me|my|myself|we|us|our|ours|ourselves)\b/i;
+const SECOND_PERSON_START = /^(you|you'd|you'll|you're|you've|your)\b/i;
+const SECOND_PERSON_ANY = /\b(you|you'd|you'll|you're|you've|your|yours)\b/i;
 const QUESTION_START = /^(what|where|why|who|how)\b/i;
 const WHEN_QUESTION = /^when\s+(are|is|did|do|will|were|was|can|could|would)\b/i;
 const NOT_A_SPEAKER =
@@ -41,6 +49,8 @@ const NOT_A_SPEAKER =
 export interface ProseStructureOptions {
   /** Canonical character names from the name library; used as speakers. */
   characterNames?: string[];
+  /** Book viewpoint. Untagged quotes stay conservative in first and second person. */
+  perspective?: PerspectiveId;
 }
 
 function quotes(profile: GenreProfile): { open: string; close: string } {
@@ -93,22 +103,73 @@ function looksLikeSpeech(s: string): boolean {
   if (!t || isQuoted(t)) return false;
   if (MOTION.test(t)) return false;
   if (SPEECH_START.test(t)) return true;
-  if (/[?!]$/.test(t) && wordCount(t) <= LEADING_SPEECH_WORDS) return true;
+  if (/[?!]$/.test(t) && wordCount(t) <= LEADING_SPEECH_WORDS && SECOND_PERSON_ANY.test(t)) return true;
   return false;
 }
 
-function looksLikeUntaggedDialogue(s: string): boolean {
+function looksLikeSpokenQuestion(s: string, perspective?: PerspectiveId): boolean {
+  const t = s.trim();
+  if (!/[?]$/.test(t) && !QUESTION_START.test(t) && !WHEN_QUESTION.test(t)) return false;
+  if (SECOND_PERSON_ANY.test(t)) return true;
+  const bare = t.replace(/[.!?]+$/g, '').trim();
+  if (UNTAGGED_MINI.test(bare)) return true;
+  if (perspective === 'first' || perspective === 'second' || FIRST_PERSON_ANY.test(t)) return false;
+  if ((QUESTION_START.test(t) || WHEN_QUESTION.test(t)) && wordCount(t) <= TRAILING_SPEECH_WORDS) {
+    return true;
+  }
+  return false;
+}
+
+function looksLikeUntaggedDialogue(s: string, perspective?: PerspectiveId): boolean {
   const raw = s.trim();
   if (!raw || isQuoted(raw) || MOTION.test(raw) || INDIRECT.test(raw)) return false;
   const words = wordCount(raw);
   if (words > UNTAGGED_MAX_WORDS) return false;
   const bare = raw.replace(/[.!?]+$/g, '').trim();
-  if (words === 1 && !UNTAGGED_MINI.test(bare) && !/[?!]$/.test(raw)) return false;
-  if (/[?!]$/.test(raw)) return true;
-  if (UNTAGGED_SPEECH_START.test(raw)) return true;
-  if (QUESTION_START.test(raw) && words <= TRAILING_SPEECH_WORDS) return true;
-  if (WHEN_QUESTION.test(raw)) return true;
+
+  if (FIRST_PERSON_START.test(raw)) return false;
+  if (
+    /^(don't|didn't|can't|cannot|won't)\b/i.test(raw) &&
+    FIRST_PERSON_ANY.test(raw) &&
+    !SECOND_PERSON_ANY.test(raw)
+  ) {
+    return false;
+  }
+  if (
+    /^(yes|no|oh|well)\b/i.test(raw) &&
+    FIRST_PERSON_ANY.test(raw) &&
+    !SECOND_PERSON_ANY.test(raw) &&
+    words > 6
+  ) {
+    return false;
+  }
+  if (
+    perspective === 'second' &&
+    SECOND_PERSON_START.test(raw) &&
+    !UNTAGGED_IMPERATIVE.test(raw) &&
+    !UNTAGGED_MINI.test(bare)
+  ) {
+    return false;
+  }
+
+  if (words === 1 && !UNTAGGED_MINI.test(bare) && !/[!?]$/.test(raw)) return false;
+  if (UNTAGGED_MINI.test(bare)) return true;
+  if (UNTAGGED_ADDRESS.test(raw)) return true;
+  if (UNTAGGED_IMPERATIVE.test(raw) && words <= TRAILING_SPEECH_WORDS) return true;
+  if (looksLikeSpokenQuestion(raw, perspective)) return true;
   return false;
+}
+
+function looksLikeNarrationPrefix(prefix: string): boolean {
+  const t = prefix.trim();
+  if (!t) return false;
+  if (
+    INDIRECT.test(t) ||
+    /^(he|she|they|i|we|when|if|after|before|as|although|though|while|because|since)\b/i.test(t)
+  ) {
+    return true;
+  }
+  return wordCount(t) >= 2;
 }
 
 function firstSpeechSpan(text: string): string {
@@ -281,14 +342,26 @@ function wrapUntaggedSpeech(inner: string, open: string, close: string): string 
   return `${open}${trimmed}${close}`;
 }
 
-function wrapNameOnlyDialogue(core: string, open: string, close: string, names: string[]): string {
+function wrapNameOnlyDialogue(
+  core: string,
+  open: string,
+  close: string,
+  names: string[],
+  perspective?: PerspectiveId,
+): string {
   const named = nameAlternation(names);
   if (!named) return core;
   const re = new RegExp(`\\b(${named})\\s+(?!${STT_TAG_VERBS}\\b)([^]+)`, 'g');
   return core.replace(re, (full, speaker: string, rest: string) => {
     if (/[\u201C"]/.test(full)) return full;
     const span = firstSpeechSpan(rest);
-    if (!looksLikeSpeech(span) || isQuoted(span) || wordCount(span) > NAME_ONLY_WORDS) return full;
+    if (
+      !looksLikeUntaggedDialogue(span, perspective) ||
+      isQuoted(span) ||
+      wordCount(span) > NAME_ONLY_WORDS
+    ) {
+      return full;
+    }
     const end = span.match(/[.!?]+$/)?.[0] ?? '.';
     const speech = span.replace(/[.!?]+$/, '');
     const after = rest.trim().slice(span.length).trim();
@@ -297,14 +370,19 @@ function wrapNameOnlyDialogue(core: string, open: string, close: string, names: 
   });
 }
 
-function wrapBareSpeakerDialogue(core: string, open: string, close: string): string {
+function wrapBareSpeakerDialogue(
+  core: string,
+  open: string,
+  close: string,
+  perspective?: PerspectiveId,
+): string {
   const re = new RegExp(`\\b([A-Z][\\w']+(?:\\s+[A-Z][\\w']+)?)\\s+(?!${STT_TAG_VERBS}\\b)([^]+)`, 'g');
   return core.replace(re, (full, speaker: string, rest: string) => {
     const first = speaker.split(/\s+/)[0] ?? speaker;
     if (NOT_A_SPEAKER.test(speaker) || NOT_A_SPEAKER.test(first) || /[\u201C"]/.test(full)) return full;
     const span = firstSpeechSpan(rest);
     if (isQuoted(span) || wordCount(span) > NAME_ONLY_WORDS) return full;
-    if (!looksLikeUntaggedDialogue(span)) return full;
+    if (!looksLikeUntaggedDialogue(span, perspective)) return full;
     const end = span.match(/[.!?]+$/)?.[0] ?? '.';
     const speech = span.replace(/[.!?]+$/, '');
     const after = rest.trim().slice(span.length).trim();
@@ -313,28 +391,45 @@ function wrapBareSpeakerDialogue(core: string, open: string, close: string): str
   });
 }
 
-function wrapUntaggedDialogue(core: string, open: string, close: string): string {
+function wrapUntaggedDialogue(
+  core: string,
+  open: string,
+  close: string,
+  perspective?: PerspectiveId,
+): string {
   if (!core.trim() || /[\u201C"]/.test(core)) return core;
 
   const sentences = splitSentences(core);
   if (sentences.length > 1) {
     return sentences
       .map((sentence) => {
-        if (isQuoted(sentence) || !looksLikeUntaggedDialogue(sentence)) return sentence;
+        if (isQuoted(sentence) || !looksLikeUntaggedDialogue(sentence, perspective)) return sentence;
         return wrapUntaggedSpeech(sentence, open, close);
       })
       .join(' ');
   }
 
   const trimmed = core.trim();
-  if (looksLikeUntaggedDialogue(trimmed)) return wrapUntaggedSpeech(trimmed, open, close);
+  if (looksLikeUntaggedDialogue(trimmed, perspective)) return wrapUntaggedSpeech(trimmed, open, close);
 
   const words = trimmed.split(/\s+/);
   for (let i = 1; i < words.length; i++) {
     const rest = words.slice(i).join(' ');
-    if (!looksLikeUntaggedDialogue(rest)) continue;
-    const narr = words.slice(0, i).join(' ');
-    const narrPart = /[.!?]$/.test(narr) ? `${narr} ` : `${narr.replace(/[,]$/, '')}. `;
+    const prefix = words.slice(0, i).join(' ');
+    const bareRest = rest.replace(/[.!?]+$/g, '').trim();
+    if (!looksLikeUntaggedDialogue(rest, perspective)) continue;
+    if (FIRST_PERSON_START.test(prefix) || FIRST_PERSON_START.test(trimmed)) continue;
+    if (FIRST_PERSON_ANY.test(prefix) && !SECOND_PERSON_START.test(rest)) continue;
+    if (!looksLikeNarrationPrefix(prefix)) continue;
+    if (
+      !SECOND_PERSON_START.test(rest) &&
+      !UNTAGGED_MINI.test(bareRest) &&
+      !UNTAGGED_IMPERATIVE.test(rest) &&
+      !looksLikeSpokenQuestion(rest, perspective)
+    ) {
+      continue;
+    }
+    const narrPart = /[.!?]$/.test(prefix) ? `${prefix} ` : `${prefix.replace(/[,]$/, '')}. `;
     return `${narrPart}${wrapUntaggedSpeech(rest, open, close)}`;
   }
   return core;
@@ -346,6 +441,7 @@ export function wrapImpliedDialogue(
   open: string,
   close: string,
   characterNames: string[] = [],
+  perspective?: PerspectiveId,
 ): string {
   const leadWs = narration.match(/^\s*/)?.[0] ?? '';
   const trailWs = narration.match(/\s*$/)?.[0] ?? '';
@@ -355,9 +451,9 @@ export function wrapImpliedDialogue(
   const who = whoPattern(characterNames);
   core = normalizeSttTags(core, who);
   core = wrapTaggedDialogue(core, open, close, who);
-  core = wrapNameOnlyDialogue(core, open, close, characterNames);
-  core = wrapBareSpeakerDialogue(core, open, close);
-  core = wrapUntaggedDialogue(core, open, close);
+  core = wrapNameOnlyDialogue(core, open, close, characterNames, perspective);
+  core = wrapBareSpeakerDialogue(core, open, close, perspective);
+  core = wrapUntaggedDialogue(core, open, close, perspective);
 
   const joined = core
     .replace(/[ \t]+/g, ' ')
@@ -485,7 +581,9 @@ export function applyProseStructure(
   out = preferCommaBeforeQuotedSpeech(out);
   out = applyListColon(out);
   out = applyOxfordComma(out, profile);
-  out = mapOutsideQuotes(out, (narr) => wrapImpliedDialogue(narr, open, close, names));
+  out = mapOutsideQuotes(out, (narr) =>
+    wrapImpliedDialogue(narr, open, close, names, options.perspective),
+  );
   out = fixDialogueTagCommas(out, names);
   out = applyDirectAddressCommas(out);
   out = applyIntroductoryCommas(out);
