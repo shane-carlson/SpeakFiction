@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('speakfiction', {
     load: (id) => ipcRenderer.invoke('media:load', id),
     remove: (id) => ipcRenderer.invoke('media:remove', id),
   },
+  versions: {
+    list: (bookId) => ipcRenderer.invoke('versions:list', bookId),
+    load: (bookId, id) => ipcRenderer.invoke('versions:load', bookId, id),
+    save: (point) => ipcRenderer.invoke('versions:save', point),
+    remove: (bookId, id) => ipcRenderer.invoke('versions:remove', bookId, id),
+    removeBook: (bookId) => ipcRenderer.invoke('versions:remove-book', bookId),
+  },
   state: {
     loadSync: () => ipcRenderer.sendSync('state:load'),
     save: (json) => ipcRenderer.invoke('state:save', json),

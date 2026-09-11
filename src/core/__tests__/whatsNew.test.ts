@@ -181,6 +181,23 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.38 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.38')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.38',
+      build: 55,
+      pending: {
+        version: '0.2.38',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.38'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Manuscript versions save recovery points as you write, so you can review and restore an earlier draft',
+    ]);
+  });
+
   it('uses curated 0.2.37 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.37')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

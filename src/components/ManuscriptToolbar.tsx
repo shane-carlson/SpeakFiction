@@ -84,6 +84,7 @@ export function ManuscriptToolbar({
   onRedo,
   pickingInsert = false,
   onTogglePickingInsert,
+  onOpenVersions,
 }: {
   focused?: Block;
   canUndo: boolean;
@@ -101,6 +102,7 @@ export function ManuscriptToolbar({
   onRedo: () => void;
   pickingInsert?: boolean;
   onTogglePickingInsert?: () => void;
+  onOpenVersions?: () => void;
 }) {
   const heading = focused && focused.type !== 'image' && focused.type !== 'table' ? focused.type : null;
   const formatEnabled = focused?.type === 'paragraph';
@@ -197,6 +199,16 @@ export function ManuscriptToolbar({
         <button type="button" className="btn compact ghost" disabled={!canRedo} onClick={onRedo}>
           Redo
         </button>
+        {onOpenVersions && (
+          <button
+            type="button"
+            className="btn compact ghost"
+            onClick={onOpenVersions}
+            title="Review previous versions of this manuscript"
+          >
+            Versions
+          </button>
+        )}
         <button
           type="button"
           className="btn compact"

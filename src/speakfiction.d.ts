@@ -96,6 +96,17 @@ export interface SpeakFictionMediaBridge {
   remove: (id: string) => Promise<{ ok: boolean }>;
 }
 
+export interface SpeakFictionVersionsBridge {
+  list: (bookId: string) => Promise<{ ok: boolean; points: import('./core/manuscriptVersions').RecoveryPointMeta[] }>;
+  load: (
+    bookId: string,
+    id: string,
+  ) => Promise<{ ok: boolean; point?: import('./core/manuscriptVersions').RecoveryPoint }>;
+  save: (point: import('./core/manuscriptVersions').RecoveryPoint) => Promise<{ ok: boolean }>;
+  remove: (bookId: string, id: string) => Promise<{ ok: boolean }>;
+  removeBook: (bookId: string) => Promise<{ ok: boolean }>;
+}
+
 export interface SpeakFictionLicenseBridge {
   getStatus: () => Promise<import('./core/license').LicenseStatus>;
   activate: (key: string) => Promise<import('./core/license').LicenseActivateResult>;
@@ -177,6 +188,7 @@ export interface SpeakFictionBridge {
   stt?: SpeakFictionSttBridge;
   files?: SpeakFictionFilesBridge;
   media?: SpeakFictionMediaBridge;
+  versions?: SpeakFictionVersionsBridge;
   state?: SpeakFictionStateBridge;
   handoff?: SpeakFictionHandoffBridge;
   license?: SpeakFictionLicenseBridge;

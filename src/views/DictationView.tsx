@@ -37,6 +37,7 @@ import { DictationCues } from '../components/DictationCues';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
 import { RecordVoiceOnlyControls } from '../components/RecordVoiceOnlyControls';
+import { ManuscriptVersionsPanel } from '../components/ManuscriptVersionsPanel';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useRecordVoiceOnly } from '../hooks/useRecordVoiceOnly';
 import { LicenseGate } from '../components/LicenseGate';
@@ -92,6 +93,7 @@ export function DictationView({
   const dictateCuesOpen = useStore((s) => s.dictateCuesOpen);
   const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
   const [pickingInsert, setPickingInsert] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -467,6 +469,16 @@ export function DictationView({
       onRedo={() => redoManuscript(book.id)}
       pickingInsert={pickingInsert}
       onTogglePickingInsert={() => setPickingInsert((on) => !on)}
+      onOpenVersions={() => setVersionsOpen(true)}
+    />
+  );
+
+  const versionsPanel = (
+    <ManuscriptVersionsPanel
+      open={versionsOpen}
+      bookId={book.id}
+      currentBlocks={book.manuscript.blocks}
+      onClose={() => setVersionsOpen(false)}
     />
   );
 
@@ -531,6 +543,7 @@ export function DictationView({
                   onRedo={() => redoManuscript(book.id)}
                   pickingInsert={pickingInsert}
                   onTogglePickingInsert={() => setPickingInsert((on) => !on)}
+                  onOpenVersions={() => setVersionsOpen(true)}
                 />
                 <EditorDictationStrip
                   speech={speech}
@@ -560,6 +573,7 @@ export function DictationView({
             right={<div className="ms-editor-canvas">{manuscriptScroll}</div>}
           />
         </div>
+        {versionsPanel}
       </div>
     );
   }
@@ -826,6 +840,7 @@ export function DictationView({
         </div>
         }
       />
+      {versionsPanel}
     </div>
   );
 }

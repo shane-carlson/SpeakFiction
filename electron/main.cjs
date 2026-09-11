@@ -142,6 +142,7 @@ ipcMain.handle('audio:open-mic-privacy', () => openMicPrivacySettings());
 
 const sessionStore = require('./sessionStore.cjs');
 const mediaStore = require('./mediaStore.cjs');
+const manuscriptVersions = require('./manuscriptVersions.cjs');
 ipcMain.on('state:load', (event) => {
   event.returnValue = sessionStore.load();
 });
@@ -152,6 +153,11 @@ ipcMain.on('state:save-sync', (event, json) => {
 ipcMain.handle('media:save', (_event, payload) => mediaStore.save(payload));
 ipcMain.handle('media:load', (_event, id) => mediaStore.load(id));
 ipcMain.handle('media:remove', (_event, id) => mediaStore.remove(id));
+ipcMain.handle('versions:list', (_event, bookId) => manuscriptVersions.list(bookId));
+ipcMain.handle('versions:load', (_event, bookId, id) => manuscriptVersions.load(bookId, id));
+ipcMain.handle('versions:save', (_event, point) => manuscriptVersions.save(point));
+ipcMain.handle('versions:remove', (_event, bookId, id) => manuscriptVersions.remove(bookId, id));
+ipcMain.handle('versions:remove-book', (_event, bookId) => manuscriptVersions.removeBook(bookId));
 
 const { logoPath, windowIconPath } = require('./paths.cjs');
 const license = require('./license.cjs');

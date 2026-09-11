@@ -155,6 +155,9 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.38': bullets(
+    'Manuscript versions save recovery points as you write, so you can review and restore an earlier draft',
+  ),
   '0.2.37': bullets(
     'A divider on Dictate separates Record Voice Only from the standard dictation controls',
   ),
