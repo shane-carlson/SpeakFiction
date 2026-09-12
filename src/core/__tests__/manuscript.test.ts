@@ -3,6 +3,7 @@ import {
   appendSegments,
   chapterOrder,
   combineParagraphs,
+  deleteParagraphs,
   deleteMovableRange,
   emptyManuscript,
   emptyTable,
@@ -499,5 +500,25 @@ describe('combineParagraphs', () => {
   it('ignores non-paragraphs and a single selection', () => {
     expect(combineParagraphs(paras(), ['c1', 'p1'])).toEqual(paras());
     expect(combineParagraphs(paras(), ['p2'])).toEqual(paras());
+  });
+});
+
+describe('deleteParagraphs', () => {
+  const paras = (): Block[] => [
+    { id: 'c1', type: 'chapter', title: 'One' },
+    { id: 'p1', type: 'paragraph', text: 'The wind howled.' },
+    { id: 'p2', type: 'paragraph', text: 'Rain followed.' },
+    { id: 's1', type: 'scene', title: 'Later' },
+    { id: 'p3', type: 'paragraph', text: 'Aelith waited.' },
+  ];
+
+  it('removes only the selected paragraphs and leaves headings', () => {
+    const next = deleteParagraphs(paras(), ['p3', 'p1', 'c1']);
+    expect(next.map((b) => b.id)).toEqual(['c1', 'p2', 's1']);
+  });
+
+  it('returns the same array when nothing matching is selected', () => {
+    const blocks = paras();
+    expect(deleteParagraphs(blocks, ['c1', 'missing'])).toBe(blocks);
   });
 });

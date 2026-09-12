@@ -155,6 +155,10 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.43': bullets(
+    'Select on the manuscript toolbar lets you pick paragraphs one by one',
+    'Once paragraphs are selected, Actions can combine or delete them',
+  ),
   '0.2.42': bullets(
     'Edits, deletions, and corrections in the transcription box go into the manuscript as you wrote them',
     'Correcting a name in the box teaches the on-device model, so Shane is not heard as same next time',

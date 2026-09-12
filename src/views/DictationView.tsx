@@ -98,6 +98,7 @@ export function DictationView({
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [findNonce, setFindNonce] = useState(0);
+  const [selecting, setSelecting] = useState(false);
   const [selectedParagraphCount, setSelectedParagraphCount] = useState(0);
   const manuscriptRef = useRef<ManuscriptViewHandle>(null);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
@@ -433,9 +434,9 @@ export function DictationView({
         setFindOpen(false);
         return;
       }
-      if (selectedParagraphCount > 0) {
+      if (selecting) {
         e.preventDefault();
-        manuscriptRef.current?.clearParagraphSelection();
+        setSelecting(false);
         return;
       }
       if (!editorOpen) return;
@@ -444,7 +445,7 @@ export function DictationView({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editorOpen, findOpen, selectedParagraphCount, setEditorOpen]);
+  }, [editorOpen, findOpen, selecting, setEditorOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -554,8 +555,16 @@ export function DictationView({
           setFindNonce((n) => n + 1);
         }
       }}
+      selecting={selecting}
+      onToggleSelecting={() => {
+        setSelecting((on) => {
+          if (!on) setPickingInsert(false);
+          return !on;
+        });
+      }}
       selectedParagraphCount={selectedParagraphCount}
       onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
+      onDeleteParagraphs={() => manuscriptRef.current?.deleteSelectedParagraphs()}
     />
   );
 
@@ -590,6 +599,7 @@ export function DictationView({
         findOpen={findOpen}
         onFindOpenChange={setFindOpen}
         findNonce={findNonce}
+        selecting={selecting}
         onParagraphSelectionChange={(ids) => setSelectedParagraphCount(ids.length)}
         onPlaceChange={(next) => {
           const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
@@ -643,8 +653,16 @@ export function DictationView({
                       setFindNonce((n) => n + 1);
                     }
                   }}
+                  selecting={selecting}
+                  onToggleSelecting={() => {
+                    setSelecting((on) => {
+                      if (!on) setPickingInsert(false);
+                      return !on;
+                    });
+                  }}
                   selectedParagraphCount={selectedParagraphCount}
                   onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
+                  onDeleteParagraphs={() => manuscriptRef.current?.deleteSelectedParagraphs()}
                 />
                 <EditorDictationStrip
                   speech={speech}
