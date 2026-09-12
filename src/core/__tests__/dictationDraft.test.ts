@@ -127,6 +127,29 @@ describe('joinDraftAt', () => {
     expect(caretAfterJoin(plainDraft('Hello. World.'), next, 7)).toBe('Hello. the wind howled '.length);
   });
 
+  it('moves the caret to the end of each inserted utterance so the next one continues forward', () => {
+    const start = plainDraft('Hello. World.');
+    const first = joinDraftAt(start, 'One.', 7);
+    const caret = caretAfterJoin(start, first, 7);
+    const second = joinDraftAt(first, 'Two.', caret);
+    expect(draftText(second)).toBe('Hello. One. Two. World.');
+    expect(caretAfterJoin(first, second, caret)).toBe('Hello. One. Two. '.length);
+  });
+
+  it('joins a following And/But onto the previous narration sentence', () => {
+    expect(draftText(joinDraft(plainDraft('The wind howled.'), 'And the rain came.'))).toBe(
+      'The wind howled, and the rain came.',
+    );
+    const mid = joinDraftAt(plainDraft('Hello. World.'), 'And then thunder.', 7);
+    expect(draftText(mid)).toBe('Hello, and then thunder. World.');
+  });
+
+  it('does not fold And/But that opens quoted dialogue', () => {
+    expect(draftText(joinDraft(plainDraft('She waited.'), '\u201CAnd you came anyway.\u201D'))).toBe(
+      'She waited. \u201CAnd you came anyway.\u201D',
+    );
+  });
+
   it('falls back to append when the caret is at the end', () => {
     expect(draftText(joinDraftAt(plainDraft('Hello.'), 'World.', 6))).toBe(
       draftText(joinDraft(plainDraft('Hello.'), 'World.')),

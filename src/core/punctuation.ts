@@ -79,6 +79,44 @@ export function capitalizeSentences(text: string): string {
   return out;
 }
 
+const AND_BUT_LEAD = /^(and|but)\b/i;
+
+/** True when incoming narration starts with And/But rather than quoted dialogue. */
+export function startsWithAndButConjunction(text: string): boolean {
+  const t = text.replace(/^\s+/, '');
+  if (!t || /^[\u201C"]/.test(t)) return false;
+  return AND_BUT_LEAD.test(t);
+}
+
+export function lowercaseLeadingAndBut(text: string): string {
+  return text.replace(/^(\s*)(and|but)\b/i, (_m, sp: string, conj: string) => `${sp}${conj.toLowerCase()}`);
+}
+
+/**
+ * Whisper often starts a new sentence on “and”/“but”. Join those onto the
+ * previous sentence in narration. Quoted dialogue is left alone.
+ */
+export function foldAndButSentences(text: string): string {
+  const parts = text.split(/([\u201C"][^\u201D"]*(?:[\u201D"]|$))/);
+  return parts
+    .map((part) => {
+      if (/^[\u201C"]/.test(part)) return part;
+      return part.replace(
+        /([.!?])([ \t]+)(and|but)\b/gi,
+        (_m, _punct: string, sp: string, conj: string) => `,${sp}${conj.toLowerCase()}`,
+      );
+    })
+    .join('');
+}
+
+/** Previous sentence + incoming And/But should become one narration sentence. */
+export function canFoldAndBut(before: string, incoming: string): boolean {
+  if (!startsWithAndButConjunction(incoming)) return false;
+  const trimmedRight = before.replace(/[ \t]+$/, '');
+  if (!trimmedRight || /\n$/.test(trimmedRight)) return false;
+  return /[.!?]$/.test(trimmedRight.replace(/\s+$/, ''));
+}
+
 export function applyPunctuation(text: string, profile: GenreProfile): string {
   let out = ` ${text} `;
 
@@ -97,6 +135,7 @@ export function applyPunctuation(text: string, profile: GenreProfile): string {
   out = fixSpacing(out);
   if (profile.oxfordComma) out = applyOxfordComma(out);
   out = capitalizeSentences(out);
+  out = foldAndButSentences(out);
 
   return out.trim();
 }

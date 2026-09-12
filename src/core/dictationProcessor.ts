@@ -4,6 +4,7 @@ import { correctNames, type AppliedCorrection } from './nameLibrary';
 import { extractNewCharacterCues, type SpokenCharacter } from './newCharacterCue';
 import { applyPunctuation } from './punctuation';
 import { recordCorrection, recordProse, vocabularyBoost } from './adaptiveModel';
+import { applyLearnedCorrections } from './transcriptEdits';
 import { applyTenseCleanup, DEFAULT_TENSE } from './tense';
 import { applyPerspectiveCleanup, DEFAULT_PERSPECTIVE } from './perspective';
 import {
@@ -23,6 +24,12 @@ export interface ProcessOptions {
   perspective?: PerspectiveId;
   /** When false, the adaptive model is not updated (e.g. previews). */
   learn?: boolean;
+  /**
+   * Promote from the transcription box after the writer edited it.
+   * Keeps their wording, deletions, and quote fixes. Still parses cues,
+   * leftover spoken punctuation, names, and taught corrections.
+   */
+  preserveProse?: boolean;
 }
 
 export interface ProcessResult {
@@ -49,15 +56,19 @@ function characterNamesOf(entries: NameEntry[]): string[] {
 
 function runProsePipeline(
   transcript: string,
-  options: Pick<ProcessOptions, 'entries' | 'genre' | 'tense' | 'perspective'> & {
+  options: Pick<ProcessOptions, 'entries' | 'genre' | 'tense' | 'perspective' | 'preserveProse'> & {
     adaptive?: AdaptiveModelState;
   },
 ): { text: string; corrections: AppliedCorrection[] } {
   const tense = options.tense ?? DEFAULT_TENSE;
   const perspective = options.perspective ?? DEFAULT_PERSPECTIVE;
   const boost = options.adaptive ? vocabularyBoost(options.adaptive) : undefined;
-  const named = correctNames(transcript, options.entries, { vocabularyBoost: boost });
+  const taught = options.adaptive ? applyLearnedCorrections(transcript, options.adaptive) : transcript;
+  const named = correctNames(taught, options.entries, { vocabularyBoost: boost });
   const punctuated = applyPunctuation(named.text, options.genre);
+  if (options.preserveProse) {
+    return { text: punctuated, corrections: named.applied };
+  }
   const structured = applyProseStructure(punctuated, options.genre, {
     characterNames: characterNamesOf(options.entries),
     perspective,
@@ -87,10 +98,12 @@ export function cleanupDictationText(
 export function processTranscript(transcript: string, options: ProcessOptions): ProcessResult {
   const { adaptive } = options;
   const learn = options.learn ?? true;
-  const pulled = extractNewCharacterCues(transcript);
-  const normalized = pulled.remainder.replace(/\n{2,}/g, ` ${PARA_MARK} `).replace(/\n/g, ' ');
+  const pulled = extractNewCharacterCues(transcript, { keepNewlines: options.preserveProse });
+  const normalized = options.preserveProse
+    ? pulled.remainder.replace(/\n+/g, ` ${PARA_MARK} `).replace(/[ \t]+/g, ' ')
+    : pulled.remainder.replace(/\n{2,}/g, ` ${PARA_MARK} `).replace(/\n/g, ' ');
   const { text: voiced, corrections } = runProsePipeline(normalized, options);
-  const paragraphed = splitSpeakerParagraphs(voiced);
+  const paragraphed = options.preserveProse ? voiced : splitSpeakerParagraphs(voiced);
   const segments = explodeParagraphMarks(parseAudioCues(paragraphed));
 
   let nextAdaptive = adaptive;

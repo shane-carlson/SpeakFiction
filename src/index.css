@@ -1271,7 +1271,7 @@ label {
 .ms-para {
   margin: 0 0 12px;
   position: relative;
-  padding-left: 30px;
+  padding-left: 52px;
 }
 .ms-para textarea {
   font-family: var(--serif);
@@ -1314,13 +1314,41 @@ label {
   background-position: 0 0;
   pointer-events: none;
 }
-.ms-para .ms-drag-handle,
+.ms-para .ms-drag-handle {
+  position: absolute;
+  left: 24px;
+  top: 8px;
+  z-index: 2;
+}
 .ms-image-block .ms-drag-handle,
 .ms-table-block .ms-drag-handle {
   position: absolute;
   left: 2px;
   top: 8px;
   z-index: 2;
+}
+.ms-para-select {
+  position: absolute;
+  left: 6px;
+  top: 12px;
+  z-index: 3;
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  opacity: 0.4;
+  cursor: pointer;
+}
+.ms-para:hover .ms-para-select,
+.ms-para.is-selected .ms-para-select,
+.manuscript.is-selecting .ms-para-select {
+  opacity: 1;
+}
+.ms-para.is-selected {
+  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline-offset: 3px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .ms-scene .ms-drag-handle {
   position: absolute;
@@ -1527,6 +1555,58 @@ label {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+.ms-find-bar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.ms-find-input {
+  width: 160px;
+  min-width: 8ch;
+  flex: 1 1 140px;
+  max-width: 240px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.ms-find-status {
+  min-width: 5.5em;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.ms-find-case {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  user-select: none;
+}
+.ms-find-case input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+mark.ms-find-hit {
+  background: color-mix(in srgb, var(--accent-2) 48%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0;
+}
+.is-find-hit,
+.ms-image-block.is-find-block .ms-image-caption {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent-2) 70%, transparent);
+  background: color-mix(in srgb, var(--accent-2) 18%, var(--bg-input));
 }
 .ms-format-bold {
   font-weight: 800;

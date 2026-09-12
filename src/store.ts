@@ -14,6 +14,11 @@ import type {
 } from './core/types';
 import { emptyAdaptiveState } from './core/adaptiveModel';
 import {
+  namesFromCorrections,
+  recordEditCorrections,
+  wordCorrectionsFromEdit,
+} from './core/transcriptEdits';
+import {
   emptyManuscript,
   formatParagraph,
   insertEmptyStructure,
@@ -21,6 +26,7 @@ import {
   insertSegments,
   insertTableBlock,
   moveBlockRange,
+  combineParagraphs as mergeParagraphBlocks,
   setBlockKind,
   setBlockTitle,
   setImageAlt,
@@ -155,7 +161,10 @@ interface AppState {
     bookId: string,
     transcript: string,
     dest?: ManuscriptInsertAt,
+    opts?: { preserveProse?: boolean },
   ) => DictationOutcome;
+  /** Record transcription-box substitutions in the on-device model and name library. */
+  learnTranscriptEdits: (bookId: string, before: string, after: string) => void;
   /** Names, cues, and genre punctuation into the transcription box. Never writes the manuscript. */
   importToTranscriptionBox: (
     bookId: string,
@@ -167,6 +176,8 @@ interface AppState {
   deleteBlock: (bookId: string, blockId: string) => void;
   deleteBlockRange: (bookId: string, blockId: string) => void;
   unwrapHeading: (bookId: string, blockId: string) => void;
+  combineParagraphs: (bookId: string, ids: string[]) => void;
+  replaceManuscriptBlocks: (bookId: string, blocks: Book['manuscript']['blocks']) => void;
   moveManuscriptRange: (bookId: string, fromIndex: number, dropIndex: number) => void;
   insertManuscriptStructure: (
     bookId: string,
@@ -557,7 +568,7 @@ export const useStore = create<AppState>()(
         return { cleaned: result.cleaned, added: Boolean(result.cleaned) };
       },
 
-      applyDictation: (bookId, transcript, dest) => {
+      applyDictation: (bookId, transcript, dest, opts) => {
         const book = get().books.find((b) => b.id === bookId);
         if (!book) return { corrections: [], structureAdded: 0, wordsAdded: 0 };
         // Manuscript only. The view clears the transcription staging buffer after a successful promote.
@@ -568,6 +579,7 @@ export const useStore = create<AppState>()(
           tense: book.tenseId ?? DEFAULT_TENSE,
           perspective: book.perspectiveId ?? DEFAULT_PERSPECTIVE,
           adaptive: book.adaptive,
+          preserveProse: opts?.preserveProse,
         });
 
         const newBlocks = trimEmptyBlocks(
@@ -592,6 +604,29 @@ export const useStore = create<AppState>()(
         noteManuscriptVersion(bookId, newBlocks, 'dictate');
 
         return { corrections: result.corrections, structureAdded, wordsAdded };
+      },
+
+      learnTranscriptEdits: (bookId, before, after) => {
+        const book = get().books.find((b) => b.id === bookId);
+        if (!book) return;
+        const pairs = wordCorrectionsFromEdit(before, after);
+        if (!pairs.length) return;
+        const names = namesFromCorrections(pairs);
+        set((state) => {
+          let books = patchBook(state.books, bookId, (b) => ({
+            ...b,
+            adaptive: recordEditCorrections(b.adaptive, pairs),
+          }));
+          for (const name of names) {
+            books = upsertNameOnBook(books, bookId, {
+              canonical: name.canonical,
+              category: name.category,
+              aliases: name.aliases,
+              originBookId: bookId,
+            });
+          }
+          return { books };
+        });
       },
 
       updateBlockText: (bookId, blockId, text, marks) => {
@@ -641,6 +676,29 @@ export const useStore = create<AppState>()(
           manuscriptHistory: pushHistory(s, bookId),
         }));
         noteBookVersion(get().books, bookId, 'structure');
+      },
+
+      combineParagraphs: (bookId, ids) => {
+        const book = get().books.find((b) => b.id === bookId);
+        if (!book) return;
+        const next = mergeParagraphBlocks(book.manuscript.blocks, ids);
+        if (next === book.manuscript.blocks) return;
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: mergeParagraphBlocks(b.manuscript.blocks, ids) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        }));
+        noteBookVersion(get().books, bookId, 'structure');
+      },
+
+      replaceManuscriptBlocks: (bookId, blocks) => {
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: { blocks } })),
+          manuscriptHistory: pushHistory(s, bookId),
+        }));
+        noteBookVersion(get().books, bookId, 'edit');
       },
 
       deleteBlockRange: (bookId, blockId) => {

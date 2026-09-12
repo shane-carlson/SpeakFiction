@@ -227,6 +227,15 @@ describe('applyProseStructure', () => {
     expect(out).toMatch(/he said\./);
   });
 
+  it('joins narration And/But onto the previous sentence after capitalizing', () => {
+    expect(applyProseStructure('The wind howled. And the rain came.', generic)).toBe(
+      'The wind howled, and the rain came.',
+    );
+    expect(applyProseStructure('\u201CAnd you came anyway,\u201D she said.', literary)).toMatch(
+      /^\u201CAnd you came anyway/,
+    );
+  });
+
   it('does not wrap first-person narrative questions or you-clauses as dialogue', () => {
     const out = applyProseStructure('I knew you would come back. What was I supposed to do?', literary, {
       perspective: 'first',

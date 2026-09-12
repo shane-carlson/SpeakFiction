@@ -113,6 +113,19 @@ describe('processTranscript', () => {
     expect(prose).toMatch(/wind howled/i);
   });
 
+  it('joins narration that Whisper split onto And or But', () => {
+    const result = processTranscript('the wind howled period and the rain came period', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+    });
+    const prose = result.segments
+      .filter((s) => s.type === 'text')
+      .map((s) => (s.type === 'text' ? s.text : ''))
+      .join(' ');
+    expect(prose).toBe('The wind howled, and the rain came.');
+  });
+
   it('quotes implied dialogue without requiring open/close quote', () => {
     const result = processTranscript('hello he said period', {
       entries,
@@ -256,5 +269,46 @@ describe('processTranscript', () => {
     });
     expect(result.newCharacters[0]?.canonical).toBe('Kael');
     expect(result.segments.filter((s) => s.type === 'text')).toEqual([]);
+  });
+
+  it('keeps transcription-box edits when promoting instead of re-wrapping dialogue', () => {
+    const result = processTranscript('Hello he said. Shane waited.', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+      preserveProse: true,
+    });
+    const prose = result.segments
+      .filter((s) => s.type === 'text')
+      .map((s) => (s.type === 'text' ? s.text : ''))
+      .join(' ');
+    expect(prose).toContain('Hello he said.');
+    expect(prose).toContain('Shane waited.');
+    expect(prose).not.toContain('\u201C');
+  });
+
+  it('turns a writer-entered newline in the box into a paragraph on promote', () => {
+    const result = processTranscript('The wind howled.\nShane waited.', {
+      entries,
+      genre,
+      adaptive: emptyAdaptiveState(),
+      preserveProse: true,
+    });
+    const blocks = appendSegments([], result.segments).filter((b) => b.type === 'paragraph');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].text).toMatch(/wind howled/i);
+    expect(blocks[1].text).toMatch(/Shane waited/i);
+  });
+
+  it('applies a taught same → Shane correction on later speech', () => {
+    let adaptive = emptyAdaptiveState();
+    adaptive = { ...adaptive, corrections: { same: { Shane: 1 } } };
+    const out = cleanupDictationText('same waited at the gate period', {
+      entries,
+      genre,
+      adaptive,
+    });
+    expect(out.text).toMatch(/Shane waited/);
+    expect(out.text).not.toMatch(/\bsame waited/i);
   });
 });

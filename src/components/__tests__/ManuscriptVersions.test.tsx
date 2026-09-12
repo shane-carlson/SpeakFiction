@@ -42,4 +42,28 @@ describe('ManuscriptToolbar versions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Versions' }));
     expect(onOpenVersions).toHaveBeenCalledTimes(1);
   });
+
+  it('shows Combine paragraphs once two are selected', () => {
+    const onCombine = vi.fn();
+    render(
+      <ManuscriptToolbar
+        canUndo={false}
+        canRedo={false}
+        editorOpen={false}
+        onToggleEditor={() => undefined}
+        onInsertStructure={() => undefined}
+        onInsertImage={() => undefined}
+        onInsertTable={() => undefined}
+        onFormat={() => undefined}
+        onClearFormat={() => undefined}
+        onSetKind={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        selectedParagraphCount={2}
+        onCombineParagraphs={onCombine}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Combine paragraphs' }));
+    expect(onCombine).toHaveBeenCalledTimes(1);
+  });
 });

@@ -412,6 +412,36 @@ export function setParagraphContent(
   );
 }
 
+/**
+ * Merge selected paragraphs into the topmost one, in manuscript order.
+ * Click order is ignored. Non-paragraph ids are skipped.
+ */
+export function combineParagraphs(blocks: Block[], ids: Iterable<string>): Block[] {
+  const wanted = new Set(ids);
+  const selected = blocks.filter((b) => b.type === 'paragraph' && wanted.has(b.id));
+  if (selected.length < 2) return blocks;
+  const keepId = selected[0].id;
+  let text = '';
+  const marks: InlineMark[] = [];
+  for (const part of selected) {
+    const piece = part.text ?? '';
+    const joiner = text && piece ? ' ' : '';
+    const offset = text.length + joiner.length;
+    if (joiner) text += joiner;
+    for (const m of part.marks ?? []) {
+      marks.push({ kind: m.kind, start: m.start + offset, end: m.end + offset });
+    }
+    text += piece;
+  }
+  const merged: Block = {
+    ...selected[0],
+    text,
+    marks: normalizeMarks(marks, text.length),
+  };
+  const drop = new Set(selected.slice(1).map((b) => b.id));
+  return blocks.map((b) => (b.id === keepId ? merged : b)).filter((b) => !drop.has(b.id));
+}
+
 export function formatParagraph(
   blocks: Block[],
   blockId: string,

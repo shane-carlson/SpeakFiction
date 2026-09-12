@@ -52,6 +52,11 @@ describe('inline marks', () => {
     const html = textToHtml('Hi', [{ kind: 'bold', start: 0, end: 2 }]);
     expect(html).toBe('<b>Hi</b>');
   });
+
+  it('wraps the current find hit without storing a mark', () => {
+    const html = textToHtml('The Gate', [], { start: 4, end: 8 });
+    expect(html).toBe('The <mark class="ms-find-hit">Gate</mark>');
+  });
 });
 
 describe('image validation', () => {

@@ -155,6 +155,14 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.42': bullets(
+    'Edits, deletions, and corrections in the transcription box go into the manuscript as you wrote them',
+    'Correcting a name in the box teaches the on-device model, so Shane is not heard as same next time',
+    'After each spoken chunk, the caret sits at the end so the next words continue forward',
+    'Shift+Space inserts a new paragraph; Space types a space',
+    'Spoken And or But after a pause joins the previous sentence instead of starting a new one',
+    'Find and replace in the manuscript, and combine selected paragraphs into one',
+  ),
   '0.2.41': bullets(
     'Narration stays with the spoken line it belongs to, so paragraphs run longer until a new speaker starts',
   ),

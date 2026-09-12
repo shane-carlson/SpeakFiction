@@ -3,7 +3,7 @@
  * Suggestions are prepended so they sit above insert/structure actions.
  */
 
-import { normalizeMarks } from './richText';
+import { normalizeMarks, remapMarksAfterReplace } from './richText';
 import type { InlineMark } from './types';
 
 export const SPELLCHECK_SUGGEST_PREFIX = 'spell-suggest:';
@@ -146,37 +146,6 @@ export function replaceMisspelledWord(
   const range = findMisspelledRange(text, misspelledWord, aroundOffset);
   if (!range) return text;
   return text.slice(0, range.start) + suggestion + text.slice(range.end);
-}
-
-export function remapMarksAfterReplace(
-  marks: InlineMark[] | undefined,
-  start: number,
-  oldEnd: number,
-  insertLength: number,
-  nextLength: number,
-): InlineMark[] {
-  const delta = insertLength - (oldEnd - start);
-  const next: InlineMark[] = [];
-  for (const m of marks ?? []) {
-    let a = m.start;
-    let b = m.end;
-    if (b <= start) {
-      next.push(m);
-      continue;
-    }
-    if (a >= oldEnd) {
-      next.push({ ...m, start: a + delta, end: b + delta });
-      continue;
-    }
-    if (a < start) {
-      b = b <= oldEnd ? start + insertLength : b + delta;
-    } else {
-      a = start;
-      b = b <= oldEnd ? start + insertLength : b + delta;
-    }
-    if (b > a) next.push({ ...m, start: a, end: b });
-  }
-  return normalizeMarks(next, nextLength);
 }
 
 export function replaceMisspelledInMarkedText(

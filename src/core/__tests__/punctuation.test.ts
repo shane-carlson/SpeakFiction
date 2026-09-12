@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPunctuation, capitalizeSentences } from '../punctuation';
+import { applyPunctuation, canFoldAndBut, capitalizeSentences } from '../punctuation';
 import { getGenre } from '../genres';
 
 const literary = getGenre('literary');
@@ -43,6 +43,31 @@ describe('applyPunctuation', () => {
     expect(applyPunctuation('i ran period then i stopped period', generic)).toBe(
       'I ran. Then I stopped.',
     );
+  });
+
+  it('keeps paragraph marks from the transcription box', () => {
+    expect(applyPunctuation('The wind howled. \uE001 Shane waited.', generic)).toContain('\uE001');
+  });
+
+  it('joins narration that Whisper split onto And or But', () => {
+    expect(applyPunctuation('the wind howled period and the rain came period', generic)).toBe(
+      'The wind howled, and the rain came.',
+    );
+    expect(applyPunctuation('she waited period but he did not turn period', generic)).toBe(
+      'She waited, but he did not turn.',
+    );
+  });
+
+  it('leaves And and But at the start of dialogue', () => {
+    expect(applyPunctuation('open quote and you came anyway close quote she said period', literary)).toBe(
+      '\u201CAnd you came anyway\u201D she said.',
+    );
+  });
+
+  it('does not fold And/But across a paragraph break', () => {
+    expect(canFoldAndBut('The wind howled.\n', 'And the rain came.')).toBe(false);
+    expect(canFoldAndBut('The wind howled.', 'Andreos waited.')).toBe(false);
+    expect(canFoldAndBut('The wind howled.', 'And the rain came.')).toBe(true);
   });
 
   it('adds the oxford comma when the genre enables it', () => {

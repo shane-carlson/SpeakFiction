@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { plainDraft } from '../../core/dictationDraft';
+import { offsetsFromDomRange, plainDraft } from '../../core/dictationDraft';
 import { DictationTranscript, TRANSCRIPT_INSERT_HINT } from '../DictationTranscript';
 
 describe('DictationTranscript insert pin', () => {
@@ -37,5 +37,38 @@ describe('DictationTranscript insert pin', () => {
     expect(screen.queryByRole('note', { name: TRANSCRIPT_INSERT_HINT })).toBeNull();
     fireEvent.mouseEnter(screen.getByRole('textbox'));
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('restores the caret after rewriting HTML so the next insert continues forward', () => {
+    const onCaretChange = vi.fn();
+    const { rerender } = render(
+      <DictationTranscript
+        id="dictation-transcription"
+        value={plainDraft('Hello. World.')}
+        onChange={vi.fn()}
+        caret={7}
+        onCaretChange={onCaretChange}
+      />,
+    );
+
+    const box = screen.getByRole('textbox');
+    box.focus();
+    onCaretChange.mockClear();
+
+    rerender(
+      <DictationTranscript
+        id="dictation-transcription"
+        value={plainDraft('Hello. One. World.')}
+        onChange={vi.fn()}
+        caret={12}
+        onCaretChange={onCaretChange}
+      />,
+    );
+
+    const sel = window.getSelection();
+    expect(sel && sel.rangeCount > 0).toBe(true);
+    const { start } = offsetsFromDomRange(box, sel!.getRangeAt(0));
+    expect(start).toBe(12);
+    expect(onCaretChange).not.toHaveBeenCalledWith(7);
   });
 });

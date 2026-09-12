@@ -68,6 +68,7 @@ export function DictationTranscript({
   const wrapRef = useRef<HTMLDivElement>(null);
   const lastSerialized = useRef<string | null>(null);
   const caretRef = useRef(caret ?? 0);
+  const applyingRef = useRef(false);
   const empty = serializeDraft(value) === '[]';
   const insertAtEnd = isTranscriptInsertAtEnd(value, caret);
   const [hovering, setHovering] = useState(false);
@@ -86,9 +87,15 @@ export function DictationTranscript({
     if (!el) return;
     const serialized = serializeDraft(value);
     if (serialized === lastSerialized.current) return;
+    const restore = caretRef.current;
+    applyingRef.current = true;
     el.innerHTML = draftToHtml(value);
     lastSerialized.current = serialized;
-    if (document.activeElement === el) setDomCaretFromOffset(el, caretRef.current);
+    caretRef.current = restore;
+    if (document.activeElement === el) setDomCaretFromOffset(el, restore);
+    queueMicrotask(() => {
+      applyingRef.current = false;
+    });
   }, [value]);
 
   useLayoutEffect(() => {
@@ -142,6 +149,7 @@ export function DictationTranscript({
   );
 
   const readCaret = useCallback(() => {
+    if (applyingRef.current) return;
     const el = ref.current;
     if (!el) return;
     const sel = window.getSelection();
@@ -182,6 +190,14 @@ export function DictationTranscript({
           suppressContentEditableWarning
           spellCheck={true}
           onInput={() => {
+            const el = ref.current;
+            if (!el) return;
+            const next = draftFromElement(el);
+            lastSerialized.current = serializeDraft(next);
+            onChange(next);
+            readCaret();
+          }}
+          onBlur={() => {
             const el = ref.current;
             if (!el) return;
             const next = draftFromElement(el);

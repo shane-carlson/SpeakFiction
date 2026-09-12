@@ -85,6 +85,10 @@ export function ManuscriptToolbar({
   pickingInsert = false,
   onTogglePickingInsert,
   onOpenVersions,
+  findOpen = false,
+  onToggleFind,
+  selectedParagraphCount = 0,
+  onCombineParagraphs,
 }: {
   focused?: Block;
   canUndo: boolean;
@@ -103,6 +107,10 @@ export function ManuscriptToolbar({
   pickingInsert?: boolean;
   onTogglePickingInsert?: () => void;
   onOpenVersions?: () => void;
+  findOpen?: boolean;
+  onToggleFind?: () => void;
+  selectedParagraphCount?: number;
+  onCombineParagraphs?: () => void;
 }) {
   const heading = focused && focused.type !== 'image' && focused.type !== 'table' ? focused.type : null;
   const formatEnabled = focused?.type === 'paragraph';
@@ -191,6 +199,27 @@ export function ManuscriptToolbar({
             onClick={onTogglePickingInsert}
           >
             {layout === 'rail' ? 'Insert point' : 'Choose insertion point'}
+          </button>
+        )}
+        {selectedParagraphCount >= 2 && onCombineParagraphs && (
+          <button
+            type="button"
+            className="btn compact"
+            onClick={onCombineParagraphs}
+            title="Join selected paragraphs in document order, top to bottom"
+          >
+            {layout === 'rail' ? 'Combine' : 'Combine paragraphs'}
+          </button>
+        )}
+        {onToggleFind && (
+          <button
+            type="button"
+            className={`btn compact${findOpen ? ' primary' : ' ghost'}`}
+            aria-pressed={findOpen}
+            title="Find and replace (⌘F)"
+            onClick={onToggleFind}
+          >
+            Find
           </button>
         )}
         <button type="button" className="btn compact ghost" disabled={!canUndo} onClick={onUndo}>

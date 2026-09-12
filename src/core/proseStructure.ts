@@ -1,6 +1,6 @@
 import type { GenreProfile, PerspectiveId } from './types';
 import type { Segment } from './audioCues';
-import { capitalizeSentences } from './punctuation';
+import { capitalizeSentences, foldAndButSentences } from './punctuation';
 
 /** Inserted between fiction paragraphs; exploded after audio-cue parsing. */
 export const PARA_MARK = '\uE001';
@@ -619,5 +619,6 @@ export function applyProseStructure(
   out = applyIntroductoryCommas(out);
   out = out.replace(/[ \t]+/g, ' ').replace(/[ \t]+([,.;:!?])/g, '$1').trim();
   out = capitalizeSentences(out);
+  out = foldAndButSentences(out);
   return out.trim();
 }

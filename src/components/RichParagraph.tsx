@@ -10,6 +10,7 @@ function marksKey(marks: InlineMark[] | undefined): string {
 export function RichParagraph({
   value,
   marks,
+  highlight,
   onChange,
   onPlace,
   onEmptyBackspace,
@@ -17,22 +18,26 @@ export function RichParagraph({
 }: {
   value: string;
   marks?: InlineMark[];
+  highlight?: { start: number; end: number } | null;
   onChange: (text: string, marks: InlineMark[]) => void;
   onPlace: (selStart: number, selEnd: number) => void;
   onEmptyBackspace?: () => void;
   onModKey?: (key: 'b' | 'i' | 'u') => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const last = useRef({ value: '\u0000', key: '' });
+  const last = useRef({ value: '\u0000', key: '', highlight: '' });
   const focused = useRef(false);
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const key = marksKey(marks);
-    if (last.current.value === value && last.current.key === key) return;
-    last.current = { value, key };
-    const html = textToHtml(value, marks);
+    const highlightKey = highlight ? `${highlight.start}:${highlight.end}` : '';
+    if (last.current.value === value && last.current.key === key && last.current.highlight === highlightKey) {
+      return;
+    }
+    last.current = { value, key, highlight: highlightKey };
+    const html = textToHtml(value, marks, highlight);
     if (el.innerHTML === html) return;
     let end = 0;
     if (focused.current && document.activeElement === el) {
@@ -49,7 +54,7 @@ export function RichParagraph({
         /* ignore */
       }
     }
-  }, [value, marks]);
+  }, [value, marks, highlight]);
 
   const reportSelection = () => {
     const el = ref.current;
@@ -76,7 +81,7 @@ export function RichParagraph({
         const el = ref.current;
         if (!el) return;
         const next = htmlToMarkedText(el);
-        last.current = { value: next.text, key: marksKey(next.marks) };
+        last.current = { value: next.text, key: marksKey(next.marks), highlight: last.current.highlight };
         onChange(next.text, next.marks);
         reportSelection();
       }}

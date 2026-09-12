@@ -79,7 +79,10 @@ function spokenCharacter(first: string, second: string): SpokenCharacter {
  * After the cue, the name is spoken twice (any name, e.g. Andreos Andreos).
  * The cue and the repeated name never remain as prose.
  */
-export function extractNewCharacterCues(transcript: string): NewCharacterExtract {
+export function extractNewCharacterCues(
+  transcript: string,
+  opts?: { keepNewlines?: boolean },
+): NewCharacterExtract {
   const characters: SpokenCharacter[] = [];
   let remainder = '';
   let last = 0;
@@ -101,8 +104,11 @@ export function extractNewCharacterCues(transcript: string): NewCharacterExtract
     CUE.lastIndex = last;
   }
   remainder += transcript.slice(last);
+  const collapsed = opts?.keepNewlines
+    ? remainder.replace(/[ \t]+/g, ' ')
+    : remainder.replace(/\s+/g, ' ');
   return {
-    remainder: remainder.replace(/\s+/g, ' ').replace(/^[\s.,;:!?]+/, '').trim(),
+    remainder: collapsed.replace(/^[\s.,;:!?]+/, '').trim(),
     characters,
   };
 }

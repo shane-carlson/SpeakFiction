@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { joinDraft, joinDraftAt, draftText, plainDraft, takeInsertTranscript } from '../dictationDraft';
 import { cleanupDictationText } from '../dictationProcessor';
+import { emptyAdaptiveState, suggestCanonical } from '../adaptiveModel';
 import { getGenre } from '../genres';
 import { destFromPlace, type ManuscriptInsertAt } from '../manuscript';
 import { mergeSeriesNameLibrary, seriesNameViews } from '../seriesNames';
@@ -98,6 +99,33 @@ describe('applyDictation', () => {
       .join(' ');
     expect(prose).toMatch(/Hello/i);
     expect(prose).not.toMatch(/World/i);
+  });
+
+  it('inserts box corrections into the manuscript and teaches same → Shane', () => {
+    const bookId = useStore.getState().createBook('Box edit promote', 'generic');
+    created.push(bookId);
+
+    useStore.getState().setDictationDraft(bookId, [
+      { text: 'the wind howled. same waited.', struck: false },
+    ]);
+    useStore.getState().learnTranscriptEdits(bookId, 'the wind howled. same waited.', 'the wind howled. Shane waited.');
+    useStore.getState().setDictationDraft(bookId, [
+      { text: 'the wind howled. Shane waited.', struck: false },
+    ]);
+
+    const { transcript, remaining } = takeInsertTranscript(useStore.getState().dictationDrafts[bookId]);
+    useStore.getState().applyDictation(bookId, transcript, undefined, { preserveProse: true });
+    useStore.getState().setDictationDraft(bookId, remaining);
+
+    const book = useStore.getState().books.find((b) => b.id === bookId);
+    const prose = (book?.manuscript.blocks ?? [])
+      .filter((b) => b.type === 'paragraph')
+      .map((b) => b.text)
+      .join(' ');
+    expect(prose).toMatch(/Shane waited/);
+    expect(prose).not.toMatch(/\bsame waited/i);
+    expect(suggestCanonical(book?.adaptive ?? emptyAdaptiveState(), 'same')).toBe('Shane');
+    expect(book?.nameLibrary.some((n) => n.canonical === 'Shane')).toBe(true);
   });
 
   it('does not clear the transcription box when only setting a manuscript caret', () => {

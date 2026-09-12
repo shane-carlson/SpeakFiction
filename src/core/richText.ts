@@ -193,6 +193,54 @@ export function splitMarkedText(
   };
 }
 
+export function remapMarksAfterReplace(
+  marks: InlineMark[] | undefined,
+  start: number,
+  oldEnd: number,
+  insertLength: number,
+  nextLength: number,
+): InlineMark[] {
+  const delta = insertLength - (oldEnd - start);
+  const next: InlineMark[] = [];
+  for (const m of marks ?? []) {
+    let a = m.start;
+    let b = m.end;
+    if (b <= start) {
+      next.push(m);
+      continue;
+    }
+    if (a >= oldEnd) {
+      next.push({ ...m, start: a + delta, end: b + delta });
+      continue;
+    }
+    if (a < start) {
+      b = b <= oldEnd ? start + insertLength : b + delta;
+    } else {
+      a = start;
+      b = b <= oldEnd ? start + insertLength : b + delta;
+    }
+    if (b > a) next.push({ ...m, start: a, end: b });
+  }
+  return normalizeMarks(next, nextLength);
+}
+
+export function replaceRangeInMarkedText(
+  text: string,
+  marks: InlineMark[] | undefined,
+  start: number,
+  end: number,
+  replacement: string,
+): { text: string; marks: InlineMark[] } {
+  const t = text ?? '';
+  const a = clamp(Math.floor(start), 0, t.length);
+  const b = clamp(Math.floor(end), a, t.length);
+  const next = t.slice(0, a) + replacement + t.slice(b);
+  return {
+    text: next,
+    marks: remapMarksAfterReplace(marks, a, b, replacement.length, next.length),
+  };
+}
+
 export function styledSpans(text: string, marks?: InlineMark[]): StyledSpan[] {
   const t = text ?? '';
   if (!t) return [];
@@ -248,11 +296,32 @@ function wrapHtml(inner: string, span: StyledSpan): string {
 }
 
 /** HTML for a contenteditable paragraph. Newlines become <br>. */
-export function textToHtml(text: string, marks?: InlineMark[]): string {
+export function textToHtml(
+  text: string,
+  marks?: InlineMark[],
+  highlight?: { start: number; end: number } | null,
+): string {
   const t = text ?? '';
   if (!t) return '';
+  const hs = highlight ? clamp(Math.floor(highlight.start), 0, t.length) : -1;
+  const he = highlight ? clamp(Math.floor(highlight.end), 0, t.length) : -1;
+  const showMark = he > hs;
+  let offset = 0;
   return styledSpans(t, marks)
-    .map((span) => wrapHtml(escapeHtml(span.text).replace(/\n/g, '<br>'), span))
+    .map((span) => {
+      const start = offset;
+      const end = offset + span.text.length;
+      offset = end;
+      const htmlOf = (chunk: string) => wrapHtml(escapeHtml(chunk).replace(/\n/g, '<br>'), span);
+      if (!showMark || end <= hs || start >= he) return htmlOf(span.text);
+      const a = Math.max(0, hs - start);
+      const b = Math.min(span.text.length, he - start);
+      return (
+        htmlOf(span.text.slice(0, a)) +
+        `<mark class="ms-find-hit">${htmlOf(span.text.slice(a, b))}</mark>` +
+        htmlOf(span.text.slice(b))
+      );
+    })
     .join('');
 }
 

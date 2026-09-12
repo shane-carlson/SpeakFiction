@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import type { Block, Book, InlineMark } from '../core/types';
 import {
@@ -39,8 +39,29 @@ import { AppContextMenu } from './AppContextMenu';
 import { HeadingRemoveControl } from './ChapterRemoveControl';
 import { RichParagraph } from './RichParagraph';
 import { ManuscriptImageFrame } from './ManuscriptImageFrame';
+import { ManuscriptFindBar } from './ManuscriptFindBar';
+import {
+  findManuscriptMatches,
+  replaceAllManuscriptMatches,
+  replaceManuscriptMatch,
+} from '../core/manuscriptFind';
 
 const DRAG_MIME = 'application/x-sf-block';
+
+function paragraphRangeIds(paragraphIds: string[], anchorId: string | null, toId: string): string[] {
+  if (!anchorId) return [toId];
+  const a = paragraphIds.indexOf(anchorId);
+  const b = paragraphIds.indexOf(toId);
+  if (a < 0 || b < 0) return [toId];
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return paragraphIds.slice(lo, hi + 1);
+}
+
+export type ManuscriptViewHandle = {
+  combineSelectedParagraphs: () => void;
+  clearParagraphSelection: () => void;
+};
 
 function destFromEvent(
   e: React.MouseEvent | React.DragEvent,
@@ -188,16 +209,7 @@ function applyManuscriptSpellReplace(
   }
 }
 
-export function ManuscriptView({
-  book,
-  place,
-  onPlaceChange,
-  canInsertDictation,
-  onInsertDictation,
-  onPickImage,
-  pickingInsert = false,
-  onPickingChange,
-}: {
+export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   book: Book;
   place?: ManuscriptPlace;
   onPlaceChange?: (place: ManuscriptPlace) => void;
@@ -206,7 +218,24 @@ export function ManuscriptView({
   onPickImage?: (dest: ManuscriptInsertAt) => void;
   pickingInsert?: boolean;
   onPickingChange?: (picking: boolean) => void;
-}) {
+  findOpen?: boolean;
+  onFindOpenChange?: (open: boolean) => void;
+  findNonce?: number;
+  onParagraphSelectionChange?: (ids: string[]) => void;
+}>(function ManuscriptView({
+  book,
+  place,
+  onPlaceChange,
+  canInsertDictation,
+  onInsertDictation,
+  onPickImage,
+  pickingInsert = false,
+  onPickingChange,
+  findOpen = false,
+  onFindOpenChange,
+  findNonce = 0,
+  onParagraphSelectionChange,
+}, ref) {
   const updateBlockText = useStore((s) => s.updateBlockText);
   const updateBlockTitle = useStore((s) => s.updateBlockTitle);
   const deleteBlock = useStore((s) => s.deleteBlock);
@@ -219,6 +248,8 @@ export function ManuscriptView({
   const updateImageCaption = useStore((s) => s.updateImageCaption);
   const updateImageAlt = useStore((s) => s.updateImageAlt);
   const updateTableCell = useStore((s) => s.updateTableCell);
+  const combineParagraphs = useStore((s) => s.combineParagraphs);
+  const replaceManuscriptBlocks = useStore((s) => s.replaceManuscriptBlocks);
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -234,6 +265,12 @@ export function ManuscriptView({
   const dropOkRef = useRef<Set<number>>(new Set());
   const menuGen = useRef(0);
   const closeMenu = useCallback(() => setMenu(null), []);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const lastSelectedRef = useRef<string | null>(null);
+  const [findQuery, setFindQuery] = useState('');
+  const [findReplacement, setFindReplacement] = useState('');
+  const [findCase, setFindCase] = useState(false);
+  const [matchIndex, setMatchIndex] = useState(0);
 
   useEffect(() => {
     return window.speakfiction?.spellcheck?.onContextMenu?.((hit) => {
@@ -242,6 +279,142 @@ export function ManuscriptView({
   }, []);
 
   const blocks = book.manuscript.blocks;
+  const paragraphIds = useMemo(
+    () => blocks.filter((b) => b.type === 'paragraph').map((b) => b.id),
+    [blocks],
+  );
+  const matches = useMemo(
+    () => (findOpen ? findManuscriptMatches(blocks, findQuery, findCase) : []),
+    [blocks, findOpen, findQuery, findCase],
+  );
+  const currentMatch = matches[matchIndex] ?? null;
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const keep = new Set(paragraphIds);
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (keep.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [paragraphIds]);
+
+  useEffect(() => {
+    onParagraphSelectionChange?.([...selectedIds]);
+  }, [selectedIds, onParagraphSelectionChange]);
+
+  useEffect(() => {
+    setFindQuery('');
+    setFindReplacement('');
+    setFindCase(false);
+    setMatchIndex(0);
+    setSelectedIds(new Set());
+    lastSelectedRef.current = null;
+  }, [book.id]);
+
+  useEffect(() => {
+    setMatchIndex(0);
+  }, [findQuery, findCase]);
+
+  useEffect(() => {
+    if (matchIndex > 0 && matchIndex >= matches.length) setMatchIndex(0);
+  }, [matches.length, matchIndex]);
+
+  useEffect(() => {
+    if (!findOpen || !currentMatch) return;
+    const node = document.querySelector(`[data-block-id="${currentMatch.blockId.replace(/"/g, '')}"]`);
+    if (node instanceof HTMLElement) node.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }, [findOpen, currentMatch?.blockId, currentMatch?.field, currentMatch?.start, currentMatch?.end]);
+
+  const goFind = useCallback(
+    (dir: 1 | -1) => {
+      if (!matches.length) return;
+      setMatchIndex((i) => (i + dir + matches.length) % matches.length);
+    },
+    [matches.length],
+  );
+
+  const replaceCurrent = useCallback(() => {
+    const match = matches[matchIndex];
+    if (!match) return;
+    replaceManuscriptBlocks(book.id, replaceManuscriptMatch(blocks, match, findReplacement));
+  }, [blocks, book.id, findReplacement, matchIndex, matches, replaceManuscriptBlocks]);
+
+  const replaceAll = useCallback(() => {
+    if (!findQuery) return;
+    const next = replaceAllManuscriptMatches(blocks, findQuery, findReplacement, findCase);
+    if (next === blocks) return;
+    replaceManuscriptBlocks(book.id, next);
+  }, [blocks, book.id, findCase, findQuery, findReplacement, replaceManuscriptBlocks]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      combineSelectedParagraphs() {
+        if (selectedIds.size < 2) return;
+        combineParagraphs(book.id, [...selectedIds]);
+        setSelectedIds(new Set());
+        lastSelectedRef.current = null;
+      },
+      clearParagraphSelection() {
+        setSelectedIds(new Set());
+        lastSelectedRef.current = null;
+      },
+    }),
+    [book.id, combineParagraphs, selectedIds],
+  );
+
+  useEffect(() => {
+    if (!findOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F3' || ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'g')) {
+        e.preventDefault();
+        goFind(e.shiftKey ? -1 : 1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [findOpen, goFind]);
+
+  const toggleParagraph = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    lastSelectedRef.current = id;
+  };
+
+  const selectParagraphRange = (id: string) => {
+    setSelectedIds(new Set(paragraphRangeIds(paragraphIds, lastSelectedRef.current, id)));
+    lastSelectedRef.current = lastSelectedRef.current ?? id;
+  };
+
+  const findHit = (blockId: string, field: 'text' | 'title') =>
+    currentMatch && currentMatch.blockId === blockId && currentMatch.field === field ? currentMatch : null;
+
+  const findBar = findOpen ? (
+    <ManuscriptFindBar
+      query={findQuery}
+      replacement={findReplacement}
+      caseSensitive={findCase}
+      matchIndex={matchIndex}
+      matchCount={matches.length}
+      focusNonce={findNonce}
+      onQuery={setFindQuery}
+      onReplacement={setFindReplacement}
+      onCaseSensitive={setFindCase}
+      onPrev={() => goFind(-1)}
+      onNext={() => goFind(1)}
+      onReplace={replaceCurrent}
+      onReplaceAll={replaceAll}
+      onClose={() => onFindOpenChange?.(false)}
+    />
+  ) : null;
   const chapterNoById = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of chapterOrder(blocks)) map.set(c.id, c.number);
@@ -542,7 +715,9 @@ export function ManuscriptView({
   if (blocks.length === 0) {
     return (
       <>
-        <div className={`manuscript${pickingInsert ? ' is-picking-insert' : ''}`}>
+        <div className="ms-document">
+          {findBar}
+          <div className={`manuscript${pickingInsert ? ' is-picking-insert' : ''}`}>
           {insertGap(0)}
           <div
             className="empty"
@@ -562,6 +737,7 @@ export function ManuscriptView({
             Nothing here yet. Turn on Choose insertion point, then click the marker above.
             With no point chosen, new prose goes at the end.
           </div>
+          </div>
         </div>
         {insertMenu}
       </>
@@ -572,8 +748,10 @@ export function ManuscriptView({
 
   return (
     <>
+      <div className="ms-document">
+        {findBar}
       <div
-        className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}`}
+        className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}${selectedIds.size ? ' is-selecting' : ''}`}
         onContextMenu={openInsertMenu}
         onDragEnd={endDrag}
         onDragOver={(e) => {
@@ -619,7 +797,7 @@ export function ManuscriptView({
                 <DragHandle label="Move chapter" onDragStart={(e) => beginDrag(e, i, b)} />
                 <span className="badge chapter">CHAPTER {chapterNo}</span>
                 <input
-                  className="ms-chapter-title"
+                  className={`ms-chapter-title${findHit(b.id, 'title') ? ' is-find-hit' : ''}`}
                   value={b.title ?? ''}
                   placeholder="Untitled"
                   aria-label={`Chapter ${chapterNo} title`}
@@ -650,7 +828,7 @@ export function ManuscriptView({
               >
                 <DragHandle label="Move scene" onDragStart={(e) => beginDrag(e, i, b)} />
                 <input
-                  className="ms-scene-title"
+                  className={`ms-scene-title${findHit(b.id, 'title') ? ' is-find-hit' : ''}`}
                   value={b.title ?? ''}
                   placeholder="* * *"
                   aria-label="Scene title"
@@ -678,7 +856,7 @@ export function ManuscriptView({
               >
                 <DragHandle label="Move section" onDragStart={(e) => beginDrag(e, i, b)} />
                 <input
-                  className="ms-section-title"
+                  className={`ms-section-title${findHit(b.id, 'title') ? ' is-find-hit' : ''}`}
                   value={b.title ?? ''}
                   placeholder="Section"
                   aria-label="Section title"
@@ -700,7 +878,12 @@ export function ManuscriptView({
           } else if (b.type === 'image' && b.image) {
             body = (
               <div
-                className={dragging ? 'ms-image-block is-dragging' : 'ms-image-block'}
+                className={[
+                  dragging ? 'ms-image-block is-dragging' : 'ms-image-block',
+                  findHit(b.id, 'title') ? 'is-find-block' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 data-block-id={b.id}
                 onClick={() => report(b.id)}
               >
@@ -766,16 +949,45 @@ export function ManuscriptView({
                 className={[
                   dragging ? 'ms-para is-dragging' : 'ms-para',
                   place?.blockId === b.id && selectedGap == null ? 'is-insert-target' : '',
+                  selectedIds.has(b.id) ? 'is-selected' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
                 data-block-id={b.id}
                 title="Click to edit. Dictation inserts at the caret when this paragraph is selected."
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
+                  const target = e.target as HTMLElement;
+                  if (target.closest('.ms-para-select, .ms-block-remove, .ms-drag-handle')) return;
+                  if (e.metaKey || e.ctrlKey) {
+                    e.preventDefault();
+                    toggleParagraph(b.id);
+                    return;
+                  }
+                  if (e.shiftKey && selectedIds.size > 0 && !target.closest('.ms-para-editor')) {
+                    e.preventDefault();
+                    selectParagraphRange(b.id);
+                  }
+                }}
               >
+                <input
+                  type="checkbox"
+                  className="ms-para-select"
+                  checked={selectedIds.has(b.id)}
+                  aria-label="Select paragraph"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (e.shiftKey) selectParagraphRange(b.id);
+                    else toggleParagraph(b.id);
+                  }}
+                  onChange={() => undefined}
+                />
                 <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
                 <RichParagraph
                   value={b.text ?? ''}
                   marks={b.marks}
+                  highlight={findHit(b.id, 'text')}
                   onChange={(text: string, marks: InlineMark[]) => updateBlockText(book.id, b.id, text, marks)}
                   onPlace={(start, end) => report(b.id, start, end)}
                   onEmptyBackspace={() => deleteBlock(book.id, b.id)}
@@ -803,7 +1015,8 @@ export function ManuscriptView({
           );
         })}
       </div>
+      </div>
       {insertMenu}
     </>
   );
-}
+});

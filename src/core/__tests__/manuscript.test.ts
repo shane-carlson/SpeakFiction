@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendSegments,
   chapterOrder,
+  combineParagraphs,
   deleteMovableRange,
   emptyManuscript,
   emptyTable,
@@ -466,5 +467,37 @@ describe('insertTableBlock', () => {
     const fourByEight = insertTableBlock([], 4, 8);
     expect(fourByEight[0].table?.rows).toHaveLength(4);
     expect(fourByEight[0].table?.rows[0]).toHaveLength(8);
+  });
+});
+
+describe('combineParagraphs', () => {
+  const paras = (): Block[] => [
+    { id: 'c1', type: 'chapter', title: 'One' },
+    { id: 'p1', type: 'paragraph', text: 'The wind howled.' },
+    { id: 'p2', type: 'paragraph', text: 'Rain followed.', marks: [{ kind: 'italic', start: 0, end: 4 }] },
+    { id: 's1', type: 'scene', title: 'Later' },
+    { id: 'p3', type: 'paragraph', text: 'Aelith waited.' },
+  ];
+
+  it('joins selected paragraphs in manuscript order, not click order', () => {
+    const next = combineParagraphs(paras(), ['p3', 'p1']);
+    expect(next.map((b) => b.id)).toEqual(['c1', 'p1', 'p2', 's1']);
+    expect(next[1]).toMatchObject({
+      id: 'p1',
+      type: 'paragraph',
+      text: 'The wind howled. Aelith waited.',
+    });
+  });
+
+  it('shifts marks from later paragraphs onto the kept block', () => {
+    const next = combineParagraphs(paras(), ['p1', 'p2']);
+    expect(next).toHaveLength(4);
+    expect(next[1].text).toBe('The wind howled. Rain followed.');
+    expect(next[1].marks).toEqual([{ kind: 'italic', start: 17, end: 21 }]);
+  });
+
+  it('ignores non-paragraphs and a single selection', () => {
+    expect(combineParagraphs(paras(), ['c1', 'p1'])).toEqual(paras());
+    expect(combineParagraphs(paras(), ['p2'])).toEqual(paras());
   });
 });

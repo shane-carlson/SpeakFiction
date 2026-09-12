@@ -1,4 +1,5 @@
 import { shouldStartDialogueParagraph } from './proseStructure';
+import { canFoldAndBut, lowercaseLeadingAndBut } from './punctuation';
 
 export interface DraftSpan {
   text: string;
@@ -57,6 +58,24 @@ export function serializeDraft(draft: DictationDraft): string {
   return JSON.stringify(compactDraft(draft ?? []));
 }
 
+/** Live contenteditable text — used so box edits are not lost on insert or the next utterance. */
+export function liveDictationDraft(root?: ParentNode | null): DictationDraft | null {
+  if (typeof document === 'undefined') return null;
+  const scope = root ?? document;
+  const nodes = scope.querySelectorAll('.dictation-transcript');
+  let el: HTMLElement | null = null;
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue;
+    if (node.offsetParent !== null || node === document.activeElement) {
+      el = node;
+      break;
+    }
+    el = node;
+  }
+  if (!el) return null;
+  return draftFromElement(el);
+}
+
 function trimTrailingWhitespace(draft: DictationDraft): DictationDraft {
   const spans = compactDraft(draft).map((s) => ({ ...s }));
   for (let i = spans.length - 1; i >= 0; i--) {
@@ -77,6 +96,20 @@ function chunkForInsert(before: string, after: string, next: string): string {
   return paddedInsert(before, after, b);
 }
 
+function replaceLastSentencePunct(draft: DictationDraft, punct: string): DictationDraft {
+  const chars = flattenDraft(draft);
+  for (let i = chars.length - 1; i >= 0; i--) {
+    if (chars[i].struck) continue;
+    if (!chars[i].ch.trim()) continue;
+    if (/[.!?]/.test(chars[i].ch)) {
+      chars[i] = { ...chars[i], ch: punct };
+      return unflattenDraft(chars);
+    }
+    break;
+  }
+  return compactDraft(draft);
+}
+
 /** Join live speech onto the dictation box without touching struck spans. */
 export function joinDraft(prev: DictationDraft, next: string): DictationDraft {
   if (!next.trim()) return compactDraft(prev ?? []);
@@ -84,15 +117,22 @@ export function joinDraft(prev: DictationDraft, next: string): DictationDraft {
   if (!prevFull.trim()) {
     return compactDraft([...(prev ?? []), { text: next, struck: false }]);
   }
-  const a = prevFull.replace(/\s+$/, '');
-  const b = next.replace(/^\s+/, '');
+  let base = compactDraft(prev);
+  let b = next.replace(/^\s+/, '');
+  if (canFoldAndBut(prevFull, b)) {
+    base = replaceLastSentencePunct(base, ',');
+    b = lowercaseLeadingAndBut(b);
+  }
+  const a = draftText(base).replace(/\s+$/, '');
   const joiner = shouldStartDialogueParagraph(a, b) ? '\n\n' : ' ';
-  return compactDraft([...trimTrailingWhitespace(prev), { text: `${joiner}${b}`, struck: false }]);
+  return compactDraft([...trimTrailingWhitespace(base), { text: `${joiner}${b}`, struck: false }]);
 }
 
 /**
  * Land incoming dictation in the transcription box at a caret offset.
  * Falls back to append when `offset` is omitted or at/past the end.
+ * The caret after each event sits at the end of the inserted chunk so the next
+ * utterance continues forward instead of stacking to the left.
  */
 export function joinDraftAt(
   prev: DictationDraft,
@@ -105,10 +145,20 @@ export function joinDraftAt(
     return joinDraft(prev, next);
   }
   const o = Math.max(0, Math.min(offset, text.length));
-  return replaceDraftRange(prev, o, o, chunkForInsert(text.slice(0, o), text.slice(o), next), false);
+  const before = text.slice(0, o);
+  const after = text.slice(o);
+  if (canFoldAndBut(before, next)) {
+    const m = before.match(/[.!?](\s*)$/);
+    const start = m ? o - m[0].length : o;
+    const piece = lowercaseLeadingAndBut(next.replace(/^\s+/, ''));
+    const space = m?.[1] && m[1].length ? m[1] : ' ';
+    const padAfter = after ? (/^[ \n]/.test(after) ? '' : ' ') : ' ';
+    return replaceDraftRange(prev, start, o, `,${space}${piece}${padAfter}`, false);
+  }
+  return replaceDraftRange(prev, o, o, chunkForInsert(before, after, next), false);
 }
 
-/** Caret to restore after `joinDraftAt` so the next utterance stays at the insert point. */
+/** Caret to restore after `joinDraftAt`: the end of the inserted chunk. */
 export function caretAfterJoin(
   prev: DictationDraft,
   next: DictationDraft,

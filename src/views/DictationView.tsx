@@ -13,6 +13,7 @@ import {
   draftText,
   insertCueAt,
   joinDraftAt,
+  liveDictationDraft,
   plainDraft,
   strikeLastSentence,
   takeInsertTranscript,
@@ -28,7 +29,7 @@ import {
   type StructureHeadingKind,
 } from '../core/manuscript';
 import { containsStructureCue } from '../core/audioCues';
-import { ManuscriptView } from '../components/ManuscriptView';
+import { ManuscriptView, type ManuscriptViewHandle } from '../components/ManuscriptView';
 import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { EditorDictationStrip } from '../components/EditorDictationStrip';
@@ -81,6 +82,7 @@ export function DictationView({
   const books = useStore((s) => s.books);
   const setActiveBook = useStore((s) => s.setActiveBook);
   const applyDictation = useStore((s) => s.applyDictation);
+  const learnTranscriptEdits = useStore((s) => s.learnTranscriptEdits);
   const addNameEntry = useStore((s) => s.addNameEntry);
   const rememberSttProfile = useStore((s) => s.rememberSttProfile);
   const savedProfileLabel = useStore((s) => s.sttProfileLabel);
@@ -94,6 +96,10 @@ export function DictationView({
   const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
   const [pickingInsert, setPickingInsert] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findNonce, setFindNonce] = useState(0);
+  const [selectedParagraphCount, setSelectedParagraphCount] = useState(0);
+  const manuscriptRef = useRef<ManuscriptViewHandle>(null);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -128,6 +134,31 @@ export function DictationView({
   const audioSettings = useStore((s) => s.audioSettings);
   const transcriptCaretRef = useRef<number | null>(null);
   const [boxCaret, setBoxCaret] = useState<number | null>(null);
+  const userEditedBoxRef = useRef(false);
+
+  const stagedDraft = useCallback((): DictationDraft => {
+    const stored = useStore.getState().dictationDrafts[book.id] ?? [];
+    const live = liveDictationDraft();
+    if (!live) return stored;
+    const before = draftText(stored);
+    const after = draftText(live);
+    if (before !== after) {
+      learnTranscriptEdits(book.id, before, after);
+      userEditedBoxRef.current = true;
+      setDictationDraft(book.id, live);
+    }
+    return live;
+  }, [book.id, learnTranscriptEdits, setDictationDraft]);
+
+  const commitBoxDraft = useCallback(
+    (next: DictationDraft) => {
+      const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+      learnTranscriptEdits(book.id, draftText(prev), draftText(next));
+      userEditedBoxRef.current = true;
+      setDictationDraft(book.id, next);
+    },
+    [book.id, learnTranscriptEdits, setDictationDraft],
+  );
 
   const handleFinal = useCallback(
     (text: string, utt: { samples: Float32Array; sampleRate: number }) => {
@@ -172,7 +203,7 @@ export function DictationView({
         })();
       }
       if (!cleaned) return;
-      const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+      const prev = stagedDraft();
       const at = transcriptCaretRef.current;
       const next = joinDraftAt(prev, cleaned, at);
       const caret = caretAfterJoin(prev, next, at);
@@ -190,19 +221,20 @@ export function DictationView({
       genre,
       seriesNames,
       setDictationDraft,
+      stagedDraft,
     ],
   );
 
   const appendCue = useCallback((cue: string) => {
     captureVoiceCommand(book.id);
-    const prev = useStore.getState().dictationDrafts[book.id] ?? [];
+    const prev = stagedDraft();
     const at = transcriptCaretRef.current;
     const next = at == null ? appendCueText(prev, cue) : insertCueAt(prev, at, cue);
     const caret = caretAfterJoin(prev, next, at ?? draftText(prev).length);
     transcriptCaretRef.current = caret;
     setBoxCaret(caret);
     setDictationDraft(book.id, next);
-  }, [book.id, captureVoiceCommand, setDictationDraft]);
+  }, [book.id, captureVoiceCommand, setDictationDraft, stagedDraft]);
   const handleProfile = useCallback(
     (profile: { label: string }) => {
       rememberSttProfile(profile.label);
@@ -305,6 +337,7 @@ export function DictationView({
         target instanceof HTMLElement && target.classList.contains('dictation-transcript');
       const listening = speech.session === 'listening';
       const meta = e.metaKey || e.ctrlKey;
+      if (target instanceof HTMLElement && target.closest('.ms-find-bar')) return;
 
       const insert = (cue: string) => {
         e.preventDefault();
@@ -317,6 +350,11 @@ export function DictationView({
         return;
       }
 
+      if ((e.key === ' ' || e.code === 'Space') && e.shiftKey) {
+        insert('new paragraph');
+        return;
+      }
+
       const steal = listening || !inField;
       if (!steal) return;
 
@@ -325,7 +363,8 @@ export function DictationView({
         return;
       }
       if (e.key === ' ' || e.code === 'Space') {
-        insert(e.shiftKey ? 'new scene' : 'new paragraph');
+        if (inField) return;
+        insert('new paragraph');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -343,22 +382,35 @@ export function DictationView({
 
   const promoteToManuscript = useCallback(
     (dest?: ManuscriptInsertAt) => {
-      const { transcript, remaining } = takeInsertTranscript(draft);
+      const current = stagedDraft();
+      const { transcript, remaining } = takeInsertTranscript(current);
       if (!transcript) return;
       const blocks = book.manuscript.blocks;
       const target = dest ?? destFromPlace(blocks, place);
       const beforeLen = blocks.length;
       captureVoiceCommand(book.id);
-      const result = applyDictation(book.id, transcript, target);
+      const result = applyDictation(book.id, transcript, target, {
+        preserveProse: userEditedBoxRef.current,
+      });
       const afterLen =
         useStore.getState().books.find((b) => b.id === book.id)?.manuscript.blocks.length ?? beforeLen;
       setManuscriptPlace(book.id, advanceInsertPlace(place, target, afterLen - beforeLen, afterLen));
       setOutcome(result);
+      userEditedBoxRef.current = false;
       setDraft(remaining);
       transcriptCaretRef.current = 0;
       setBoxCaret(0);
     },
-    [applyDictation, book.id, book.manuscript.blocks, captureVoiceCommand, draft, place, setDraft, setManuscriptPlace],
+    [
+      applyDictation,
+      book.id,
+      book.manuscript.blocks,
+      captureVoiceCommand,
+      place,
+      setDraft,
+      setManuscriptPlace,
+      stagedDraft,
+    ],
   );
   const insertIntoTranscript = useCallback((offset: number) => {
     transcriptCaretRef.current = offset;
@@ -374,15 +426,39 @@ export function DictationView({
   const insertDest = destFromPlace(book.manuscript.blocks, place);
 
   useEffect(() => {
-    if (!editorOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      if (findOpen) {
+        e.preventDefault();
+        setFindOpen(false);
+        return;
+      }
+      if (selectedParagraphCount > 0) {
+        e.preventDefault();
+        manuscriptRef.current?.clearParagraphSelection();
+        return;
+      }
+      if (!editorOpen) return;
       e.preventDefault();
       setEditorOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editorOpen, setEditorOpen]);
+  }, [editorOpen, findOpen, selectedParagraphCount, setEditorOpen]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta || e.altKey || e.shiftKey) return;
+      if (e.key.toLowerCase() !== 'f') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setFindOpen(true);
+      setFindNonce((n) => n + 1);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -390,7 +466,7 @@ export function DictationView({
       if (!meta || e.altKey) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
-      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card')) return;
+      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card, .ms-document, .ms-find-bar')) return;
       if (target.closest('.dictation-transcript, .dictate-console')) return;
       if (e.key.toLowerCase() !== 'z') return;
       e.preventDefault();
@@ -470,6 +546,16 @@ export function DictationView({
       pickingInsert={pickingInsert}
       onTogglePickingInsert={() => setPickingInsert((on) => !on)}
       onOpenVersions={() => setVersionsOpen(true)}
+      findOpen={findOpen}
+      onToggleFind={() => {
+        if (findOpen) setFindOpen(false);
+        else {
+          setFindOpen(true);
+          setFindNonce((n) => n + 1);
+        }
+      }}
+      selectedParagraphCount={selectedParagraphCount}
+      onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
     />
   );
 
@@ -493,6 +579,7 @@ export function DictationView({
       }}
     >
       <ManuscriptView
+        ref={manuscriptRef}
         book={book}
         place={place}
         canInsertDictation={canInsertDictation}
@@ -500,6 +587,10 @@ export function DictationView({
         onPickingChange={setPickingInsert}
         onInsertDictation={promoteToManuscript}
         onPickImage={(dest) => void pickImage(dest)}
+        findOpen={findOpen}
+        onFindOpenChange={setFindOpen}
+        findNonce={findNonce}
+        onParagraphSelectionChange={(ids) => setSelectedParagraphCount(ids.length)}
         onPlaceChange={(next) => {
           const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
           setManuscriptPlace(book.id, { ...next, scrollTop });
@@ -544,12 +635,22 @@ export function DictationView({
                   pickingInsert={pickingInsert}
                   onTogglePickingInsert={() => setPickingInsert((on) => !on)}
                   onOpenVersions={() => setVersionsOpen(true)}
+                  findOpen={findOpen}
+                  onToggleFind={() => {
+                    if (findOpen) setFindOpen(false);
+                    else {
+                      setFindOpen(true);
+                      setFindNonce((n) => n + 1);
+                    }
+                  }}
+                  selectedParagraphCount={selectedParagraphCount}
+                  onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
                 />
                 <EditorDictationStrip
                   speech={speech}
                   mayDictate={license.mayDictate}
                   draft={draft}
-                  onChange={setDraft}
+                  onChange={commitBoxDraft}
                   caret={boxCaret}
                   onCaretChange={(offset) => {
                     transcriptCaretRef.current = offset;
@@ -721,7 +822,7 @@ export function DictationView({
             <DictationTranscript
               id="dictation-transcription"
               value={draft}
-              onChange={setDraft}
+              onChange={commitBoxDraft}
               placeholder="e.g. new chapter kel dros drew sun spar period"
               caret={boxCaret}
               canPromoteToManuscript={canInsertDictation}
@@ -763,11 +864,17 @@ export function DictationView({
           </div>
 
           <div className="row dictate-insert">
-            <button className="btn ghost" onClick={() => setDraft(plainDraft(SAMPLE))}>
+            <button className="btn ghost" onClick={() => {
+              userEditedBoxRef.current = false;
+              setDraft(plainDraft(SAMPLE));
+            }}>
               Load sample
             </button>
             <div className="row">
-              <button className="btn ghost" onClick={() => setDraft([])} disabled={!draftVisible}>
+              <button className="btn ghost" onClick={() => {
+                userEditedBoxRef.current = false;
+                setDraft([]);
+              }} disabled={!draftVisible}>
                 Clear
               </button>
               <button

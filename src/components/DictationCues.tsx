@@ -44,8 +44,9 @@ export function DictationCues({
             library, not the transcription or manuscript.
           </CueRow>
           <CueRow label="Keys">
-            <span className="kbd">Space</span> paragraph · <span className="kbd">Enter</span> chapter ·{' '}
-            <span className="kbd">⇧Space</span> scene · <span className="kbd">⇧Enter</span> section.
+            <span className="kbd">⇧Space</span> paragraph · <span className="kbd">Enter</span> chapter ·{' '}
+            <span className="kbd">⇧Enter</span> section. Space types a space in the box. Say{' '}
+            <span className="kbd">new scene</span> for a scene.
             Next sentence is the title. In the box: <span className="kbd">⌘Enter</span> chapter.
           </CueRow>
           <CueRow label="Insert">
