@@ -412,6 +412,13 @@ export function setParagraphContent(
   );
 }
 
+/** Remove selected paragraphs. Headings and other block types are left alone. */
+export function deleteParagraphs(blocks: Block[], ids: Iterable<string>): Block[] {
+  const drop = new Set(ids);
+  const next = blocks.filter((b) => !(b.type === 'paragraph' && drop.has(b.id)));
+  return next.length === blocks.length ? blocks : next;
+}
+
 /**
  * Merge selected paragraphs into the topmost one, in manuscript order.
  * Click order is ignored. Non-paragraph ids are skipped.

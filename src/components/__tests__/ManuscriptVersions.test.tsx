@@ -43,9 +43,11 @@ describe('ManuscriptToolbar versions', () => {
     expect(onOpenVersions).toHaveBeenCalledTimes(1);
   });
 
-  it('shows Combine paragraphs once two are selected', () => {
+  it('shows Actions after Select, then Combine and Delete', () => {
+    const onToggleSelecting = vi.fn();
     const onCombine = vi.fn();
-    render(
+    const onDelete = vi.fn();
+    const { rerender } = render(
       <ManuscriptToolbar
         canUndo={false}
         canRedo={false}
@@ -59,11 +61,43 @@ describe('ManuscriptToolbar versions', () => {
         onSetKind={() => undefined}
         onUndo={() => undefined}
         onRedo={() => undefined}
-        selectedParagraphCount={2}
+        onToggleSelecting={onToggleSelecting}
+        selecting={false}
+        selectedParagraphCount={0}
         onCombineParagraphs={onCombine}
+        onDeleteParagraphs={onDelete}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Combine paragraphs' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }));
+    expect(onToggleSelecting).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /Actions/ })).not.toBeInTheDocument();
+
+    rerender(
+      <ManuscriptToolbar
+        canUndo={false}
+        canRedo={false}
+        editorOpen={false}
+        onToggleEditor={() => undefined}
+        onInsertStructure={() => undefined}
+        onInsertImage={() => undefined}
+        onInsertTable={() => undefined}
+        onFormat={() => undefined}
+        onClearFormat={() => undefined}
+        onSetKind={() => undefined}
+        onUndo={() => undefined}
+        onRedo={() => undefined}
+        onToggleSelecting={onToggleSelecting}
+        selecting
+        selectedParagraphCount={2}
+        onCombineParagraphs={onCombine}
+        onDeleteParagraphs={onDelete}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 2 selected paragraphs' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Combine' }));
     expect(onCombine).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 2 selected paragraphs' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });

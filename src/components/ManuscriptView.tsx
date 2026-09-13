@@ -60,6 +60,7 @@ function paragraphRangeIds(paragraphIds: string[], anchorId: string | null, toId
 
 export type ManuscriptViewHandle = {
   combineSelectedParagraphs: () => void;
+  deleteSelectedParagraphs: () => void;
   clearParagraphSelection: () => void;
 };
 
@@ -221,6 +222,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   findOpen?: boolean;
   onFindOpenChange?: (open: boolean) => void;
   findNonce?: number;
+  selecting?: boolean;
   onParagraphSelectionChange?: (ids: string[]) => void;
 }>(function ManuscriptView({
   book,
@@ -234,6 +236,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   findOpen = false,
   onFindOpenChange,
   findNonce = 0,
+  selecting = false,
   onParagraphSelectionChange,
 }, ref) {
   const updateBlockText = useStore((s) => s.updateBlockText);
@@ -249,6 +252,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   const updateImageAlt = useStore((s) => s.updateImageAlt);
   const updateTableCell = useStore((s) => s.updateTableCell);
   const combineParagraphs = useStore((s) => s.combineParagraphs);
+  const deleteParagraphs = useStore((s) => s.deleteParagraphs);
   const replaceManuscriptBlocks = useStore((s) => s.replaceManuscriptBlocks);
   const [menu, setMenu] = useState<{
     x: number;
@@ -267,6 +271,13 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   const closeMenu = useCallback(() => setMenu(null), []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const lastSelectedRef = useRef<string | null>(null);
+  const onParagraphSelectionChangeRef = useRef(onParagraphSelectionChange);
+  onParagraphSelectionChangeRef.current = onParagraphSelectionChange;
+
+  const applySelection = useCallback((next: Set<string>) => {
+    setSelectedIds(next);
+    onParagraphSelectionChangeRef.current?.([...next]);
+  }, []);
   const [findQuery, setFindQuery] = useState('');
   const [findReplacement, setFindReplacement] = useState('');
   const [findCase, setFindCase] = useState(false);
@@ -298,22 +309,30 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
         if (keep.has(id)) next.add(id);
         else changed = true;
       }
-      return changed ? next : prev;
+      if (!changed) return prev;
+      onParagraphSelectionChangeRef.current?.([...next]);
+      return next;
     });
   }, [paragraphIds]);
 
   useEffect(() => {
-    onParagraphSelectionChange?.([...selectedIds]);
-  }, [selectedIds, onParagraphSelectionChange]);
+    if (selecting) return;
+    setSelectedIds((prev) => {
+      if (!prev.size) return prev;
+      onParagraphSelectionChangeRef.current?.([]);
+      return new Set();
+    });
+    lastSelectedRef.current = null;
+  }, [selecting]);
 
   useEffect(() => {
     setFindQuery('');
     setFindReplacement('');
     setFindCase(false);
     setMatchIndex(0);
-    setSelectedIds(new Set());
+    applySelection(new Set());
     lastSelectedRef.current = null;
-  }, [book.id]);
+  }, [applySelection, book.id]);
 
   useEffect(() => {
     setMatchIndex(0);
@@ -356,15 +375,21 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
       combineSelectedParagraphs() {
         if (selectedIds.size < 2) return;
         combineParagraphs(book.id, [...selectedIds]);
-        setSelectedIds(new Set());
+        applySelection(new Set());
+        lastSelectedRef.current = null;
+      },
+      deleteSelectedParagraphs() {
+        if (selectedIds.size < 1) return;
+        deleteParagraphs(book.id, [...selectedIds]);
+        applySelection(new Set());
         lastSelectedRef.current = null;
       },
       clearParagraphSelection() {
-        setSelectedIds(new Set());
+        applySelection(new Set());
         lastSelectedRef.current = null;
       },
     }),
-    [book.id, combineParagraphs, selectedIds],
+    [applySelection, book.id, combineParagraphs, deleteParagraphs, selectedIds],
   );
 
   useEffect(() => {
@@ -380,17 +405,15 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   }, [findOpen, goFind]);
 
   const toggleParagraph = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    applySelection(next);
     lastSelectedRef.current = id;
   };
 
   const selectParagraphRange = (id: string) => {
-    setSelectedIds(new Set(paragraphRangeIds(paragraphIds, lastSelectedRef.current, id)));
+    applySelection(new Set(paragraphRangeIds(paragraphIds, lastSelectedRef.current, id)));
     lastSelectedRef.current = lastSelectedRef.current ?? id;
   };
 
@@ -751,7 +774,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
       <div className="ms-document">
         {findBar}
       <div
-        className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}${selectedIds.size ? ' is-selecting' : ''}`}
+        className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}${selecting ? ' is-selecting' : ''}`}
         onContextMenu={openInsertMenu}
         onDragEnd={endDrag}
         onDragOver={(e) => {
@@ -956,20 +979,15 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
                 data-block-id={b.id}
                 title="Click to edit. Dictation inserts at the caret when this paragraph is selected."
                 onMouseDown={(e) => {
-                  if (e.button !== 0) return;
+                  if (!selecting || e.button !== 0) return;
                   const target = e.target as HTMLElement;
-                  if (target.closest('.ms-para-select, .ms-block-remove, .ms-drag-handle')) return;
-                  if (e.metaKey || e.ctrlKey) {
-                    e.preventDefault();
-                    toggleParagraph(b.id);
-                    return;
-                  }
-                  if (e.shiftKey && selectedIds.size > 0 && !target.closest('.ms-para-editor')) {
-                    e.preventDefault();
-                    selectParagraphRange(b.id);
-                  }
+                  if (target.closest('.ms-para-select, .ms-block-remove, .ms-drag-handle, .ms-para-editor')) return;
+                  e.preventDefault();
+                  if (e.shiftKey) selectParagraphRange(b.id);
+                  else toggleParagraph(b.id);
                 }}
               >
+                {selecting && (
                 <input
                   type="checkbox"
                   className="ms-para-select"
@@ -983,6 +1001,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
                   }}
                   onChange={() => undefined}
                 />
+                )}
                 <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
                 <RichParagraph
                   value={b.text ?? ''}

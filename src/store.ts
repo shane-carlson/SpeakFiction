@@ -27,6 +27,7 @@ import {
   insertTableBlock,
   moveBlockRange,
   combineParagraphs as mergeParagraphBlocks,
+  deleteParagraphs as dropParagraphBlocks,
   setBlockKind,
   setBlockTitle,
   setImageAlt,
@@ -177,6 +178,7 @@ interface AppState {
   deleteBlockRange: (bookId: string, blockId: string) => void;
   unwrapHeading: (bookId: string, blockId: string) => void;
   combineParagraphs: (bookId: string, ids: string[]) => void;
+  deleteParagraphs: (bookId: string, ids: string[]) => void;
   replaceManuscriptBlocks: (bookId: string, blocks: Book['manuscript']['blocks']) => void;
   moveManuscriptRange: (bookId: string, fromIndex: number, dropIndex: number) => void;
   insertManuscriptStructure: (
@@ -687,6 +689,21 @@ export const useStore = create<AppState>()(
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
             manuscript: { blocks: mergeParagraphBlocks(b.manuscript.blocks, ids) },
+          })),
+          manuscriptHistory: pushHistory(s, bookId),
+        }));
+        noteBookVersion(get().books, bookId, 'structure');
+      },
+
+      deleteParagraphs: (bookId, ids) => {
+        const book = get().books.find((b) => b.id === bookId);
+        if (!book) return;
+        const next = dropParagraphBlocks(book.manuscript.blocks, ids);
+        if (next === book.manuscript.blocks) return;
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({
+            ...b,
+            manuscript: { blocks: dropParagraphBlocks(b.manuscript.blocks, ids) },
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
