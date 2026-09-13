@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import type { Block, InlineMarkKind } from '../core/types';
 import type { ManuscriptInsertKind, StructureHeadingKind } from '../core/manuscript';
 import { TableGridPicker } from './TableGridPicker';
@@ -67,90 +67,6 @@ function TableGlyph() {
   );
 }
 
-function ParagraphActionsMenu({
-  count,
-  onCombine,
-  onDelete,
-}: {
-  count: number;
-  onCombine?: () => void;
-  onDelete?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      e.stopPropagation();
-      setOpen(false);
-    };
-    const onPointer = (e: Event) => {
-      if (rootRef.current && e.target instanceof Node && rootRef.current.contains(e.target)) return;
-      setOpen(false);
-    };
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('pointerdown', onPointer, true);
-    return () => {
-      window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('pointerdown', onPointer, true);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="ms-toolbar-actions">
-      <button
-        type="button"
-        className={`btn compact${open ? ' primary' : ''}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={count === 1 ? 'Actions for 1 selected paragraph' : `Actions for ${count} selected paragraphs`}
-        title="Combine, delete, or act on the selected paragraphs"
-        onClick={() => setOpen((v) => !v)}
-      >
-        Actions
-      </button>
-      {open && (
-        <div
-          className="ms-toolbar-actions-menu card"
-          role="menu"
-          aria-label="Paragraph actions"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="btn ghost compact"
-            disabled={count < 2 || !onCombine}
-            title={count < 2 ? 'Select at least two paragraphs' : 'Join selected paragraphs in document order'}
-            onClick={() => {
-              onCombine?.();
-              setOpen(false);
-            }}
-          >
-            Combine
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="btn ghost compact"
-            disabled={count < 1 || !onDelete}
-            title="Delete the selected paragraphs"
-            onClick={() => {
-              onDelete?.();
-              setOpen(false);
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ManuscriptToolbar({
   focused,
   canUndo,
@@ -173,9 +89,6 @@ export function ManuscriptToolbar({
   onToggleFind,
   selecting = false,
   onToggleSelecting,
-  selectedParagraphCount = 0,
-  onCombineParagraphs,
-  onDeleteParagraphs,
 }: {
   focused?: Block;
   canUndo: boolean;
@@ -198,9 +111,6 @@ export function ManuscriptToolbar({
   onToggleFind?: () => void;
   selecting?: boolean;
   onToggleSelecting?: () => void;
-  selectedParagraphCount?: number;
-  onCombineParagraphs?: () => void;
-  onDeleteParagraphs?: () => void;
 }) {
   const heading = focused && focused.type !== 'image' && focused.type !== 'table' ? focused.type : null;
   const formatEnabled = focused?.type === 'paragraph';
@@ -296,22 +206,11 @@ export function ManuscriptToolbar({
             type="button"
             className={`btn compact${selecting ? ' primary' : ' ghost'}`}
             aria-pressed={selecting}
-            title={
-              selecting
-                ? 'Click paragraphs below to select them, or click again to finish'
-                : 'Select paragraphs to combine, delete, or act on'
-            }
+            title="Use this to select paragraphs to combine or delete"
             onClick={onToggleSelecting}
           >
-            Select
+            Select paragraphs
           </button>
-        )}
-        {selecting && selectedParagraphCount > 0 && (
-          <ParagraphActionsMenu
-            count={selectedParagraphCount}
-            onCombine={onCombineParagraphs}
-            onDelete={onDeleteParagraphs}
-          />
         )}
         {onToggleFind && (
           <button

@@ -40,6 +40,7 @@ import { HeadingRemoveControl } from './ChapterRemoveControl';
 import { RichParagraph } from './RichParagraph';
 import { ManuscriptImageFrame } from './ManuscriptImageFrame';
 import { ManuscriptFindBar } from './ManuscriptFindBar';
+import { ManuscriptSelectBanner } from './ManuscriptSelectBanner';
 import {
   findManuscriptMatches,
   replaceAllManuscriptMatches,
@@ -420,6 +421,23 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   const findHit = (blockId: string, field: 'text' | 'title') =>
     currentMatch && currentMatch.blockId === blockId && currentMatch.field === field ? currentMatch : null;
 
+  const selectBanner = selecting ? (
+    <ManuscriptSelectBanner
+      count={selectedIds.size}
+      onCombine={() => {
+        if (selectedIds.size < 2) return;
+        combineParagraphs(book.id, [...selectedIds]);
+        applySelection(new Set());
+        lastSelectedRef.current = null;
+      }}
+      onDelete={() => {
+        if (selectedIds.size < 1) return;
+        deleteParagraphs(book.id, [...selectedIds]);
+        applySelection(new Set());
+        lastSelectedRef.current = null;
+      }}
+    />
+  ) : null;
   const findBar = findOpen ? (
     <ManuscriptFindBar
       query={findQuery}
@@ -438,6 +456,13 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
       onClose={() => onFindOpenChange?.(false)}
     />
   ) : null;
+  const documentChrome =
+    selectBanner || findBar ? (
+      <div className="ms-document-chrome">
+        {selectBanner}
+        {findBar}
+      </div>
+    ) : null;
   const chapterNoById = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of chapterOrder(blocks)) map.set(c.id, c.number);
@@ -739,7 +764,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
     return (
       <>
         <div className="ms-document">
-          {findBar}
+          {documentChrome}
           <div className={`manuscript${pickingInsert ? ' is-picking-insert' : ''}`}>
           {insertGap(0)}
           <div
@@ -772,7 +797,7 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
   return (
     <>
       <div className="ms-document">
-        {findBar}
+        {documentChrome}
       <div
         className={`manuscript${dragFrom != null ? ' is-dragging' : ''}${pickingInsert ? ' is-picking-insert' : ''}${selecting ? ' is-selecting' : ''}`}
         onContextMenu={openInsertMenu}
@@ -987,22 +1012,24 @@ export const ManuscriptView = forwardRef<ManuscriptViewHandle, {
                   else toggleParagraph(b.id);
                 }}
               >
-                {selecting && (
-                <input
-                  type="checkbox"
-                  className="ms-para-select"
-                  checked={selectedIds.has(b.id)}
-                  aria-label="Select paragraph"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    if (e.shiftKey) selectParagraphRange(b.id);
-                    else toggleParagraph(b.id);
-                  }}
-                  onChange={() => undefined}
-                />
-                )}
-                <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
+                <div className="ms-para-gutter">
+                  {selecting && (
+                    <input
+                      type="checkbox"
+                      className="ms-para-select"
+                      checked={selectedIds.has(b.id)}
+                      aria-label="Select paragraph"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (e.shiftKey) selectParagraphRange(b.id);
+                        else toggleParagraph(b.id);
+                      }}
+                      onChange={() => undefined}
+                    />
+                  )}
+                  <DragHandle label="Move paragraph" onDragStart={(e) => beginDrag(e, i, b)} />
+                </div>
                 <RichParagraph
                   value={b.text ?? ''}
                   marks={b.marks}
