@@ -155,6 +155,10 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.44': bullets(
+    'Select paragraphs on the manuscript toolbar lets you pick paragraphs to combine or delete',
+    'Combine and Delete appear as a banner at the top of the manuscript',
+  ),
   '0.2.43': bullets(
     'Select on the manuscript toolbar lets you pick paragraphs one by one',
     'Once paragraphs are selected, Actions can combine or delete them',

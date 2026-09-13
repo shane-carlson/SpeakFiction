@@ -99,7 +99,6 @@ export function DictationView({
   const [findOpen, setFindOpen] = useState(false);
   const [findNonce, setFindNonce] = useState(0);
   const [selecting, setSelecting] = useState(false);
-  const [selectedParagraphCount, setSelectedParagraphCount] = useState(0);
   const manuscriptRef = useRef<ManuscriptViewHandle>(null);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
@@ -338,7 +337,7 @@ export function DictationView({
         target instanceof HTMLElement && target.classList.contains('dictation-transcript');
       const listening = speech.session === 'listening';
       const meta = e.metaKey || e.ctrlKey;
-      if (target instanceof HTMLElement && target.closest('.ms-find-bar')) return;
+      if (target instanceof HTMLElement && target.closest('.ms-find-bar, .ms-select-banner')) return;
 
       const insert = (cue: string) => {
         e.preventDefault();
@@ -467,7 +466,7 @@ export function DictationView({
       if (!meta || e.altKey) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
-      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card, .ms-document, .ms-find-bar')) return;
+      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card, .ms-document, .ms-find-bar, .ms-select-banner')) return;
       if (target.closest('.dictation-transcript, .dictate-console')) return;
       if (e.key.toLowerCase() !== 'z') return;
       e.preventDefault();
@@ -562,9 +561,6 @@ export function DictationView({
           return !on;
         });
       }}
-      selectedParagraphCount={selectedParagraphCount}
-      onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
-      onDeleteParagraphs={() => manuscriptRef.current?.deleteSelectedParagraphs()}
     />
   );
 
@@ -600,7 +596,6 @@ export function DictationView({
         onFindOpenChange={setFindOpen}
         findNonce={findNonce}
         selecting={selecting}
-        onParagraphSelectionChange={(ids) => setSelectedParagraphCount(ids.length)}
         onPlaceChange={(next) => {
           const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
           setManuscriptPlace(book.id, { ...next, scrollTop });
@@ -660,9 +655,6 @@ export function DictationView({
                       return !on;
                     });
                   }}
-                  selectedParagraphCount={selectedParagraphCount}
-                  onCombineParagraphs={() => manuscriptRef.current?.combineSelectedParagraphs()}
-                  onDeleteParagraphs={() => manuscriptRef.current?.deleteSelectedParagraphs()}
                 />
                 <EditorDictationStrip
                   speech={speech}

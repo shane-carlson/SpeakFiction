@@ -1314,11 +1314,27 @@ label {
   background-position: 0 0;
   pointer-events: none;
 }
-.ms-para .ms-drag-handle {
+.ms-para-gutter {
   position: absolute;
   left: 24px;
   top: 8px;
-  z-index: 2;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.manuscript.is-selecting .ms-para {
+  padding-left: 72px;
+}
+.manuscript.is-selecting .ms-para-gutter {
+  left: 8px;
+}
+.ms-para .ms-drag-handle {
+  position: static;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  flex-shrink: 0;
 }
 .ms-image-block .ms-drag-handle,
 .ms-table-block .ms-drag-handle {
@@ -1328,19 +1344,12 @@ label {
   z-index: 2;
 }
 .ms-para-select {
-  position: absolute;
-  left: 6px;
-  top: 12px;
-  z-index: 3;
   margin: 0;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
   accent-color: var(--accent);
   cursor: pointer;
-  display: none;
-}
-.manuscript.is-selecting .ms-para-select {
-  display: block;
 }
 .ms-para.is-selected {
   outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
@@ -1547,31 +1556,6 @@ label {
 .ms-toolbar-end {
   margin-left: auto;
 }
-.ms-toolbar-actions {
-  position: relative;
-}
-.ms-toolbar-actions-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 12;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 160px;
-  padding: 6px;
-}
-.ms-toolbar-actions-menu [role='menuitem'] {
-  display: flex;
-  width: 100%;
-  justify-content: flex-start;
-  text-align: left;
-  font-weight: 600;
-}
-.ms-toolbar-actions-menu [role='menuitem']:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--bg-hover);
-}
 .ms-toolbar-label {
   font-size: 11px;
   font-weight: 700;
@@ -1579,15 +1563,43 @@ label {
   text-transform: uppercase;
   color: var(--text-faint);
 }
-.ms-find-bar {
+.ms-document-chrome {
   position: sticky;
   top: 0;
   z-index: 6;
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  background: var(--bg-elev);
+}
+.ms-select-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-sm);
+}
+.ms-select-banner-copy {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ms-select-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.ms-find-bar {
+  display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
   align-items: center;
-  margin: 0 0 12px;
   padding: 8px 10px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -1969,14 +1981,6 @@ mark.ms-find-hit {
   width: auto;
   flex: 1 1 auto;
 }
-.ms-toolbar-rail .ms-toolbar-actions {
-  flex: 1 1 auto;
-}
-.ms-toolbar-rail .ms-toolbar-actions-menu {
-  left: 0;
-  right: auto;
-  min-width: 100%;
-}
 .ms-editor-dictate {
   flex: 1 1 auto;
   min-height: 0;
@@ -2062,6 +2066,9 @@ mark.ms-find-hit {
   min-height: 0;
   min-width: 0;
   width: 100%;
+}
+.ms-editor-canvas .ms-document-chrome {
+  background: var(--bg-elev);
 }
 .ms-editor-canvas .manuscript,
 .ms-editor-canvas .empty {

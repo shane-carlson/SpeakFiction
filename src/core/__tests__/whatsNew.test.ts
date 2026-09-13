@@ -181,6 +181,24 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.44 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.44')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.44',
+      build: 61,
+      pending: {
+        version: '0.2.44',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.44'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Select paragraphs on the manuscript toolbar lets you pick paragraphs to combine or delete',
+      'Combine and Delete appear as a banner at the top of the manuscript',
+    ]);
+  });
+
   it('uses curated 0.2.43 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.43')).toBe(true);
     const resolved = await resolveWhatsNewNotes({
