@@ -398,22 +398,22 @@ export function Editor({
           <div className="toolbar-group">
             <span className="toolbar-group__label" id="toolbar-structure">Structure</span>
             <div className="toolbar-group__icons" role="group" aria-labelledby="toolbar-structure">
-              <ToolbarIconButton label="Chapter" onClick={() => commit((current) => insertStructure(current, 'chapter', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert chapter" onClick={() => commit((current) => insertStructure(current, 'chapter', current.blocks.length, ids.current()))}>
                 <IconChapter />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Scene" onClick={() => commit((current) => insertStructure(current, 'scene', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert scene" onClick={() => commit((current) => insertStructure(current, 'scene', current.blocks.length, ids.current()))}>
                 <IconScene />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Section" onClick={() => commit((current) => insertStructure(current, 'section', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert section" onClick={() => commit((current) => insertStructure(current, 'section', current.blocks.length, ids.current()))}>
                 <IconSection />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Paragraph" onClick={() => commit((current) => insertStructure(current, 'paragraph', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert paragraph" onClick={() => commit((current) => insertStructure(current, 'paragraph', current.blocks.length, ids.current()))}>
                 <IconParagraph />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Table" onClick={() => commit((current) => insertStructure(current, 'table', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert table" onClick={() => commit((current) => insertStructure(current, 'table', current.blocks.length, ids.current()))}>
                 <IconTable />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Image" onClick={() => commit((current) => insertStructure(current, 'image', current.blocks.length, ids.current()))}>
+              <ToolbarIconButton label="Insert image" onClick={() => commit((current) => insertStructure(current, 'image', current.blocks.length, ids.current()))}>
                 <IconImage />
               </ToolbarIconButton>
             </div>
@@ -421,10 +421,10 @@ export function Editor({
           <div className="toolbar-group">
             <span className="toolbar-group__label" id="toolbar-breaks">Breaks</span>
             <div className="toolbar-group__icons" role="group" aria-labelledby="toolbar-breaks">
-              <ToolbarIconButton label="Page break" onClick={() => insertNear('pageBreak')}>
+              <ToolbarIconButton label="Insert page break" onClick={() => insertNear('pageBreak')}>
                 <IconPageBreak />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Scene break" onClick={() => insertNear('divider')}>
+              <ToolbarIconButton label="Insert scene break" onClick={() => insertNear('divider')}>
                 <IconSceneBreak />
               </ToolbarIconButton>
             </div>
@@ -441,12 +441,12 @@ export function Editor({
               <ToolbarIconButton label="Underline" onClick={() => onFormat('underline')}>
                 <IconUnderline />
               </ToolbarIconButton>
-              <ToolbarIconButton label="Block quote" onClick={() => insertNear('blockquote')}>
+              <ToolbarIconButton label="Insert block quote" onClick={() => insertNear('blockquote')}>
                 <IconBlockQuote />
               </ToolbarIconButton>
-              <label className="toolbar-font toolbar-font--family" data-tooltip="Font">
+              <label className="toolbar-font toolbar-font--family" data-tooltip="Manuscript font">
                 <select
-                  aria-label="Font"
+                  aria-label="Manuscript font"
                   value={typography.font.id}
                   onChange={(event) => {
                     const fontFamily = event.target.value;
@@ -460,9 +460,9 @@ export function Editor({
                   ))}
                 </select>
               </label>
-              <label className="toolbar-font toolbar-font--size" data-tooltip="Font size">
+              <label className="toolbar-font toolbar-font--size" data-tooltip="Manuscript font size">
                 <select
-                  aria-label="Font size"
+                  aria-label="Manuscript font size"
                   value={String(typography.sizePt)}
                   onChange={(event) => {
                     const fontSize = Number(event.target.value);
@@ -481,9 +481,9 @@ export function Editor({
           <div className="toolbar-group">
             <span className="toolbar-group__label" id="toolbar-lists">Lists</span>
             <div className="toolbar-group__icons" role="group" aria-labelledby="toolbar-lists">
-              <ToolbarIconButton
-                label="Bullet list"
-                disabled={!selection}
+                <ToolbarIconButton
+                  label="Turn this paragraph into a bullet list"
+                  disabled={!selection}
                 onClick={() => {
                   if (!selection) return;
                   commit((c) => updateParagraphMeta(c, selection.blockId, { listStyle: 'bullet' }));
@@ -491,9 +491,9 @@ export function Editor({
               >
                 <IconBulletList />
               </ToolbarIconButton>
-              <ToolbarIconButton
-                label="Numbered list"
-                disabled={!selection}
+                <ToolbarIconButton
+                  label="Turn this paragraph into a numbered list"
+                  disabled={!selection}
                 onClick={() => {
                   if (!selection) return;
                   commit((c) => updateParagraphMeta(c, selection.blockId, { listStyle: 'number' }));
@@ -508,7 +508,7 @@ export function Editor({
               <span className="toolbar-group__label" id="toolbar-history">History</span>
               <div className="toolbar-group__icons" role="group" aria-labelledby="toolbar-history">
                 <ToolbarIconButton
-                  label="Undo"
+                  label="Undo last change"
                   disabled={!undo.length}
                   onClick={() => {
                     const previous = undo[undo.length - 1];
@@ -521,7 +521,7 @@ export function Editor({
                   <IconUndo />
                 </ToolbarIconButton>
                 <ToolbarIconButton
-                  label="Redo"
+                  label="Redo last change"
                   disabled={!redo.length}
                   onClick={() => {
                     const next = redo[0];
@@ -570,10 +570,10 @@ export function Editor({
                       spellCheck={false}
                     />
                     <div className="find-actions" role="group" aria-label="Find in the manuscript">
-                      <ToolbarIconButton label="Find previous" disabled={!matches.length} onClick={() => stepMatch(-1)}>
+                      <ToolbarIconButton label="Find previous match" disabled={!matches.length} onClick={() => stepMatch(-1)}>
                         <IconFindPrevious />
                       </ToolbarIconButton>
-                      <ToolbarIconButton label="Find next" disabled={!matches.length} onClick={() => stepMatch(1)}>
+                      <ToolbarIconButton label="Find next match" disabled={!matches.length} onClick={() => stepMatch(1)}>
                         <IconFindNext />
                       </ToolbarIconButton>
                     </div>
@@ -595,10 +595,10 @@ export function Editor({
                             spellCheck={false}
                           />
                           <div className="find-actions" role="group" aria-label="Replace in the manuscript">
-                            <ToolbarIconButton label="Replace" disabled={!matches.length} onClick={replaceCurrent}>
+                            <ToolbarIconButton label="Replace this match" disabled={!matches.length} onClick={replaceCurrent}>
                               <IconReplace />
                             </ToolbarIconButton>
-                            <ToolbarIconButton label="Replace all" disabled={!matches.length} onClick={replaceEvery}>
+                            <ToolbarIconButton label="Replace every match" disabled={!matches.length} onClick={replaceEvery}>
                               <IconReplaceAll />
                             </ToolbarIconButton>
                           </div>
@@ -621,21 +621,21 @@ export function Editor({
             <div className="toolbar-group__icons" role="group" aria-labelledby="toolbar-view">
               <div className="view-toggle" role="group" aria-label="Editor view">
                 <ToolbarIconButton
-                  label="Manuscript view"
+                  label="Show the manuscript"
                   active={viewMode === 'manuscript'}
                   onClick={() => setViewMode('manuscript')}
                 >
                   <IconManuscriptView />
                 </ToolbarIconButton>
                 <ToolbarIconButton
-                  label="Certification highlights"
+                  label="Show certification highlights"
                   active={viewMode === 'highlights'}
                   onClick={() => setViewMode('highlights')}
                 >
                   <IconCertificationView />
                 </ToolbarIconButton>
                 <ToolbarIconButton
-                  label="Export preview"
+                  label="Preview the certified export"
                   active={viewMode === 'preview'}
                   onClick={openPreview}
                 >
@@ -645,8 +645,8 @@ export function Editor({
               <button
                 type="button"
                 className="focus-enter"
-                data-tooltip={focusMode ? 'Exit full screen' : 'Full screen'}
-                aria-label={focusMode ? 'Exit full screen' : 'Full screen'}
+                data-tooltip={focusMode ? 'Exit full screen' : 'Write in full screen'}
+                aria-label={focusMode ? 'Exit full screen' : 'Write in full screen'}
                 aria-pressed={focusMode}
                 onClick={() => onFocusModeChange?.(!focusMode)}
               >

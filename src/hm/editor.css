@@ -421,16 +421,6 @@ html[data-mode='dark'] .hm-root {
   padding: 12px 16px 20px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-}.hm-root /* Read-only export preview scrolls as one surface. The formatting bar is not locked there. */
-.manuscript-surface.canvas.is-preview {
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}.hm-root .manuscript-surface.canvas.is-preview .canvas-head {
-  position: static;
-}.hm-root .manuscript-surface.canvas.is-preview .canvas-body {
-  overflow: visible;
-  flex: 0 0 auto;
 }.hm-root .editor-layout.is-focus .manuscript-surface.canvas {
   border-radius: 0;
   border-left: none;
@@ -711,14 +701,16 @@ html[data-mode='dark'] .hm-root {
   font-weight: 550;
   line-height: 1;
   cursor: pointer;
-}.hm-root .toolbar-font--family select { width: 9.5rem; }.hm-root .toolbar-font--size select { width: 4.75rem; }.hm-root .hover-label {
+}.hm-root .toolbar-font--family select { width: 9.5rem; }.hm-root .toolbar-font--size select { width: 4.75rem; }
+/* Portaled to document.body, so this cannot sit under .hm-root. */
+.hover-label {
   position: fixed;
-  z-index: 80;
+  z-index: 10000;
   padding: 4px 8px;
   border-radius: 6px;
   background: var(--text);
   color: var(--bg);
-  font-family: var(--sans);
+  font-family: var(--font);
   font-size: 12px;
   font-weight: 550;
   font-style: normal;
@@ -727,8 +719,7 @@ html[data-mode='dark'] .hm-root {
   text-transform: none;
   white-space: nowrap;
   pointer-events: none;
-  transition: none;
-  transition-delay: 0s;
+  box-shadow: var(--shadow);
 }.hm-root .manuscript {
   font-family: var(--ms-font, var(--serif));
   font-size: var(--ms-size, 12pt);
@@ -985,8 +976,8 @@ html[data-mode='dark'] .hm-root {
   border: 1px solid var(--border);
 }@media (max-width: 980px) {
   .hm-root, .hm-root, .hm-root {
-    height: auto;
-    overflow: visible;
+    height: 100%;
+    overflow: hidden;
   }
   .hm-root .app {
     height: auto;
@@ -1019,24 +1010,26 @@ html[data-mode='dark'] .hm-root {
   .hm-root .editor-layout.is-focus {
     display: flex;
     flex-direction: column;
-    overflow: visible;
-    flex: none;
+    overflow: hidden;
+    flex: 1;
     min-height: 0;
     grid-template-columns: 1fr;
     grid-template-rows: none;
   }
   .hm-root .manuscript-surface.canvas {
-    overflow: visible;
-    flex: none;
+    overflow: hidden;
+    flex: 1;
     min-height: 0;
   }
   .hm-root .canvas-head {
-    position: sticky;
-    top: 0;
+    position: relative;
+    flex: 0 0 auto;
   }
   .hm-root .canvas-body {
-    overflow: visible;
-    flex: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
   }
   .hm-root .points {
     max-height: none;
@@ -1087,15 +1080,19 @@ html[data-mode='dark'] .hm-root {
 }
 
 .hm-root.hm-root {
-  height: auto;
+  height: 100%;
   min-height: 0;
-  overflow: visible;
-  display: block;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   container-type: inline-size;
   container-name: hm;
 }
 .hm-root .editor-layout {
-  min-height: 320px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 /* SpeakFiction's manuscript stylesheet also targets .ms-chapter, .ms-scene, and
@@ -1150,16 +1147,26 @@ html[data-mode='dark'] .hm-root {
   .hm-root .editor-layout.is-cert-collapsed,
   .hm-root .editor-layout.is-focus {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
+    height: 100%;
   }
-  .hm-root .manuscript-surface.canvas,
+  .hm-root .manuscript-surface.canvas {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .hm-root .canvas-head {
+    flex: 0 0 auto;
+  }
   .hm-root .canvas-body {
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1 1 auto;
   }
   .hm-root .points {
-    max-height: none;
+    max-height: min(36vh, 280px);
     min-height: 0;
   }
 }

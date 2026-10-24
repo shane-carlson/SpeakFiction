@@ -155,6 +155,10 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.47': bullets(
+    'The manuscript toolbar stays put while you scroll the page, in the pane and in full screen',
+    'Hover a toolbar icon to see what it does',
+  ),
   '0.2.46': bullets(
     'The manuscript follows SpeakFiction light, dark, and genre palettes from the sidebar picker',
     'Full screen is a single button on the manuscript toolbar',
