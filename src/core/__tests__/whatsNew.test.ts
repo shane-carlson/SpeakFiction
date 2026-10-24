@@ -181,6 +181,26 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.46 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.46')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.46',
+      build: 63,
+      pending: {
+        version: '0.2.46',
+        notes: '## Pack\n- Notarized DMG\n- stapler\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.46'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'The manuscript follows SpeakFiction light, dark, and genre palettes from the sidebar picker',
+      'Full screen is a single button on the manuscript toolbar',
+      'Manuscript versions live in the left sidebar, so you can review and restore a draft from there',
+      'Certified export is on Integrations — Word, Scrivener, PDF, and the rest, with a certification summary first',
+    ]);
+  });
+
   it('uses curated 0.2.45 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.45')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

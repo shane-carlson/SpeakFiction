@@ -1,149 +1,33 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import type { Book, IntegrationTarget } from '../core/types';
+import { useMemo } from 'react';
+import type { Book } from '../core/types';
 import { getGenre } from '../core/genres';
-import {
-  SCRIVENER_SPLIT_SEPARATOR,
-  toMarkdown,
-  toPlainText,
-  toRtf,
-  toScrivener,
-  type ExportContext,
-} from '../core/export';
-import { docxToBlob } from '../core/exportDocx';
-import { slugify } from '../core/util';
+import { toScrivener } from '../core/export';
 import { manuscriptStats } from '../core/manuscript';
+import { formatSeriesBookNumber } from '../core/seriesBooks';
 import { NativeHandoff } from '../components/NativeHandoff';
-import { loadExportImages } from '../core/mediaStore';
-
-interface TargetInfo {
-  id: IntegrationTarget;
-  name: string;
-  icon: string;
-  blurb: string;
-  steps: ReactNode[];
-  format: 'rtf' | 'docx' | 'md' | 'txt';
-}
-
-const TARGETS: TargetInfo[] = [
-  {
-    id: 'scrivener',
-    name: 'Scrivener',
-    icon: '📝',
-    blurb: 'Import and Split on # — one binder document per chapter. PNG and JPEG pictures embed in the RTF.',
-    format: 'rtf',
-    steps: [
-      'Download the SpeakFiction RTF below.',
-      'In Scrivener 3 (Mac): File → Import → Import and Split… (not File → Import → Files…).',
-      'Choose the exported .rtf.',
-      <>
-        Select <b>Split into sections by finding separators in the text</b>. Set the separator to
-        exactly <span className="kbd">{SCRIVENER_SPLIT_SEPARATOR}</span> (a hash on its own line —
-        this is Scrivener’s default).
-      </>,
-      'Scrivener names each binder document from the first line after the split (the chapter title). The example story becomes five binder documents.',
-      'Scene breaks stay inside each chapter as a centered line (❖ plus the scene name). To split those later, open the chapter in the editor, click the scene line, then Documents → Split → at Selection. That command stays greyed out if nothing is open in the editor, or if you only have binder/corkboard items selected.',
-    ],
-  },
-  {
-    id: 'word',
-    name: 'Microsoft Word',
-    icon: '📄',
-    blurb: 'A styled .docx with Heading 1 chapters, page breaks, and embedded pictures.',
-    format: 'docx',
-    steps: [
-      'Download the .docx below.',
-      'Open it in Word — chapters use the built-in Heading 1 style.',
-      'Use View → Navigation Pane to jump between chapters and scenes.',
-    ],
-  },
-  {
-    id: 'libreoffice',
-    name: 'LibreOffice',
-    icon: '📗',
-    blurb: 'The same .docx Word uses. Writer maps Heading 1 chapters into Navigator. Save as .odt when you want the native file.',
-    format: 'docx',
-    steps: [
-      'Download the .docx below.',
-      'In LibreOffice Writer: File → Open, then choose the exported .docx (or drop it on Writer).',
-      'Chapters use Heading 1 and sections use Heading 2. Open View → Navigator (F5) to jump between them.',
-      'Pictures and tables stay in the file. Scene breaks stay as a centered line inside the chapter.',
-      'When the page looks right, File → Save As → ODF Text Document (.odt) if you want LibreOffice’s native format from then on.',
-    ],
-  },
-  {
-    id: 'googledocs',
-    name: 'Google Docs',
-    icon: '🗂️',
-    blurb: 'Upload the .docx; Docs converts headings and keeps embedded pictures.',
-    format: 'docx',
-    steps: [
-      'Download the .docx below.',
-      'In Google Drive: New → File upload, then select the .docx.',
-      'Right-click the file → Open with → Google Docs.',
-      'Headings map to the document outline (View → Show outline). Pictures stay in the Doc.',
-    ],
-  },
-  {
-    id: 'markdown',
-    name: 'Markdown',
-    icon: '⬇️',
-    blurb: 'Portable Markdown with # headings and scene glyphs.',
-    format: 'md',
-    steps: ['Download the .md below.', 'Use it with Obsidian, Ulysses, iA Writer, or any editor.'],
-  },
-  {
-    id: 'plaintext',
-    name: 'Plain text',
-    icon: '🧾',
-    blurb: 'Clean .txt for maximum compatibility.',
-    format: 'txt',
-    steps: ['Download the .txt below.', 'Paste anywhere — email, forums, or a bare editor.'],
-  },
-];
-
-function download(filename: string, content: BlobPart, mime: string) {
-  const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+import { ExportPane } from '../components/hm/ExportPane';
+import { documentFromManuscript } from '../hm/bridge';
+import { useStore } from '../store';
 
 export function IntegrationsView({ book }: { book: Book }) {
-  const [target, setTarget] = useState<TargetInfo>(TARGETS[0]);
+  const series = useStore((s) => s.series);
   const genre = getGenre(book.genreId);
-  const ctx: ExportContext = useMemo(() => ({ title: book.title, genre }), [book.title, genre]);
   const stats = useMemo(() => manuscriptStats(book.manuscript), [book.manuscript]);
-  const scrivener = useMemo(() => toScrivener(book.manuscript, ctx), [book.manuscript, ctx]);
-
-  const base = slugify(book.title);
-
-  const handleExport = async () => {
-    const images = await loadExportImages(book.manuscript);
-    const withImages: ExportContext = { ...ctx, images };
-    switch (target.format) {
-      case 'rtf':
-        download(`${base}.rtf`, toRtf(book.manuscript, withImages), 'application/rtf');
-        break;
-      case 'md':
-        download(`${base}.md`, toMarkdown(book.manuscript, withImages), 'text/markdown');
-        break;
-      case 'txt':
-        download(`${base}.txt`, toPlainText(book.manuscript, withImages), 'text/plain');
-        break;
-      case 'docx':
-        download(
-          `${base}.docx`,
-          await docxToBlob(book.manuscript, withImages),
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        );
-        break;
-    }
-  };
+  const scrivener = useMemo(
+    () => toScrivener(book.manuscript, { title: book.title, genre }),
+    [book.manuscript, book.title, genre],
+  );
+  const doc = useMemo(
+    () => documentFromManuscript(book.manuscript, book.id, book.title),
+    [book.manuscript, book.id, book.title],
+  );
+  const seriesName = book.seriesId ? series.find((item) => item.id === book.seriesId)?.name : undefined;
+  const seriesLabel =
+    book.seriesId && seriesName
+      ? book.seriesBookNumber != null
+        ? `Book ${formatSeriesBookNumber(book.seriesBookNumber)} of ${seriesName}`
+        : seriesName
+      : null;
 
   return (
     <>
@@ -159,67 +43,23 @@ export function IntegrationsView({ book }: { book: Book }) {
           <span>📖</span>
           <b>{book.title}</b>
           <span>
-            · {stats.chapters} ch · {stats.scenes} scenes · {stats.words} words
+            · {stats.chapters} ch · {stats.scenes} scenes · {stats.words} words · {doc.points.length}{' '}
+            seal{doc.points.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
 
-      <div className="stepper">
-        <div className="step active">
-          <span className="num">1</span> Choose destination
-        </div>
-        <div className="step active">
-          <span className="num">2</span> Review structure
-        </div>
-        <div className="step active">
-          <span className="num">3</span> Export & follow steps
-        </div>
-      </div>
+      <ExportPane doc={doc} bookTitle={book.title} seriesLabel={seriesLabel} embedded />
 
-      <div className="grid cols-3" style={{ marginBottom: 16 }}>
-        {TARGETS.map((t) => (
-          <div
-            key={t.id}
-            className={`card target-card ${t.id === target.id ? 'selected' : ''}`}
-            onClick={() => setTarget(t)}
-          >
-            <div className="ico">{t.icon}</div>
-            <h3>{t.name}</h3>
-            <p className="sub" style={{ margin: 0 }}>
-              {t.blurb}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid cols-2">
+      <div className="grid cols-2" style={{ marginTop: 16 }}>
         <div className="card">
-          <h3>Guided steps — {target.name}</h3>
-          <p className="sub">Follow along after exporting.</p>
-          <ul className="instruction">
-            {target.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ul>
-          <div style={{ marginTop: 18 }}>
-            <button className="btn primary big" onClick={handleExport}>
-              ⬇ Export for {target.name}
-            </button>
-          </div>
-
-          <div style={{ marginTop: 18 }}>
-            <NativeHandoff book={book} />
-          </div>
+          <NativeHandoff book={book} />
         </div>
 
         <div className="card">
           <h3>Structure preview</h3>
           <p className="sub">
-            {target.id === 'scrivener'
-              ? 'Import and Split creates one binder document per chapter. Scene lines stay inside the chapter.'
-              : target.id === 'libreoffice'
-                ? 'Writer keeps one document. Heading 1 chapters and Heading 2 sections show in Navigator. Scene lines stay inside the chapter.'
-                : `What SpeakFiction will create in ${target.name}.`}
+            What SpeakFiction will create as chapters and scenes in the destination.
           </p>
           {scrivener.outline.length === 0 ? (
             <div className="empty">Dictate some chapters and scenes first.</div>

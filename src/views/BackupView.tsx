@@ -4,8 +4,6 @@ import { getGenre } from '../core/genres';
 import { getTense } from '../core/tense';
 import { getPerspective } from '../core/perspective';
 import { manuscriptStats } from '../core/manuscript';
-import { toMarkdown, toPlainText, toRtf, type ExportContext } from '../core/export';
-import { docxToBlob } from '../core/exportDocx';
 import {
   BACKUP_KIND_BOOK,
   BACKUP_KIND_LIBRARY,
@@ -17,8 +15,8 @@ import {
   serializeLibraryBackup,
   type SpeakFictionBackup,
 } from '../core/backup';
-import { openTextFile, saveBytesFile, saveTextFile } from '../core/localFiles';
-import { collectBackupMedia, collectNameVoiceMedia, loadExportImages, restoreBackupMedia } from '../core/mediaStore';
+import { openTextFile, saveTextFile } from '../core/localFiles';
+import { collectBackupMedia, collectNameVoiceMedia, restoreBackupMedia } from '../core/mediaStore';
 import { useStore } from '../store';
 
 const JSON_FILTERS = [{ name: 'SpeakFiction backup', extensions: ['json'] }];
@@ -54,8 +52,6 @@ export function BackupView({
   const perspective = getPerspective(book.perspectiveId);
   const stats = useMemo(() => manuscriptStats(book.manuscript), [book.manuscript]);
   const bookSeries = series.find((s) => s.id === book.seriesId) ?? null;
-  const ctx: ExportContext = useMemo(() => ({ title: book.title, genre }), [book.title, genre]);
-  const slug = bookBackupFilename(book).replace(/\.speakfiction\.json$/, '');
 
   const report = (message: string) => {
     setError(null);
@@ -105,54 +101,6 @@ export function BackupView({
       content: json,
       filters: JSON_FILTERS,
       mime: 'application/json',
-    });
-    report(statusFromSave(res.ok, res.path));
-  };
-
-  const exportFormat = async (format: 'json' | 'rtf' | 'md' | 'docx' | 'txt') => {
-    if (format === 'json') {
-      await saveBookJson();
-      return;
-    }
-    const images = await loadExportImages(book.manuscript);
-    const withImages: ExportContext = { ...ctx, images };
-    if (format === 'rtf') {
-      const res = await saveTextFile({
-        defaultPath: `${slug}.rtf`,
-        content: toRtf(book.manuscript, withImages),
-        filters: [{ name: 'Rich Text', extensions: ['rtf'] }],
-        mime: 'application/rtf',
-      });
-      report(statusFromSave(res.ok, res.path));
-      return;
-    }
-    if (format === 'md') {
-      const res = await saveTextFile({
-        defaultPath: `${slug}.md`,
-        content: toMarkdown(book.manuscript, withImages),
-        filters: [{ name: 'Markdown', extensions: ['md'] }],
-        mime: 'text/markdown',
-      });
-      report(statusFromSave(res.ok, res.path));
-      return;
-    }
-    if (format === 'txt') {
-      const res = await saveTextFile({
-        defaultPath: `${slug}.txt`,
-        content: toPlainText(book.manuscript, withImages),
-        filters: [{ name: 'Plain text', extensions: ['txt'] }],
-        mime: 'text/plain',
-      });
-      report(statusFromSave(res.ok, res.path));
-      return;
-    }
-    const blob = await docxToBlob(book.manuscript, withImages);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    const res = await saveBytesFile({
-      defaultPath: `${slug}.docx`,
-      bytes,
-      filters: [{ name: 'Word document', extensions: ['docx'] }],
-      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
     report(statusFromSave(res.ok, res.path));
   };
@@ -219,7 +167,7 @@ export function BackupView({
           <p>
             Keep books and their settings on this Mac. JSON backups include the manuscript, name
             library, genre, tense, perspective, series, and adaptive model. A full library backup
-            also stores theme and audio settings.
+            also stores theme and audio settings. Manuscript formats live in Integrations.
           </p>
         </div>
         <div className="book-pill">
@@ -246,56 +194,28 @@ export function BackupView({
         </div>
       )}
 
-      <div className="grid cols-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <h3>Save / backup</h3>
-          <p className="sub">
-            JSON snapshot you can restore later. Zustand still auto-saves in the browser; this is
-            an explicit file on disk.
-          </p>
-          <div className="row wrap">
-            <button className="btn primary" onClick={() => void saveBookJson()}>
-              Save current book
-            </button>
-            <button className="btn" onClick={() => void saveLibraryJson()}>
-              Save entire library
-            </button>
-          </div>
-          <p className="hint" style={{ marginTop: 12 }}>
-            Defaults to <code>{bookBackupFilename(book)}</code> or{' '}
-            <code>{libraryBackupFilename()}</code>.
-          </p>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>Save / backup</h3>
+        <p className="sub">
+          JSON snapshot you can restore later. Zustand still auto-saves in the browser; this is
+          an explicit file on disk. Word, Scrivener, PDF, and other manuscript formats are in
+          Integrations.
+        </p>
+        <div className="row wrap">
+          <button className="btn primary" onClick={() => void saveBookJson()}>
+            Save current book
+          </button>
+          <button className="btn" onClick={() => void saveLibraryJson()}>
+            Save entire library
+          </button>
+          <button className="btn ghost" onClick={onOpenIntegrations}>
+            Open Integrations
+          </button>
         </div>
-
-        <div className="card">
-          <h3>Export current book</h3>
-          <p className="sub">
-            Manuscript formats reuse the Integrations exporters. JSON is the full book backup.
-          </p>
-          <div className="row wrap">
-            <button className="btn" onClick={() => void exportFormat('json')}>
-              JSON
-            </button>
-            <button className="btn" onClick={() => void exportFormat('rtf')}>
-              RTF
-            </button>
-            <button className="btn" onClick={() => void exportFormat('md')}>
-              Markdown
-            </button>
-            <button className="btn" onClick={() => void exportFormat('docx')}>
-              DOCX
-            </button>
-            <button className="btn" onClick={() => void exportFormat('txt')}>
-              TXT
-            </button>
-          </div>
-          <p className="hint" style={{ marginTop: 12 }}>
-            Need the Scrivener / Word / LibreOffice wizard?{' '}
-            <button className="btn ghost" style={{ padding: '0 4px' }} onClick={onOpenIntegrations}>
-              Open Integrations
-            </button>
-          </p>
-        </div>
+        <p className="hint" style={{ marginTop: 12 }}>
+          Defaults to <code>{bookBackupFilename(book)}</code> or{' '}
+          <code>{libraryBackupFilename()}</code>.
+        </p>
       </div>
 
       <div className="card">

@@ -11,15 +11,17 @@ import { useStore } from '../store';
 import { ManuscriptVersionPreview } from './ManuscriptVersionPreview';
 
 export function ManuscriptVersionsPanel({
-  open,
+  open = true,
   bookId,
   currentBlocks,
   onClose,
+  layout = 'dialog',
 }: {
-  open: boolean;
+  open?: boolean;
   bookId: string;
   currentBlocks: Block[];
-  onClose: () => void;
+  onClose?: () => void;
+  layout?: 'dialog' | 'page';
 }) {
   const restoreManuscriptBlocks = useStore((s) => s.restoreManuscriptBlocks);
   const { points, preview, loading, refresh, openPreview, setPreview } = useManuscriptVersions(
@@ -27,25 +29,27 @@ export function ManuscriptVersionsPanel({
     currentBlocks,
   );
   const closeRef = useRef<HTMLButtonElement>(null);
+  const isDialog = layout === 'dialog';
 
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
     void refresh();
+    if (!isDialog) return;
+    closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
-      onClose();
+      onClose?.();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose, refresh]);
+  }, [open, isDialog, onClose, refresh]);
 
   useEffect(() => {
     if (!open) setPreview(null);
   }, [open, setPreview]);
 
-  if (!open) return null;
+  if (isDialog && !open) return null;
 
   const restore = async (point: RecoveryPointMeta) => {
     const ok = window.confirm(
@@ -58,8 +62,66 @@ export function ManuscriptVersionsPanel({
     const full = preview?.id === point.id ? preview : await recorder.load(bookId, point.id);
     if (!full) return;
     restoreManuscriptBlocks(bookId, full.blocks);
-    onClose();
+    if (isDialog) onClose?.();
+    else void refresh();
   };
+
+  const body = (
+    <div className="ms-versions-body">
+      <ul className="ms-versions-list">
+        {points.length === 0 ? (
+          <li className="hint">No recovery points yet. They appear after you write.</li>
+        ) : (
+          points.map((point) => {
+            const selected = preview?.id === point.id;
+            return (
+              <li key={point.id}>
+                <button
+                  type="button"
+                  className={`ms-versions-item${selected ? ' is-selected' : ''}`}
+                  onClick={() => void openPreview(point.id)}
+                >
+                  <span className="ms-versions-when">{formatRecoveryWhen(point.createdAt)}</span>
+                  <span className="ms-versions-why">{recoveryReasonLabel(point.reason)}</span>
+                  <span className="hint">
+                    {point.wordCount} {point.wordCount === 1 ? 'word' : 'words'}
+                  </span>
+                </button>
+              </li>
+            );
+          })
+        )}
+      </ul>
+      <div className="ms-versions-preview" aria-live="polite">
+        {loading ? (
+          <p className="hint">Loading this version…</p>
+        ) : preview ? (
+          <>
+            <div className="ms-versions-preview-head">
+              <div>
+                <strong>{recoveryReasonLabel(preview.reason)}</strong>
+                <p className="hint">{formatRecoveryWhen(preview.createdAt)}</p>
+              </div>
+              <button type="button" className="btn compact" onClick={() => void restore(preview)}>
+                Restore this version
+              </button>
+            </div>
+            <ManuscriptVersionPreview blocks={preview.blocks} />
+          </>
+        ) : (
+          <p className="hint">Choose a recovery point to read that version of the manuscript.</p>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!isDialog) {
+    return (
+      <div className="card ms-versions-page" aria-labelledby="ms-versions-title">
+        {body}
+      </div>
+    );
+  }
 
   return (
     <div className="whats-new-overlay" onClick={onClose} role="presentation">
@@ -85,52 +147,7 @@ export function ManuscriptVersionsPanel({
             ×
           </button>
         </div>
-        <div className="ms-versions-body">
-          <ul className="ms-versions-list">
-            {points.length === 0 ? (
-              <li className="hint">No recovery points yet. They appear after you write.</li>
-            ) : (
-              points.map((point) => {
-                const selected = preview?.id === point.id;
-                return (
-                  <li key={point.id}>
-                    <button
-                      type="button"
-                      className={`ms-versions-item${selected ? ' is-selected' : ''}`}
-                      onClick={() => void openPreview(point.id)}
-                    >
-                      <span className="ms-versions-when">{formatRecoveryWhen(point.createdAt)}</span>
-                      <span className="ms-versions-why">{recoveryReasonLabel(point.reason)}</span>
-                      <span className="hint">
-                        {point.wordCount} {point.wordCount === 1 ? 'word' : 'words'}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-          <div className="ms-versions-preview" aria-live="polite">
-            {loading ? (
-              <p className="hint">Loading this version…</p>
-            ) : preview ? (
-              <>
-                <div className="ms-versions-preview-head">
-                  <div>
-                    <strong>{recoveryReasonLabel(preview.reason)}</strong>
-                    <p className="hint">{formatRecoveryWhen(preview.createdAt)}</p>
-                  </div>
-                  <button type="button" className="btn compact" onClick={() => void restore(preview)}>
-                    Restore this version
-                  </button>
-                </div>
-                <ManuscriptVersionPreview blocks={preview.blocks} />
-              </>
-            ) : (
-              <p className="hint">Choose a recovery point to read that version of the manuscript.</p>
-            )}
-          </div>
-        </div>
+        {body}
       </div>
     </div>
   );

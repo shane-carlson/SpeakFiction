@@ -2755,6 +2755,22 @@ mark.ms-find-hit {
   width: min(520px, 100%);
 }
 
+.main:has(.ms-versions-page) {
+  overflow: hidden;
+}
+.main:has(.ms-versions-page) .page-head {
+  flex-shrink: 0;
+}
+.ms-versions-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ms-versions-page .ms-versions-body {
+  margin-top: 0;
+  flex: 1;
+}
 .ms-versions-dialog {
   width: min(920px, 100%);
   max-height: min(82vh, 760px);

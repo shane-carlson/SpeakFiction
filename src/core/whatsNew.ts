@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.46': bullets(
+    'The manuscript follows SpeakFiction light, dark, and genre palettes from the sidebar picker',
+    'Full screen is a single button on the manuscript toolbar',
+    'Manuscript versions live in the left sidebar, so you can review and restore a draft from there',
+    'Certified export is on Integrations — Word, Scrivener, PDF, and the rest, with a certification summary first',
+  ),
   '0.2.45': bullets(
     'The manuscript editor seals what you type and what you dictate, and leaves pasted text uncertified',
     'Spoken new chapter, new scene, new section, and new paragraph still land, with the title and the prose that follow',

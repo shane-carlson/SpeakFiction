@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { LibraryView } from './views/LibraryView';
 import { DictationView } from './views/DictationView';
 import { IntegrationsView } from './views/IntegrationsView';
+import { VersionsView } from './views/VersionsView';
 import { ModelView } from './views/ModelView';
 import { BackupView } from './views/BackupView';
 import { VoiceNotesView } from './views/VoiceNotesView';
@@ -26,6 +27,7 @@ const NAV: Array<{ id: AppTab; label: string; icon: string }> = [
   { id: 'dictate', label: 'Dictate', icon: '🎙️' },
   { id: 'notes', label: 'Voice notes', icon: '📝' },
   { id: 'library', label: 'Library', icon: '📚' },
+  { id: 'versions', label: 'Versions', icon: '🕘' },
   { id: 'integrate', label: 'Integrations', icon: '🔗' },
   { id: 'model', label: 'On-Device Model', icon: '🧠' },
   { id: 'backup', label: 'Save & Export', icon: '💾' },
@@ -144,6 +146,8 @@ export default function App() {
             />
           ) : tab === 'library' ? (
             <LibraryView />
+          ) : tab === 'versions' ? (
+            <VersionsView book={activeBook} />
           ) : tab === 'integrate' ? (
             <IntegrationsView book={activeBook} />
           ) : tab === 'model' ? (

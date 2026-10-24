@@ -1,51 +1,25 @@
 .hm-root {
-  color-scheme: light;
-  --bg: #f3efe6;
-  --bg-elev: #fffcf7;
-  --bg-elev-2: #eee8dc;
-  --bg-input: #ffffff;
-  --bg-hover: #e7e0d4;
-  --border: #ddd4c6;
-  --border-strong: #c9bead;
-  --text: #1c1915;
-  --text-dim: #5c564c;
-  --text-faint: #8a8276;
-  --good: #0f7a4b;
-  --warn: #9a5b00;
+  /* Inherit SpeakFiction light/dark, genre accents, UI font, and serif from html[data-mode]/[data-theme]. */
+  --sans: var(--font);
+  --mono: ui-monospace, "IBM Plex Mono", Menlo, monospace;
   --drop: #0f5f8a;
   --dictation: #0c6b62;
   --other: #6d4ea8;
-  --accent: #8b6914;
-  --accent-2: #6f8f86;
-  --shadow: 0 12px 32px rgba(40, 32, 20, 0.08);
-  --serif: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
-  --sans: "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-}.hm-root[data-mode='dark'] {
-  color-scheme: dark;
-  --bg: #12140f;
-  --bg-elev: #1c1f18;
-  --bg-elev-2: #262a21;
-  --bg-input: #10130e;
-  --bg-hover: #31362b;
-  --border: #3a4032;
-  --border-strong: #525a46;
-  --text: #f3efe6;
-  --text-dim: #c3bbaa;
-  --text-faint: #8d8678;
-  --good: #7dcea5;
-  --warn: #e6b15c;
+}
+html[data-mode='dark'] .hm-root {
   --drop: #8ec8e6;
   --dictation: #7dcec4;
   --other: #c4b0e8;
-  --accent: #d4b483;
-  --accent-2: #8fbfb4;
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-}.hm-root, .hm-root * { box-sizing: border-box; }.hm-root, .hm-root, .hm-root { height: 100%; min-height: 100%; }.hm-root { overflow: hidden; }.hm-root {
+}
+.hm-root, .hm-root * { box-sizing: border-box; }
+.hm-root:has(.editor-layout) {
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+.hm-root {
   margin: 0;
-  background:
-    radial-gradient(1200px 500px at 10% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
-    var(--bg);
+  background: transparent;
   color: var(--text);
   font-family: var(--sans);
   font-size: 16px;
@@ -57,9 +31,9 @@
   padding: 8px 12px;
   cursor: pointer;
 }.hm-root button:hover { background: var(--bg-hover); }.hm-root button:disabled { opacity: 0.45; cursor: not-allowed; }.hm-root button.primary {
-  background: var(--text);
-  color: var(--bg);
-  border-color: var(--text);
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: var(--on-accent);
+  border-color: transparent;
 }.hm-root button.ghost { background: transparent; }.hm-root h1, .hm-root h2, .hm-root h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.02em; }.hm-root h1 { font-size: 2rem; margin: 0 0 8px; }.hm-root h2 { font-size: 1.35rem; margin: 0 0 8px; }.hm-root h3 { font-size: 0.95rem; margin: 18px 0 8px; }.hm-root .app {
   height: 100%;
   min-height: 0;
@@ -531,9 +505,9 @@
   display: block;
   flex: 0 0 auto;
 }.hm-root .toolbar-icon-btn.is-active {
-  background: var(--text);
-  color: var(--bg);
-  border-color: var(--text);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }.hm-root .view-toggle .toolbar-icon-btn {
   border: none;
   border-radius: 0;

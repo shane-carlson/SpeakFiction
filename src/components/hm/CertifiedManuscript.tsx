@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useStore } from '../../store';
 import type { Book } from '../../core/types';
 import type { ManuscriptPlace } from '../../core/persistedState';
 import { formatSeriesBookNumber } from '../../core/seriesBooks';
-import { readOsPrefersDark, resolveThemeMode } from '../../core/theme';
 import { documentFromManuscript } from '../../hm/bridge';
 import '../../hm/editor.css';
 import { Editor } from './Editor';
@@ -18,9 +17,8 @@ export function CertifiedManuscript({
 }) {
   const replaceManuscriptDocument = useStore((s) => s.replaceManuscriptDocument);
   const series = useStore((s) => s.series);
-  const themeMode = useStore((s) => s.themeMode);
-  const [osDark] = useState(readOsPrefersDark);
-  const mode = resolveThemeMode(themeMode, osDark);
+  const editorOpen = useStore((s) => s.manuscriptEditorOpen);
+  const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
   const doc = useMemo(
     () => documentFromManuscript(book.manuscript, book.id, book.title),
     [book.manuscript, book.id, book.title],
@@ -34,11 +32,13 @@ export function CertifiedManuscript({
       : null;
 
   return (
-    <div className="hm-root" data-mode={mode}>
+    <div className="hm-root">
       <Editor
         doc={doc}
         bookTitle={book.title}
         seriesLabel={seriesLabel}
+        focusMode={editorOpen}
+        onFocusModeChange={setEditorOpen}
         onChange={(next) => replaceManuscriptDocument(book.id, next)}
         onDictationTarget={(target) => {
           if (target.blockId) {
