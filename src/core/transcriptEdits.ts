@@ -134,7 +134,17 @@ export function wordCorrectionsFromEdit(before: string, after: string): WordCorr
   const pairs: WordCorrection[] = [];
   for (let k = 0; k < left.length; k++) {
     if (left[k].norm === right[k].norm) continue;
-    pairs.push({ from: left[k].norm, to: right[k].surface });
+    const from = left[k].norm;
+    const to = right[k].norm;
+    // One more or one fewer letter at the edge of a word is still typing,
+    // not a taught substitution. "t" → "th" → "the" must not become a name.
+    if (
+      (to.startsWith(from) || from.startsWith(to)) &&
+      Math.abs(from.length - to.length) === 1
+    ) {
+      continue;
+    }
+    pairs.push({ from, to: right[k].surface });
   }
   if (pairs.length > 16) return [];
   if (left.length >= 4 && pairs.length >= left.length * 0.6) return [];

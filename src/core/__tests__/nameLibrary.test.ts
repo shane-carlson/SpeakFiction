@@ -10,6 +10,14 @@ const entries: NameEntry[] = [
 ];
 
 describe('correctNames', () => {
+  it('does not rewrite the article the into a short trained name', () => {
+    const th: NameEntry[] = [{ id: 'th', canonical: 'Th', category: 'character', aliases: ['t'] }];
+    const { text, applied } = correctNames('new chapter titled The Gate period the wind howled', th);
+    expect(text).toContain('The Gate');
+    expect(text).toContain('the wind howled');
+    expect(applied).toEqual([]);
+  });
+
   it('fixes a phonetically-close single-word name', () => {
     const { text, applied } = correctNames('Then kaldros drew his blade.', entries);
     expect(text).toContain('Kaeldros');

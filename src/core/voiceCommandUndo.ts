@@ -1,5 +1,6 @@
 import { compactDraft, type DictationDraft } from './dictationDraft';
 import type { Block } from './types';
+import type { ManuscriptCertification } from '../hm/state';
 
 export const MAX_VOICE_COMMAND_UNDO = 8;
 
@@ -7,6 +8,7 @@ export const MAX_VOICE_COMMAND_UNDO = 8;
 export interface VoiceCommandSnapshot {
   draft: DictationDraft;
   blocks: Block[];
+  certification?: ManuscriptCertification;
 }
 
 export function cloneDraft(draft: DictationDraft): DictationDraft {

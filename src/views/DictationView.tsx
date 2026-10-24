@@ -25,12 +25,9 @@ import {
   manuscriptStats,
   advanceInsertPlace,
   type ManuscriptInsertAt,
-  type ManuscriptInsertKind,
-  type StructureHeadingKind,
 } from '../core/manuscript';
 import { containsStructureCue } from '../core/audioCues';
-import { ManuscriptView, type ManuscriptViewHandle } from '../components/ManuscriptView';
-import { ManuscriptToolbar } from '../components/ManuscriptToolbar';
+import { CertifiedManuscript } from '../components/hm/CertifiedManuscript';
 import { DictationTranscript } from '../components/DictationTranscript';
 import { EditorDictationStrip } from '../components/EditorDictationStrip';
 import { MicToggleFace } from '../components/MicIcon';
@@ -44,16 +41,12 @@ import { useRecordVoiceOnly } from '../hooks/useRecordVoiceOnly';
 import { LicenseGate } from '../components/LicenseGate';
 import type { useLicense } from '../hooks/useLicense';
 import type { DictationCommand } from '../core/voiceCommands';
-import type { InlineMarkKind } from '../core/types';
 import {
   MANUSCRIPT_SPLIT_DEFAULT,
   MANUSCRIPT_SPLIT_MAX,
   MANUSCRIPT_SPLIT_MIN,
   MANUSCRIPT_SPLIT_MIN_PX,
 } from '../core/splitRatio';
-import { IMAGE_ACCEPT } from '../core/manuscriptMedia';
-import { ingestManuscriptImage } from '../core/mediaStore';
-import { openBytesFile } from '../core/localFiles';
 
 const SAMPLE =
   "new chapter titled The Oracle's Warning period " +
@@ -94,30 +87,17 @@ export function DictationView({
   const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
   const dictateCuesOpen = useStore((s) => s.dictateCuesOpen);
   const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
-  const [pickingInsert, setPickingInsert] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [findOpen, setFindOpen] = useState(false);
-  const [findNonce, setFindNonce] = useState(0);
-  const [selecting, setSelecting] = useState(false);
-  const manuscriptRef = useRef<ManuscriptViewHandle>(null);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
   const setManuscriptPlace = useStore((s) => s.setManuscriptPlace);
-  const insertManuscriptStructure = useStore((s) => s.insertManuscriptStructure);
-  const insertManuscriptImage = useStore((s) => s.insertManuscriptImage);
-  const insertManuscriptTable = useStore((s) => s.insertManuscriptTable);
-  const formatManuscript = useStore((s) => s.formatManuscript);
-  const setManuscriptBlockKind = useStore((s) => s.setManuscriptBlockKind);
   const undoManuscript = useStore((s) => s.undoManuscript);
   const redoManuscript = useStore((s) => s.redoManuscript);
   const captureVoiceCommand = useStore((s) => s.captureVoiceCommand);
   const undoLastVoiceCommand = useStore((s) => s.undoLastVoiceCommand);
-  const canUndo = useStore((s) => (s.manuscriptHistory[book.id]?.past.length ?? 0) > 0);
-  const canRedo = useStore((s) => (s.manuscriptHistory[book.id]?.future.length ?? 0) > 0);
   const [outcome, setOutcome] = useState<DictationOutcome | null>(null);
   const [showProfile, setShowProfile] = useState(true);
-  const [imageError, setImageError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const restoredBook = useRef<string | null>(null);
   const setDraft = useCallback((value: DictationDraft | ((prev: DictationDraft) => DictationDraft)) => {
@@ -422,51 +402,28 @@ export function DictationView({
   const insert = () => promoteAtManuscriptPlace();
   const draftVisible = draftText(draft);
   const canInsertDictation = Boolean(takeInsertTranscript(draft).transcript);
-  const focusedBlock = book.manuscript.blocks.find((b) => b.id === place?.blockId);
   const insertDest = destFromPlace(book.manuscript.blocks, place);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (findOpen) {
-        e.preventDefault();
-        setFindOpen(false);
-        return;
-      }
-      if (selecting) {
-        e.preventDefault();
-        setSelecting(false);
-        return;
-      }
       if (!editorOpen) return;
+      if (e.defaultPrevented) return;
       e.preventDefault();
       setEditorOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editorOpen, findOpen, selecting, setEditorOpen]);
+  }, [editorOpen, setEditorOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta || e.altKey || e.shiftKey) return;
-      if (e.key.toLowerCase() !== 'f') return;
-      e.preventDefault();
-      e.stopPropagation();
-      setFindOpen(true);
-      setFindNonce((n) => n + 1);
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const meta = e.metaKey || e.ctrlKey;
       if (!meta || e.altKey) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
-      if (!target.closest('.manuscript, .ms-toolbar, .ms-para-editor, .ms-editor-shell, .ms-editor-dictate, .dictate-card, .ms-document, .ms-find-bar, .ms-select-banner')) return;
+      if (target.closest('.hm-root')) return;
       if (target.closest('.dictation-transcript, .dictate-console')) return;
       if (e.key.toLowerCase() !== 'z') return;
       e.preventDefault();
@@ -476,93 +433,6 @@ export function DictationView({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [book.id, redoManuscript, undoManuscript]);
-
-  const pickImage = useCallback(
-    async (dest?: ManuscriptInsertAt) => {
-      setImageError(null);
-      const res = await openBytesFile({
-        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
-        accept: IMAGE_ACCEPT,
-      });
-      if (!res.ok || !res.bytes) return;
-      const ingested = await ingestManuscriptImage({
-        bytes: res.bytes,
-        mime: res.mime,
-        name: res.path,
-      });
-      if (!ingested.ok) {
-        setImageError(ingested.reason);
-        return;
-      }
-      insertManuscriptImage(book.id, ingested.image, dest ?? insertDest);
-    },
-    [book.id, insertDest, insertManuscriptImage],
-  );
-
-  const onInsertStructure = (kind: ManuscriptInsertKind) => {
-    insertManuscriptStructure(book.id, kind, insertDest);
-  };
-
-  const onFormat = (kind: InlineMarkKind) => {
-    if (!focusedBlock || focusedBlock.type !== 'paragraph') return;
-    formatManuscript(
-      book.id,
-      focusedBlock.id,
-      { start: place?.selectionStart ?? 0, end: place?.selectionEnd ?? place?.selectionStart ?? 0 },
-      { type: 'toggle', kind },
-    );
-  };
-
-  const onClearFormat = () => {
-    if (!focusedBlock || focusedBlock.type !== 'paragraph') return;
-    formatManuscript(
-      book.id,
-      focusedBlock.id,
-      { start: place?.selectionStart ?? 0, end: place?.selectionEnd ?? place?.selectionStart ?? 0 },
-      { type: 'clear' },
-    );
-  };
-
-  const onSetKind = (kind: StructureHeadingKind) => {
-    if (!focusedBlock) return;
-    setManuscriptBlockKind(book.id, focusedBlock.id, kind);
-  };
-
-  const toolbar = (
-    <ManuscriptToolbar
-      focused={focusedBlock}
-      canUndo={canUndo}
-      canRedo={canRedo}
-      editorOpen={editorOpen}
-      onToggleEditor={() => setEditorOpen(!editorOpen)}
-      onInsertStructure={onInsertStructure}
-      onInsertImage={() => void pickImage()}
-      onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}
-      onFormat={onFormat}
-      onClearFormat={onClearFormat}
-      onSetKind={onSetKind}
-      onUndo={() => undoManuscript(book.id)}
-      onRedo={() => redoManuscript(book.id)}
-      pickingInsert={pickingInsert}
-      onTogglePickingInsert={() => setPickingInsert((on) => !on)}
-      onOpenVersions={() => setVersionsOpen(true)}
-      findOpen={findOpen}
-      onToggleFind={() => {
-        if (findOpen) setFindOpen(false);
-        else {
-          setFindOpen(true);
-          setFindNonce((n) => n + 1);
-        }
-      }}
-      selecting={selecting}
-      onToggleSelecting={() => {
-        setSelecting((on) => {
-          if (!on) setPickingInsert(false);
-          return !on;
-        });
-      }}
-    />
-  );
 
   const versionsPanel = (
     <ManuscriptVersionsPanel
@@ -583,19 +453,8 @@ export function DictationView({
         setManuscriptPlace(book.id, { ...prev, scrollTop });
       }}
     >
-      <ManuscriptView
-        ref={manuscriptRef}
+      <CertifiedManuscript
         book={book}
-        place={place}
-        canInsertDictation={canInsertDictation}
-        pickingInsert={pickingInsert}
-        onPickingChange={setPickingInsert}
-        onInsertDictation={promoteToManuscript}
-        onPickImage={(dest) => void pickImage(dest)}
-        findOpen={findOpen}
-        onFindOpenChange={setFindOpen}
-        findNonce={findNonce}
-        selecting={selecting}
         onPlaceChange={(next) => {
           const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
           setManuscriptPlace(book.id, { ...next, scrollTop });
@@ -621,41 +480,13 @@ export function DictationView({
               <div className="ms-editor-rail">
                 <div className="ms-editor-head">
                   <h2>{book.title}</h2>
+                  <button type="button" className="btn ghost" onClick={() => setEditorOpen(false)}>
+                    Back to dictation
+                  </button>
+                  <button type="button" className="btn ghost" onClick={() => setVersionsOpen(true)}>
+                    Versions
+                  </button>
                 </div>
-                <ManuscriptToolbar
-                  focused={focusedBlock}
-                  canUndo={canUndo}
-                  canRedo={canRedo}
-                  editorOpen={editorOpen}
-                  layout="rail"
-                  onToggleEditor={() => setEditorOpen(!editorOpen)}
-                  onInsertStructure={onInsertStructure}
-                  onInsertImage={() => void pickImage()}
-                  onInsertTable={(rows, cols) => insertManuscriptTable(book.id, rows, cols, insertDest)}
-                  onFormat={onFormat}
-                  onClearFormat={onClearFormat}
-                  onSetKind={onSetKind}
-                  onUndo={() => undoManuscript(book.id)}
-                  onRedo={() => redoManuscript(book.id)}
-                  pickingInsert={pickingInsert}
-                  onTogglePickingInsert={() => setPickingInsert((on) => !on)}
-                  onOpenVersions={() => setVersionsOpen(true)}
-                  findOpen={findOpen}
-                  onToggleFind={() => {
-                    if (findOpen) setFindOpen(false);
-                    else {
-                      setFindOpen(true);
-                      setFindNonce((n) => n + 1);
-                    }
-                  }}
-                  selecting={selecting}
-                  onToggleSelecting={() => {
-                    setSelecting((on) => {
-                      if (!on) setPickingInsert(false);
-                      return !on;
-                    });
-                  }}
-                />
                 <EditorDictationStrip
                   speech={speech}
                   mayDictate={license.mayDictate}
@@ -674,11 +505,6 @@ export function DictationView({
                     setDraft(strikeLastSentence);
                   }}
                 />
-                {imageError && (
-                  <div className="hint" style={{ color: 'var(--warn)' }}>
-                    {imageError}
-                  </div>
-                )}
               </div>
             }
             right={<div className="ms-editor-canvas">{manuscriptScroll}</div>}
@@ -888,19 +714,6 @@ export function DictationView({
                 Clear
               </button>
               <button
-                type="button"
-                className={`btn ghost${pickingInsert ? ' primary' : ''}`}
-                aria-pressed={pickingInsert}
-                title={
-                  pickingInsert
-                    ? 'Click a gap in the manuscript, or click again to cancel'
-                    : 'Turn on, then click a gap between chapters, scenes, or paragraphs'
-                }
-                onClick={() => setPickingInsert((on) => !on)}
-              >
-                Choose insertion point
-              </button>
-              <button
                 className="btn primary"
                 onClick={insert}
                 disabled={!canInsertDictation}
@@ -944,15 +757,19 @@ export function DictationView({
           <div className="ms-card-head">
             <div>
               <h3>Manuscript</h3>
-              <p className="sub">Everything below is editable. Structure was created from your spoken cues.</p>
+              <p className="sub">
+                Click a gap to choose where the next dictation lands. Keyboard and dictated text are sealed; paste is not.
+              </p>
+            </div>
+            <div className="row">
+              <button type="button" className="btn ghost" onClick={() => setVersionsOpen(true)}>
+                Versions
+              </button>
+              <button type="button" className="btn ghost" onClick={() => setEditorOpen(true)}>
+                Full screen
+              </button>
             </div>
           </div>
-          {toolbar}
-          {imageError && (
-            <div className="hint" style={{ color: 'var(--warn)', margin: '4px 0 8px' }}>
-              {imageError}
-            </div>
-          )}
           {manuscriptScroll}
         </div>
         }

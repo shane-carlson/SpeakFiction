@@ -2,6 +2,7 @@
 // loads the built renderer from ./dist. Kept as CommonJS (.cjs) so it runs
 // without a separate compile step even though the project is ESM.
 const { app, BrowserWindow, screen, shell, ipcMain, systemPreferences, session, nativeImage, dialog, nativeTheme } = require('electron');
+const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const windowState = require('./windowState.cjs');
@@ -134,6 +135,11 @@ function openMicPrivacySettings() {
   }
   return Promise.resolve();
 }
+
+ipcMain.handle('device:name', () => {
+  const name = os.hostname();
+  return typeof name === 'string' ? name.trim() : '';
+});
 
 ipcMain.handle('audio:mic-status', () => micStatus());
 ipcMain.handle('audio:request-mic', () => requestMic());

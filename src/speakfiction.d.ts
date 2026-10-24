@@ -180,6 +180,11 @@ export interface SpeakFictionSpellcheckBridge {
   addWord: (word: string) => void;
 }
 
+export interface SpeakFictionDeviceBridge {
+  getName: () => Promise<string>;
+  spellSuggestions?: (word: string) => string[];
+}
+
 export interface SpeakFictionBridge {
   platform: string;
   arch?: string;
@@ -197,6 +202,7 @@ export interface SpeakFictionBridge {
   whatsNew?: SpeakFictionWhatsNewBridge;
   help?: SpeakFictionHelpBridge;
   spellcheck?: SpeakFictionSpellcheckBridge;
+  device?: SpeakFictionDeviceBridge;
 }
 
 declare global {

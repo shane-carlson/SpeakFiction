@@ -13,6 +13,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { WhatsNewModal } from './components/WhatsNewModal';
 import { HelpTicketModal } from './components/HelpTicketModal';
 import { ViewErrorBoundary } from './components/ViewErrorBoundary';
+import { HoverLabel } from './components/hm/HoverLabel';
 import type { TicketKind } from './core/ticket';
 import { applyDocumentTheme, readOsPrefersDark, resolveThemeMode, subscribeOsPrefersDark } from './core/theme';
 import type { AppTab } from './core/persistedState';
@@ -160,6 +161,7 @@ export default function App() {
         onDismiss={whatsNew.dismiss}
       />
       <HelpTicketModal kind={ticketKind} onClose={() => setTicketKind(null)} />
+      <HoverLabel />
     </div>
   );
 }

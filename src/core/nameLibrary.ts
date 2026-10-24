@@ -108,6 +108,13 @@ function bestMatchForPhrase(
   const forms = index.formsByWordCount.get(wordCount);
   if (!forms) return null;
 
+  // "the" / "a" / "an" stay articles. A one-letter typing fragment must not
+  // fuzzy-match them into a short trained name ("The" → "Th").
+  if (wordCount === 1 && (phrase === 'a' || phrase === 'an' || phrase === 'the')) {
+    const exact = forms.find((form) => form.normalized === phrase);
+    return exact ? { entry: exact.entry, score: 1 } : null;
+  }
+
   const phrasePhonetic = phoneticKey(phrase);
   let best: Candidate | null = null;
 
