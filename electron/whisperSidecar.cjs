@@ -60,12 +60,15 @@ function resampleTo16k(input, fromRate) {
 function samplesFromPayload(payload) {
   const raw = payload?.samples ?? payload?.pcm;
   if (!raw) return new Float32Array(0);
-  if (raw instanceof Float32Array) return raw;
+  if (raw instanceof Float32Array) return raw.byteOffset === 0 && raw.byteLength === raw.buffer.byteLength ? raw : raw.slice();
   if (Buffer.isBuffer(raw)) {
-    return new Float32Array(raw.buffer, raw.byteOffset, Math.floor(raw.byteLength / 4));
+    return new Float32Array(raw.buffer, raw.byteOffset, Math.floor(raw.byteLength / 4)).slice();
   }
-  if (Array.isArray(raw) || ArrayBuffer.isView(raw)) return Float32Array.from(raw);
-  if (typeof raw === 'object' && raw.length) return Float32Array.from(Array.from({ length: raw.length }, (_, i) => raw[i]));
+  if (raw instanceof Uint8Array) {
+    return new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
+  }
+  if (ArrayBuffer.isView(raw) && raw.BYTES_PER_ELEMENT === 4) return Float32Array.from(raw);
+  if (Array.isArray(raw)) return Float32Array.from(raw);
   return new Float32Array(0);
 }
 

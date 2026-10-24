@@ -368,13 +368,17 @@ export function Editor({
   );
   if (!showHighlights && linkedCardId !== null) setLinkedCardId(null);
 
+  const linkCertificationCard = useCallback((cardId: string | null) => {
+    if (cardId) setLinkedCardId(cardId);
+  }, []);
+
   useLayoutEffect(() => {
-    if (!showHighlights || !linkedCardId) return;
+    if (!showHighlights || certCollapsed || !linkedCardId) return;
     const card = pointListRef.current?.querySelector<HTMLElement>(
       `[data-card-id="${CSS.escape(linkedCardId)}"]`,
     );
     if (card) scrollCardIntoCertificationPane(card);
-  }, [showHighlights, linkedCardId, doc.points.length, openCards.length]);
+  }, [showHighlights, certCollapsed, linkedCardId, doc.points.length, openCards.length]);
   const [previewExportedAt, setPreviewExportedAt] = useState(() => new Date().toISOString());
   const previewModel = useMemo(
     () => buildCertificationPageModel(doc, previewExportedAt, {
@@ -873,7 +877,7 @@ export function Editor({
                         renderToken={renderToken}
                         showProvenance={showHighlights}
                         blockId={block.id}
-                        onCertificationHover={showHighlights ? setLinkedCardId : undefined}
+                        onCertificationHover={showHighlights ? linkCertificationCard : undefined}
                         onInternalDrop={(toOffset) => {
                           const source = textDrag.current;
                           textDrag.current = null;
@@ -1038,25 +1042,14 @@ function DeviceLine({ stored, live }: { stored?: string; live: string | null }) 
 }
 
 function scrollCardIntoCertificationPane(card: HTMLElement) {
-  const pane = card.closest('.points');
-  if (!pane || card.getClientRects().length === 0) return;
-  let node = card.parentElement;
-  while (node && pane.contains(node)) {
-    const overflowY = getComputedStyle(node).overflowY;
-    const scrollable =
-      (overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1;
-    if (scrollable) {
-      const bounds = node.getBoundingClientRect();
-      const rect = card.getBoundingClientRect();
-      const top = Math.max(bounds.top, 0);
-      const bottom = Math.min(bounds.bottom, window.innerHeight);
-      if (bottom > top + 24) {
-        const delta = scrollDelta(top, bottom, rect.top, rect.bottom);
-        if (delta !== 0) node.scrollTop += delta;
-      }
-    }
-    node = node.parentElement;
-  }
+  if (card.getClientRects().length === 0) return;
+  const pane = card.closest('.points-body');
+  if (!(pane instanceof HTMLElement)) return;
+  const bounds = pane.getBoundingClientRect();
+  if (bounds.height < 24) return;
+  const rect = card.getBoundingClientRect();
+  const delta = scrollDelta(bounds.top, bounds.bottom, rect.top, rect.bottom);
+  if (delta !== 0) pane.scrollTop += delta;
 }
 
 function originWord(origin: string): string {

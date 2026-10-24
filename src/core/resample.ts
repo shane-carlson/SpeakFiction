@@ -25,6 +25,12 @@ export function concatFloat32(chunks: Float32Array[]): Float32Array {
   return out;
 }
 
+/** Copy a PCM view into its own buffer so IPC does not clone the parent decode. */
+export function pcmForNativeIpc(audio: Float32Array): Float32Array {
+  if (audio.byteOffset === 0 && audio.buffer.byteLength === audio.byteLength) return audio;
+  return audio.slice();
+}
+
 export function rms(frame: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];

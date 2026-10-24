@@ -297,5 +297,5 @@ export function isSpeechModelOom(message: string): boolean {
 }
 
 export function speechModelOomMessage(): string {
-  return 'This computer ran out of memory loading the speech model. Close other apps and press Start again.';
+  return 'This computer ran out of memory loading the speech model. Close other apps and try again.';
 }

@@ -778,7 +778,7 @@ html[data-mode='dark'] .hm-root {
   overflow: hidden;
 }.hm-root .view-toggle {
   gap: 0;
-}.hm-root .canvas-note, .hm-root .points-empty, .hm-root .lineage { color: var(--text-dim); font-size: 0.86rem; }.hm-root .point-list { list-style: none; padding: 0 0 16px; margin: 0 0 12px; display: grid; gap: 10px; max-height: 60vh; overflow: auto; }.hm-root .point-list li {
+}.hm-root .canvas-note, .hm-root .points-empty, .hm-root .lineage { color: var(--text-dim); font-size: 0.86rem; }.hm-root .point-list { list-style: none; padding: 0 0 16px; margin: 0 0 12px; display: grid; gap: 10px; overflow: visible; }.hm-root .point-list li {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px;
@@ -1167,6 +1167,11 @@ html[data-mode='dark'] .hm-root {
   }
   .hm-root .points {
     max-height: min(36vh, 280px);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .hm-root .points-body {
+    overflow: auto;
     min-height: 0;
   }
 }

@@ -288,7 +288,7 @@ ipcMain.handle('files:open-bytes', async (_event, payload) => {
                             : ext === '3gp'
                               ? 'audio/3gpp'
                               : '';
-  return { ok: true, path: filePaths[0], bytes: Uint8Array.from(buf), mime };
+  return { ok: true, path: filePaths[0], bytes: buf, mime };
 });
 
 const handoff = require('./handoff.cjs');

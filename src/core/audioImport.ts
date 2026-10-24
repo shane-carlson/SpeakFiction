@@ -42,8 +42,15 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 export const MAX_AUDIO_IMPORT_BYTES = 40 * 1024 * 1024;
+/** Decoded takes longer than this OOMs Chromium while Web Audio expands the file. */
+export const MAX_AUDIO_IMPORT_DURATION_MS = 20 * 60 * 1000;
 /** Decode in ~45s slices so a long memo still finishes on-device. */
 export const IMPORT_CHUNK_SECONDS = 45;
+
+export function importedAudioTooLongMessage(durationMs: number): string | null {
+  if (durationMs <= MAX_AUDIO_IMPORT_DURATION_MS) return null;
+  return 'That audio file is longer than 20 minutes. Split it into a shorter take and import that.';
+}
 
 export function audioExtension(name: string | undefined): string {
   if (!name) return '';
@@ -112,8 +119,10 @@ export async function decodeImportedAudio(
   const ctx = new Ctx();
   try {
     const buffer = await ctx.decodeAudioData(copyToArrayBuffer(bytes));
+    const durationMs = Math.round(buffer.duration * 1000);
+    const tooLong = importedAudioTooLongMessage(durationMs);
+    if (tooLong) throw new Error(tooLong);
     const samples = mixToMono(buffer);
-    const durationMs = Math.round((samples.length / buffer.sampleRate) * 1000);
     return { samples, sampleRate: buffer.sampleRate, durationMs };
   } catch (err) {
     if (err instanceof Error && /too large|empty|cannot decode/i.test(err.message)) throw err;

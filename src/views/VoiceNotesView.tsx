@@ -97,7 +97,7 @@ export function VoiceNotesView({
           );
           try {
             const heard = await transcribeImportedAudioFile(
-              new Uint8Array(audio.bytes),
+              audio.bytes instanceof Uint8Array ? audio.bytes : Uint8Array.from(audio.bytes),
               audio.mime || 'audio/mp4',
               setImportProgress,
               whisperInboxPrompt(names, noteNeedsDesktopTranscription(note) ? undefined : note.text),

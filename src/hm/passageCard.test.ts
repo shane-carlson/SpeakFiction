@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { emptyDocument } from './document';
+import { emptyDocument, insertStructure } from './document';
 import { openPassageCards, passageCardId, scrollDelta } from './passageCard';
 
 test('sealed spans link to their certification point', () => {
@@ -22,6 +22,7 @@ test('unsealed spans link to a display card for that span', () => {
     passageCardId('block-1', { id: 'span-5', origin: 'keyboard' }),
     'span:block-1:span-5',
   );
+  assert.equal(passageCardId('block-1', { id: '', origin: 'other' }), 'span:block-1:bare');
 });
 
 test('open passage cards skip sealed text and blank spans', () => {
@@ -64,6 +65,37 @@ test('open passage cards skip sealed text and blank spans', () => {
   );
   assert.equal(cards[0]?.text, ' paste');
   assert.equal(cards[2]?.text, 'Dropped title');
+});
+
+test('open cards include seed prose with no provenance so hover has somewhere to land', () => {
+  let doc = insertStructure(emptyDocument('ms'), 'paragraph', 0, 'p1');
+  doc = {
+    ...doc,
+    blocks: doc.blocks.map((block) => (block.id === 'p1' ? { ...block, text: 'The wind howled.' } : block)),
+  };
+  const cards = openPassageCards(doc);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0]?.id, 'span:p1:bare');
+  assert.equal(cards[0]?.origin, 'other');
+  assert.equal(cards[0]?.text, 'The wind howled.');
+});
+
+test('open cards skip sealed spans and still emit uncovered seed text', () => {
+  let doc = insertStructure(emptyDocument('ms'), 'paragraph', 0, 'p1');
+  doc = {
+    ...doc,
+    blocks: doc.blocks.map((block) => (block.id === 'p1' ? { ...block, text: 'Sealed gap.' } : block)),
+    provenance: {
+      p1: {
+        title: [],
+        text: [{ id: 's1', start: 0, end: 6, origin: 'keyboard', certificationId: 'pt1' }],
+      },
+    },
+  };
+  const cards = openPassageCards(doc);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0]?.id, 'span:p1:bare');
+  assert.match(cards[0]?.text ?? '', /gap/);
 });
 
 test('scroll delta moves only cards outside the pane', () => {
