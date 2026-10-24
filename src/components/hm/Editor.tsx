@@ -68,7 +68,6 @@ import {
 } from './ManuscriptToolbarIcons';
 import { ProvenanceField, type FieldCommit } from './ProvenanceField';
 import { ExportPreview } from './ExportPreview';
-import { ExportPane } from './ExportPane';
 import {
   MANUSCRIPT_FONTS,
   MANUSCRIPT_FONT_SIZES,
@@ -78,10 +77,6 @@ import {
 } from '../../hm/typography';
 
 const BLOCK_MIME = 'application/x-humanuscript-block';
-/** Full-screen view scale only. It does not change the book’s font size. */
-const VIEW_ZOOM_MIN = 50;
-const VIEW_ZOOM_MAX = 200;
-const VIEW_ZOOM_STEP = 10;
 
 function downloadJson(filename: string, value: unknown) {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
@@ -138,12 +133,6 @@ export function Editor({
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [linkedCardId, setLinkedCardId] = useState<string | null>(null);
   const [liveDevice, setLiveDevice] = useState<string | null>(() => shortPlatformLabel());
-  const [viewPercent, setViewPercent] = useState(100);
-  const [trackedFocus, setTrackedFocus] = useState(focusMode);
-  if (focusMode !== trackedFocus) {
-    setTrackedFocus(focusMode);
-    if (!focusMode) setViewPercent(100);
-  }
   const pointListRef = useRef<HTMLOListElement>(null);
   const textDrag = useRef<{ blockId: string; start: number; end: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -401,47 +390,8 @@ export function Editor({
 
   return (
     <div
-      className={`editor-layout${focusMode ? ' is-focus' : ''}${certCollapsed ? ' is-cert-collapsed' : ''}`}
+      className={`editor-layout${certCollapsed ? ' is-cert-collapsed' : ''}`}
     >
-      {focusMode && (
-        <div className="focus-exit-bar">
-          <p>Full screen — writing only</p>
-          <div className="focus-zoom" role="group" aria-label="Page zoom">
-            <button
-              type="button"
-              data-tooltip="Zoom out"
-              aria-label="Zoom out"
-              disabled={viewPercent <= VIEW_ZOOM_MIN}
-              onClick={() => setViewPercent((current) => Math.max(VIEW_ZOOM_MIN, current - VIEW_ZOOM_STEP))}
-            >
-              −
-            </button>
-            <span className="focus-zoom__level" aria-live="polite">{viewPercent}%</span>
-            <button
-              type="button"
-              data-tooltip="Zoom in"
-              aria-label="Zoom in"
-              disabled={viewPercent >= VIEW_ZOOM_MAX}
-              onClick={() => setViewPercent((current) => Math.min(VIEW_ZOOM_MAX, current + VIEW_ZOOM_STEP))}
-            >
-              +
-            </button>
-            <button
-              type="button"
-              data-tooltip="Back to 100%"
-              aria-label="Back to 100%"
-              disabled={viewPercent === 100}
-              onClick={() => setViewPercent(100)}
-            >
-              100%
-            </button>
-          </div>
-          <button type="button" className="primary" onClick={() => onFocusModeChange?.(false)}>
-            Exit full screen
-          </button>
-          <span className="focus-hint">Esc</span>
-        </div>
-      )}
       <main className={`canvas manuscript-surface${showPreview ? ' is-preview' : ''}`}>
         <div className={`canvas-head${showReplace ? ' is-replace-open' : ''}`}>
         <div className="toolbar" role="toolbar" aria-label="Manuscript tools">
@@ -692,11 +642,16 @@ export function Editor({
                   <IconExportPreview />
                 </ToolbarIconButton>
               </div>
-              {!focusMode ? (
-                <button type="button" className="focus-enter" data-tooltip="Full screen" aria-label="Full screen" onClick={() => onFocusModeChange?.(true)}>
-                  Full screen
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="focus-enter"
+                data-tooltip={focusMode ? 'Exit full screen' : 'Full screen'}
+                aria-label={focusMode ? 'Exit full screen' : 'Full screen'}
+                aria-pressed={focusMode}
+                onClick={() => onFocusModeChange?.(!focusMode)}
+              >
+                {focusMode ? 'Exit' : 'Full screen'}
+              </button>
             </div>
           </div>
         </div>
@@ -713,11 +668,7 @@ export function Editor({
         </div>
 
         <div className="canvas-body" ref={canvasRef}>
-        <div
-          className="page-view"
-          style={focusMode ? ({ '--view-scale': String(viewPercent / 100) } as CSSProperties) : undefined}
-          data-view-scale={focusMode ? viewPercent : 100}
-        >
+        <div className="page-view">
         {showPreview ? (
           <ExportPreview model={previewModel} doc={doc} />
         ) : doc.blocks.length === 0 ? (
@@ -993,14 +944,13 @@ export function Editor({
             />
           </div>
         )}
-        {!focusMode && !showPreview && (
+        {!showPreview && (
           <p className="canvas-note">Drag a handle to reorder a chapter with the prose under it, or move a paragraph. Moving text keeps a keyboard seal on that text. Dropping words in from another app does not.</p>
         )}
         </div>
         </div>
       </main>
 
-      {!focusMode && (
       <aside className={`points${certCollapsed ? ' is-collapsed' : ''}`}>
         <button
           type="button"
@@ -1075,10 +1025,8 @@ export function Editor({
             </div>
           )}
           <button type="button" className="primary" onClick={() => downloadJson(`${name}.certification.json`, certificationExport(doc, new Date().toISOString()))}>Download certification record</button>
-          <ExportPane doc={doc} bookTitle={bookTitle} seriesLabel={seriesLabel} />
         </div>
       </aside>
-      )}
     </div>
   );
 }

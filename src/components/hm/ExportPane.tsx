@@ -61,6 +61,19 @@ const TARGETS: TargetInfo[] = [
     ],
   },
   {
+    id: 'googledocs',
+    name: 'Google Docs',
+    icon: '🗂️',
+    blurb: 'Upload the .docx; Docs converts headings and keeps the certification summary.',
+    format: 'docx',
+    steps: [
+      'Download the .docx below.',
+      'In Google Drive: New → File upload, then select the .docx.',
+      'Right-click the file → Open with → Google Docs.',
+      'The certification summary is the first page. Headings map to the document outline (View → Show outline).',
+    ],
+  },
+  {
     id: 'rtf',
     name: 'Rich Text',
     icon: '📋',
@@ -107,10 +120,12 @@ export function ExportPane({
   doc,
   bookTitle,
   seriesLabel = null,
+  embedded = false,
 }: {
   doc: ManuscriptDocument;
   bookTitle?: string;
   seriesLabel?: string | null;
+  embedded?: boolean;
 }) {
   const [target, setTarget] = useState<TargetInfo>(TARGETS[0]);
   const [exporting, setExporting] = useState(false);
@@ -135,60 +150,74 @@ export function ExportPane({
 
   return (
     <div className="export-pane">
-      <div className="export-pane__head">
+      {!embedded && (
+        <div className="page-head">
+          <div>
+            <h2>Export</h2>
+            <p>Guided hand-off to your writing tool. Spoken structure becomes chapters and scenes on import.</p>
+          </div>
+          <div className="book-pill">
+            <span aria-hidden="true">📖</span>
+            <b>{title}</b>
+            <span>
+              · {stats.chapters} ch · {stats.words} words · {doc.points.length} seal
+              {doc.points.length === 1 ? '' : 's'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="note-banner" style={{ marginBottom: 16 }}>
+        <span className="ico">✅</span>
         <div>
-          <h2>Export</h2>
-          <p>Guided hand-off to your writing tool. Speak Fiction-style structure becomes chapters and scenes on import.</p>
-        </div>
-        <div className="book-pill">
-          <span aria-hidden="true">📖</span>
-          <b>{title}</b>
-          <span className="book-pill__meta">
-            · {stats.chapters} ch · {stats.words} words · {doc.points.length} seal{doc.points.length === 1 ? '' : 's'}
-          </span>
+          Every download starts with the one-page <b>certification summary</b> from the manuscript
+          Export preview — key facts, keyboard-certified words versus pasted or uncertified words,
+          and the manuscript counts — then a page break. The manuscript follows with no
+          certification highlights, and pasted text stays uncertified.
         </div>
       </div>
 
-      <p className="export-cert-note">
-        Every download starts with the one-page <strong>certification summary</strong> from the manuscript{' '}
-        <strong>Export preview</strong> — key facts, keyboard-certified words versus pasted or uncertified words, and the
-        manuscript counts — then a page break. The manuscript follows with no certification highlights, and pasted text
-        stays uncertified.
-      </p>
-
-      <div className="stepper" aria-label="Export steps">
-        <div className="step is-active"><span className="num">1</span> Choose destination</div>
-        <div className="step is-active"><span className="num">2</span> Review steps</div>
-        <div className="step is-active"><span className="num">3</span> Export &amp; follow along</div>
+      <div className="stepper">
+        <div className="step active">
+          <span className="num">1</span> Choose destination
+        </div>
+        <div className="step active">
+          <span className="num">2</span> Review steps
+        </div>
+        <div className="step active">
+          <span className="num">3</span> Export &amp; follow along
+        </div>
       </div>
 
-      <div className="target-grid">
+      <div className="grid cols-3" style={{ marginBottom: 16 }}>
         {TARGETS.map((t) => (
-          <button
+          <div
             key={t.id}
-            type="button"
-            className={`target-card${t.id === target.id ? ' is-selected' : ''}`}
+            className={`card target-card ${t.id === target.id ? 'selected' : ''}`}
             onClick={() => setTarget(t)}
-            aria-pressed={t.id === target.id}
           >
-            <span className="target-card__ico" aria-hidden="true">{t.icon}</span>
+            <div className="ico">{t.icon}</div>
             <h3>{t.name}</h3>
-            <p>{t.blurb}</p>
-          </button>
+            <p className="sub" style={{ margin: 0 }}>
+              {t.blurb}
+            </p>
+          </div>
         ))}
       </div>
 
-      <div className="export-detail card">
+      <div className="card">
         <h3>Guided steps — {target.name}</h3>
         <p className="sub">Follow along after exporting ({EXPORT_FORMAT_LABELS[target.format]}).</p>
-        <ol className="instruction-list">
+        <ul className="instruction">
           {target.steps.map((step, i) => (
             <li key={i}>{step}</li>
           ))}
-        </ol>
-        <button type="button" className="primary export-download" disabled={exporting} onClick={() => void runExport()}>
-          {exporting ? 'Exporting…' : `Download for ${target.name}`}
-        </button>
+        </ul>
+        <div style={{ marginTop: 18 }}>
+          <button type="button" className="btn primary big" disabled={exporting} onClick={() => void runExport()}>
+            {exporting ? 'Exporting…' : `⬇ Export for ${target.name}`}
+          </button>
+        </div>
       </div>
     </div>
   );

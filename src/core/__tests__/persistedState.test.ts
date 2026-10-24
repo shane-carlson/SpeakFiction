@@ -62,6 +62,7 @@ describe('persisted session fields', () => {
     expect(normalizeThemeId('pastel', 'auto')).toBe('auto');
     expect(isAppTab('dictate')).toBe(true);
     expect(isAppTab('notes')).toBe(true);
+    expect(isAppTab('versions')).toBe(true);
     expect(isAppTab('settings')).toBe(false);
     expect(normalizeLastSeenVersion('0.1.6-b11')).toBe('0.1.6-b11');
     expect(normalizeLastSeenVersion('')).toBe(null);

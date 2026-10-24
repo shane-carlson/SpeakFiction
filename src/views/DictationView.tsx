@@ -35,7 +35,6 @@ import { DictationCues } from '../components/DictationCues';
 import { AudioSettingsPanel } from '../components/AudioSettings';
 import { SplitPane } from '../components/SplitPane';
 import { RecordVoiceOnlyControls } from '../components/RecordVoiceOnlyControls';
-import { ManuscriptVersionsPanel } from '../components/ManuscriptVersionsPanel';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useRecordVoiceOnly } from '../hooks/useRecordVoiceOnly';
 import { LicenseGate } from '../components/LicenseGate';
@@ -87,7 +86,6 @@ export function DictationView({
   const setEditorOpen = useStore((s) => s.setManuscriptEditorOpen);
   const dictateCuesOpen = useStore((s) => s.dictateCuesOpen);
   const setDictateCuesOpen = useStore((s) => s.setDictateCuesOpen);
-  const [versionsOpen, setVersionsOpen] = useState(false);
   const draft = useStore((s) => s.dictationDrafts[book.id] ?? []);
   const setDictationDraft = useStore((s) => s.setDictationDraft);
   const place = useStore((s) => s.manuscriptPlace[book.id]);
@@ -434,15 +432,6 @@ export function DictationView({
     return () => window.removeEventListener('keydown', onKey);
   }, [book.id, redoManuscript, undoManuscript]);
 
-  const versionsPanel = (
-    <ManuscriptVersionsPanel
-      open={versionsOpen}
-      bookId={book.id}
-      currentBlocks={book.manuscript.blocks}
-      onClose={() => setVersionsOpen(false)}
-    />
-  );
-
   const manuscriptScroll = (
     <div
       className="dictate-ms-scroll"
@@ -480,12 +469,6 @@ export function DictationView({
               <div className="ms-editor-rail">
                 <div className="ms-editor-head">
                   <h2>{book.title}</h2>
-                  <button type="button" className="btn ghost" onClick={() => setEditorOpen(false)}>
-                    Back to dictation
-                  </button>
-                  <button type="button" className="btn ghost" onClick={() => setVersionsOpen(true)}>
-                    Versions
-                  </button>
                 </div>
                 <EditorDictationStrip
                   speech={speech}
@@ -510,7 +493,6 @@ export function DictationView({
             right={<div className="ms-editor-canvas">{manuscriptScroll}</div>}
           />
         </div>
-        {versionsPanel}
       </div>
     );
   }
@@ -761,20 +743,11 @@ export function DictationView({
                 Click a gap to choose where the next dictation lands. Keyboard and dictated text are sealed; paste is not.
               </p>
             </div>
-            <div className="row">
-              <button type="button" className="btn ghost" onClick={() => setVersionsOpen(true)}>
-                Versions
-              </button>
-              <button type="button" className="btn ghost" onClick={() => setEditorOpen(true)}>
-                Full screen
-              </button>
-            </div>
           </div>
           {manuscriptScroll}
         </div>
         }
       />
-      {versionsPanel}
     </div>
   );
 }
