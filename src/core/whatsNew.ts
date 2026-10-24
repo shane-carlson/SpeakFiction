@@ -155,6 +155,12 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.45': bullets(
+    'The manuscript editor seals what you type and what you dictate, and leaves pasted text uncertified',
+    'Spoken new chapter, new scene, new section, and new paragraph still land, with the title and the prose that follow',
+    'Export from the editor starts with a certification summary, then the manuscript',
+    'A short cue such as new paragraph or new scene still reaches the draft',
+  ),
   '0.2.44': bullets(
     'Select paragraphs on the manuscript toolbar lets you pick paragraphs to combine or delete',
     'Combine and Delete appear as a banner at the top of the manuscript',
