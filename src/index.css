@@ -607,6 +607,16 @@ body.is-resizing iframe {
   overflow-y: auto;
   padding-right: 6px;
 }
+.dictate-ms-scroll:has(.hm-root) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.dictate-ms-scroll:has(.hm-root) > .hm-root {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
 .dictate-ms-scroll .manuscript,
 .dictate-ms-scroll .empty {
   min-height: 100%;
@@ -2066,6 +2076,9 @@ mark.ms-find-hit {
   min-height: 0;
   min-width: 0;
   width: 100%;
+}
+.ms-editor-canvas .dictate-ms-scroll:has(.hm-root) {
+  overflow: hidden;
 }
 .ms-editor-canvas .ms-document-chrome {
   background: var(--bg-elev);

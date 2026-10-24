@@ -62,6 +62,11 @@ function isTypingField(el: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || el.isContentEditable;
 }
 
+/** The locked toolbar lives above this scroller; the outer wrap must not scroll. */
+function manuscriptBodyScroller(wrap: HTMLElement | null): HTMLElement | null {
+  return wrap?.querySelector<HTMLElement>('.canvas-body') ?? wrap;
+}
+
 export function DictationView({
   book,
   license,
@@ -272,13 +277,14 @@ export function DictationView({
   }, [onListeningChange, speech.session]);
 
   useLayoutEffect(() => {
-    if (restoredBook.current === book.id) return;
-    const el = scrollRef.current;
+    const wrap = scrollRef.current;
+    const el = manuscriptBodyScroller(wrap);
     if (!el) return;
+    const firstOpen = restoredBook.current !== book.id;
     restoredBook.current = book.id;
     const saved = useStore.getState().manuscriptPlace[book.id];
     const hasDraft = Boolean(draftText(useStore.getState().dictationDrafts[book.id] ?? []).trim());
-    if (saved?.blockId) {
+    if (firstOpen && saved?.blockId) {
       const node = el.querySelector(`[data-block-id="${saved.blockId.replace(/"/g, '')}"]`);
       if (node instanceof HTMLElement) {
         node.scrollIntoView({ block: 'nearest' });
@@ -297,7 +303,19 @@ export function DictationView({
       }
     }
     if (typeof saved?.scrollTop === 'number') el.scrollTop = saved.scrollTop;
-  }, [book.id, book.manuscript.blocks.length]);
+  }, [book.id, book.manuscript.blocks.length, editorOpen]);
+
+  useEffect(() => {
+    const wrap = scrollRef.current;
+    const el = manuscriptBodyScroller(wrap);
+    if (!el) return;
+    const onScroll = () => {
+      const prev = useStore.getState().manuscriptPlace[book.id];
+      setManuscriptPlace(book.id, { ...prev, scrollTop: el.scrollTop });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [book.id, editorOpen, setManuscriptPlace]);
 
   useEffect(() => {
     if (!profileLabel) return;
@@ -433,19 +451,11 @@ export function DictationView({
   }, [book.id, redoManuscript, undoManuscript]);
 
   const manuscriptScroll = (
-    <div
-      className="dictate-ms-scroll"
-      ref={scrollRef}
-      onScroll={(e) => {
-        const scrollTop = e.currentTarget.scrollTop;
-        const prev = useStore.getState().manuscriptPlace[book.id];
-        setManuscriptPlace(book.id, { ...prev, scrollTop });
-      }}
-    >
+    <div className="dictate-ms-scroll" ref={scrollRef}>
       <CertifiedManuscript
         book={book}
         onPlaceChange={(next) => {
-          const scrollTop = scrollRef.current?.scrollTop ?? next.scrollTop;
+          const scrollTop = manuscriptBodyScroller(scrollRef.current)?.scrollTop ?? next.scrollTop;
           setManuscriptPlace(book.id, { ...next, scrollTop });
         }}
       />
