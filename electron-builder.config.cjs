@@ -8,6 +8,14 @@ const intel = process.env.SF_MAC_ARCH === 'x64';
 const macArch = intel ? 'x64' : 'arm64';
 const ico = path.join(__dirname, 'build', 'icon.ico');
 const roundedPng = path.join(__dirname, 'build', 'icon.png');
+const macPng = path.join(__dirname, 'build', 'icon-mac.png');
+if (!packingWin) {
+  try {
+    require('./scripts/mac-icon.cjs').ensureMacIconPng();
+  } catch (err) {
+    console.error(err && err.message ? err.message : err);
+  }
+}
 if (packingWin && !fs.existsSync(ico)) {
   spawnSync(process.execPath, [path.join(__dirname, 'scripts', 'make-ico.cjs')], { stdio: 'inherit' });
 }
@@ -85,7 +93,14 @@ module.exports = {
   extraResources: [
     ...whisperExtraResources(),
     {
-      from: fs.existsSync(roundedPng) ? 'build/icon.png' : 'public/speakfiction-logo.png',
+      // Packaged Mac Dock reads this PNG. Windows taskbar uses icon.ico, so
+      // that pack keeps the full-bleed rounded PNG when it exists.
+      from:
+        !packingWin && fs.existsSync(macPng)
+          ? 'build/icon-mac.png'
+          : fs.existsSync(roundedPng)
+            ? 'build/icon.png'
+            : 'public/speakfiction-logo.png',
       to: 'speakfiction-logo.png',
     },
     ...(packingWin && hasIco ? [{ from: 'build/icon.ico', to: 'icon.ico' }] : []),
@@ -100,6 +115,7 @@ module.exports = {
   },
   mac: {
     category: 'public.app-category.productivity',
+    // Padded icns from scripts/make-icns.cjs (Apple 824×824 grid on 1024).
     icon: 'build/icon.icns',
     hardenedRuntime: true,
     gatekeeperAssess: false,

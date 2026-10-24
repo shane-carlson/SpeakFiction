@@ -381,9 +381,13 @@ app.whenReady().then(() => {
   });
   if (process.platform === 'darwin' && app.dock) {
     try {
-      require('../scripts/make-ico.cjs').ensureRoundedLogoPng();
+      require('../scripts/mac-icon.cjs').ensureMacIconPng();
     } catch {
-      /* public PNG still loads */
+      try {
+        require('../scripts/make-ico.cjs').ensureRoundedLogoPng();
+      } catch {
+        /* public PNG still loads */
+      }
     }
     const icon = nativeImage.createFromPath(logoPath());
     if (!icon.isEmpty()) app.dock.setIcon(icon);

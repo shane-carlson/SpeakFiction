@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Build build/icon.ico from public/speakfiction-logo.png.
+// Full-bleed rounded rect: Windows tiles should fill the taskbar slot.
+// The Mac Dock icon is a separate padded asset (scripts/mac-icon.cjs).
 // 16–128 must be 32-bit DIB (rcedit / taskbar). 256 must be PNG (Explorer).
 // The source PNG is RGB on black; punch a rounded-rect alpha so corners are not a black box.
 const fs = require('node:fs');

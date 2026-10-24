@@ -127,6 +127,9 @@ function resolveLogoPath({
   exists = (file) => fs.existsSync(file),
 } = {}) {
   if (packaged && resourcesPath) return path.join(resourcesPath, 'speakfiction-logo.png');
+  // Padded Mac plate (824/1024). The unpadded build/icon.png is the Windows fallback.
+  const mac = path.join(root, 'build', 'icon-mac.png');
+  if (exists(mac)) return mac;
   const rounded = path.join(root, 'build', 'icon.png');
   if (exists(rounded)) return rounded;
   return path.join(root, 'public', 'speakfiction-logo.png');
@@ -137,8 +140,8 @@ function logoPath() {
 }
 
 /**
- * Windows taskbar / window chrome need a multi-size .ico. Mac dock uses a PNG
- * with rounded-rect alpha (build/icon.png), not the source logo on black.
+ * Windows taskbar / window chrome need a multi-size .ico. Mac Dock uses the
+ * padded plate (build/icon-mac.png), not the source logo on black.
  * `exists` is injectable so tests can cover packaged NSIS layout without Electron.
  */
 function resolveWindowIconPath({
