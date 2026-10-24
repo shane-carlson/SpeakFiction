@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Build build/icon.icns (and build/icon.png) from public/speakfiction-logo.png.
-// The source PNG is RGB on black; punch rounded-rect alpha after sips so the
-// Dock / Finder icon is not a black box. sips drops alpha, so we re-encode.
+// Build build/icon.icns and build/icon-mac.png from public/speakfiction-logo.png.
+// The Mac plate sits on Apple's 824/1024 icon grid so the Dock and Cmd+Tab
+// squircle match other apps. build/icon.png stays the full-bleed rounded mark
+// (Windows and in-app fallbacks). iconutil packs the iconset; it is macOS-only.
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { decodePng, ensureRoundedLogoPng, renderPng, roundedPngFromRgba } = require('./make-ico.cjs');
+const { ensureRoundedLogoPng } = require('./make-ico.cjs');
+const { ensureMacIconPng, loadPunchedLogo, macPaddedPng } = require('./mac-icon.cjs');
 
 const root = path.join(__dirname, '..');
 const iconset = path.join(root, 'build', 'icon.iconset');
@@ -25,39 +27,25 @@ const ICNS_PNGS = [
 ];
 
 function main() {
+  const { size, punched } = loadPunchedLogo();
   fs.rmSync(iconset, { recursive: true, force: true });
   fs.mkdirSync(iconset, { recursive: true });
 
   for (const [px, name] of ICNS_PNGS) {
-    const raw = renderPng(px);
-    if (!pngBufOk(raw, px)) {
-      console.error(`Could not render ${name} (${px}px)`);
-      process.exit(1);
-    }
-    const decoded = decodePng(raw);
-    fs.writeFileSync(path.join(iconset, name), roundedPngFromRgba(px, decoded.rgba));
+    fs.writeFileSync(path.join(iconset, name), macPaddedPng(px, size, punched));
   }
 
+  const png = ensureMacIconPng(undefined, { force: true });
   const iconutil = spawnSync('iconutil', ['-c', 'icns', iconset, '-o', icns], { encoding: 'utf8' });
   if (iconutil.status !== 0) {
-    console.error(iconutil.stderr || 'iconutil failed');
+    console.error(iconutil.stderr || 'iconutil failed (macOS only)');
     process.exit(iconutil.status ?? 1);
   }
   fs.rmSync(iconset, { recursive: true, force: true });
   fs.rmSync(path.join(root, 'build', '.ico-tmp'), { recursive: true, force: true });
-  const png = ensureRoundedLogoPng(undefined, { force: true });
+  ensureRoundedLogoPng(undefined, { force: true });
   console.log(`Wrote ${icns}`);
   console.log(`Wrote ${png}`);
-}
-
-function pngBufOk(buf, size) {
-  if (!buf) return false;
-  try {
-    const decoded = decodePng(buf);
-    return decoded.width === size && decoded.height === size;
-  } catch {
-    return false;
-  }
 }
 
 if (require.main === module) main();

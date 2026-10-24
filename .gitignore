@@ -11,6 +11,7 @@ release/
 build/icon.icns
 build/icon.ico
 build/icon.png
+build/icon-mac.png
 build/icon.iconset/
 build/.ico-tmp/
 *.log

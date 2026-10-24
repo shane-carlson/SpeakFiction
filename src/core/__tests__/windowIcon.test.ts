@@ -32,9 +32,29 @@ const ico = require('../../../scripts/make-ico.cjs') as {
   roundedPngFromRgba: (size: number, rgba: Buffer) => Buffer;
   ensureRoundedLogoPng: (file?: string, opts?: { force?: boolean }) => string;
 };
+const macIcon = require('../../../scripts/mac-icon.cjs') as {
+  MAC_ICON_ART: number;
+  MAC_ICON_CANVAS: number;
+  macArtBox: (canvas: number) => number;
+  macIconMargin: (canvas: number) => number;
+  macPaddedRgba: (canvas: number, srcSize: number, punched: Buffer) => Buffer;
+  ensureMacIconPng: (file?: string, opts?: { force?: boolean }) => string;
+};
 
 describe('window icon paths', () => {
-  it('prefers the rounded PNG for the Mac dock when it exists', () => {
+  it('prefers the padded Mac PNG for the Dock when it exists', () => {
+    expect(
+      paths.resolveLogoPath({
+        packaged: false,
+        root: '/repo',
+        exists: (file) =>
+          file === path.join('/repo', 'build', 'icon-mac.png') ||
+          file === path.join('/repo', 'build', 'icon.png'),
+      }),
+    ).toBe(path.join('/repo', 'build', 'icon-mac.png'));
+  });
+
+  it('falls back to the unpadded rounded PNG', () => {
     expect(
       paths.resolveLogoPath({
         packaged: false,
@@ -77,16 +97,18 @@ describe('window icon paths', () => {
     ).toBe(path.join(resourcesPath, 'speakfiction-logo.png'));
   });
 
-  it('uses the rounded PNG on Mac when unpackaged', () => {
+  it('uses the padded Mac PNG when unpackaged', () => {
     expect(
       paths.resolveWindowIconPath({
         platform: 'darwin',
         packaged: false,
         resourcesPath: '',
         root: '/repo',
-        exists: (file) => file === path.join('/repo', 'build', 'icon.png'),
+        exists: (file) =>
+          file === path.join('/repo', 'build', 'icon-mac.png') ||
+          file === path.join('/repo', 'build', 'icon.png'),
       }),
-    ).toBe(path.join('/repo', 'build', 'icon.png'));
+    ).toBe(path.join('/repo', 'build', 'icon-mac.png'));
   });
 
   it('falls back to repo ico then PNG when unpackaged on Windows', () => {
@@ -174,6 +196,58 @@ describe('ICO writer', () => {
     ico.ensureRoundedLogoPng(dest, { force: true });
     const decoded = ico.decodePng(fs.readFileSync(dest));
     expect(decoded.rgba[3]).toBe(0);
+    const midLeft = (Math.floor(decoded.height / 2) * decoded.width) * 4;
+    expect(decoded.rgba[midLeft + 3]).toBe(255);
+    fs.unlinkSync(dest);
+  });
+});
+
+describe('Mac icon grid', () => {
+  it('uses the 824-of-1024 art box (100px margin)', () => {
+    expect(macIcon.MAC_ICON_CANVAS).toBe(1024);
+    expect(macIcon.MAC_ICON_ART).toBe(824);
+    expect(macIcon.macArtBox(1024)).toBe(824);
+    expect(macIcon.macIconMargin(1024)).toBe(100);
+    expect(macIcon.macArtBox(512)).toBe(412);
+    expect(macIcon.macIconMargin(512)).toBe(50);
+    expect(macIcon.macArtBox(16)).toBe(13);
+    expect(macIcon.macIconMargin(16)).toBe(1);
+  });
+
+  it('insets the plate so the squircle does not touch the square', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../public/speakfiction-logo.png'));
+    const decoded = ico.decodePng(src);
+    const punched = ico.applyRoundedIconAlpha(decoded.width, decoded.rgba);
+    const edge = (Math.floor(decoded.height / 2) * decoded.width) * 4;
+    expect(punched[edge + 3]).toBe(255);
+
+    const canvas = 1024;
+    const padded = macIcon.macPaddedRgba(canvas, decoded.width, punched);
+    const margin = macIcon.macIconMargin(canvas);
+    const art = macIcon.macArtBox(canvas);
+    let bleed = 0;
+    for (let y = 0; y < canvas; y += 1) {
+      for (let x = 0; x < canvas; x += 1) {
+        const outside = x < margin || y < margin || x >= margin + art || y >= margin + art;
+        if (outside && padded[(y * canvas + x) * 4 + 3] !== 0) bleed += 1;
+      }
+    }
+    expect(bleed).toBe(0);
+    const mid = Math.floor(canvas / 2);
+    expect(padded[(mid * canvas + mid) * 4 + 3]).toBe(255);
+    expect(padded[(mid * canvas + margin) * 4 + 3]).toBeGreaterThan(200);
+    expect(padded[(mid * canvas) * 4 + 3]).toBe(0);
+  });
+
+  it('writes a padded Mac PNG and leaves the Windows plate full-bleed', () => {
+    const dest = path.join(os.tmpdir(), `speakfiction-icon-mac-${process.pid}.png`);
+    macIcon.ensureMacIconPng(dest, { force: true });
+    const decoded = ico.decodePng(fs.readFileSync(dest));
+    const margin = macIcon.macIconMargin(decoded.width);
+    expect(decoded.rgba[3]).toBe(0);
+    const mid = Math.floor(decoded.height / 2);
+    expect(decoded.rgba[(mid * decoded.width) * 4 + 3]).toBe(0);
+    expect(decoded.rgba[(mid * decoded.width + margin) * 4 + 3]).toBeGreaterThan(200);
     fs.unlinkSync(dest);
   });
 });
