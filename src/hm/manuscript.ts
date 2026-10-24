@@ -4,7 +4,7 @@
  * Dragging a heading moves the heading plus the body under it.
  */
 
-import type { BlockType, DividerStyle, ManuscriptBlock } from './types';
+import type { BlockType, DividerStyle, InlineMark, ManuscriptBlock } from './types';
 
 const STRUCTURE_RANK: Record<BlockType, number> = {
   chapter: 0,
@@ -140,7 +140,7 @@ export function dragPreviewLabel(block: ManuscriptBlock, chapterNo?: number): st
   if (block.type === 'scene') return block.title.trim() || 'Scene';
   if (block.type === 'section') return block.title.trim() || 'Section';
   if (block.type === 'table') return 'Table';
-  if (block.type === 'image') return block.imageAlt?.trim() || 'Image';
+  if (block.type === 'image') return block.imageCaption?.trim() || block.imageAlt?.trim() || 'Image';
   if (block.type === 'pageBreak') return 'Page break';
   if (block.type === 'divider') return block.title.trim() || 'Scene break';
   if (block.type === 'blockquote') {
@@ -246,3 +246,138 @@ export function matchIndexAtOrAfter(
     return match.start >= anchor.at;
   });
 }
+
+export const TABLE_MIN_ROWS = 2;
+export const TABLE_MAX_ROWS = 4;
+export const TABLE_MIN_COLS = 2;
+export const TABLE_MAX_COLS = 8;
+
+function clampTableDim(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+/** Empty rectangular table. Dimensions clamp to 2×2 … 4×8. */
+export function emptyTableRows(rows: number, cols: number): string[][] {
+  const r = clampTableDim(rows, TABLE_MIN_ROWS, TABLE_MAX_ROWS);
+  const c = clampTableDim(cols, TABLE_MIN_COLS, TABLE_MAX_COLS);
+  return Array.from({ length: r }, () => Array.from({ length: c }, () => ''));
+}
+
+export type StructureHeadingKind = 'chapter' | 'scene' | 'section' | 'paragraph';
+
+export function isHeadingType(type: string | undefined): type is 'chapter' | 'scene' | 'section' {
+  return type === 'chapter' || type === 'scene' || type === 'section';
+}
+
+export function headingLabels(kind: 'chapter' | 'scene' | 'section'): {
+  unwrap: string;
+  delete: string;
+  aria: string;
+  confirm: string;
+} {
+  return {
+    unwrap: `Remove ${kind} header`,
+    delete: `Delete ${kind}`,
+    aria: `${kind.charAt(0).toUpperCase()}${kind.slice(1)} remove options`,
+    confirm: `Delete this ${kind} and all of its content?`,
+  };
+}
+
+export function insertGapHoverLabel(): string {
+  return 'Click to insert dictation here';
+}
+
+export function insertGapSelectedLabel(): string {
+  return 'Dictation inserts here';
+}
+
+export function dropPlaceLabel(block: ManuscriptBlock | undefined): string {
+  if (!block) return 'Drop here';
+  if (block.type === 'chapter') return 'Drop chapter here';
+  if (block.type === 'scene') return 'Drop scene here';
+  if (block.type === 'section') return 'Drop section here';
+  if (block.type === 'image') return 'Drop image here';
+  if (block.type === 'table') return 'Drop table here';
+  return 'Drop paragraph here';
+}
+
+/** Paragraph ids from `anchorId` through `toId`, in manuscript order. */
+export function paragraphRangeIds(
+  paragraphIds: readonly string[],
+  anchorId: string | null,
+  toId: string,
+): string[] {
+  const to = paragraphIds.indexOf(toId);
+  if (to < 0) return [];
+  const from = anchorId ? paragraphIds.indexOf(anchorId) : -1;
+  if (from < 0) return [toId];
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  return paragraphIds.slice(start, end + 1);
+}
+
+/** Remove a heading and the body under it, through the next block of the same rank or higher. */
+export function deleteMovableRange(blocks: ManuscriptBlock[], blockId: string): ManuscriptBlock[] {
+  const index = blocks.findIndex((block) => block.id === blockId);
+  if (!isHeadingType(blocks[index]?.type)) return blocks;
+  const range = movableRange(blocks, index);
+  if (!range) return blocks;
+  return [...blocks.slice(0, range.start), ...blocks.slice(range.end)];
+}
+
+/**
+ * Turn the focused block into a chapter, scene, section, or body paragraph.
+ * Images and tables stay as they are. The visible words move with the block.
+ */
+export function setBlockKind(
+  blocks: ManuscriptBlock[],
+  blockId: string,
+  kind: StructureHeadingKind,
+): ManuscriptBlock[] {
+  return blocks.map((block) => {
+    if (block.id !== blockId) return block;
+    if (block.type === 'image' || block.type === 'table') return block;
+    if (block.type === kind) return block;
+    if (kind === 'paragraph') {
+      const text = isHeadingType(block.type) ? block.title : block.text;
+      return { ...block, type: 'paragraph', title: '', text, marks: isHeadingType(block.type) ? [] : block.marks };
+    }
+    const title = isHeadingType(block.type) ? block.title : block.text;
+    return { ...block, type: kind, title, text: '', marks: [] };
+  });
+}
+
+/** Remove selected paragraphs. Headings and other block types stay. */
+export function deleteParagraphs(blocks: ManuscriptBlock[], ids: Iterable<string>): ManuscriptBlock[] {
+  const drop = new Set(ids);
+  const next = blocks.filter((block) => !(block.type === 'paragraph' && drop.has(block.id)));
+  return next.length === blocks.length ? blocks : next;
+}
+
+/**
+ * Merge selected paragraphs into the topmost one, in manuscript order.
+ * Click order is ignored. Non-paragraph ids are skipped.
+ */
+export function combineParagraphs(blocks: ManuscriptBlock[], ids: Iterable<string>): ManuscriptBlock[] {
+  const wanted = new Set(ids);
+  const selected = blocks.filter((block) => block.type === 'paragraph' && wanted.has(block.id));
+  if (selected.length < 2) return blocks;
+  const keepId = selected[0]!.id;
+  let text = '';
+  const marks: InlineMark[] = [];
+  for (const part of selected) {
+    const piece = part.text ?? '';
+    const joiner = text && piece ? ' ' : '';
+    const offset = text.length + joiner.length;
+    if (joiner) text += joiner;
+    for (const mark of part.marks ?? []) {
+      marks.push({ kind: mark.kind, start: mark.start + offset, end: mark.end + offset });
+    }
+    text += piece;
+  }
+  const merged: ManuscriptBlock = { ...selected[0]!, text, marks };
+  const drop = new Set(selected.slice(1).map((block) => block.id));
+  return blocks.map((block) => (block.id === keepId ? merged : block)).filter((block) => !drop.has(block.id));
+}
+

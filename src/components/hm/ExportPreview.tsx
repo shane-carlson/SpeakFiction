@@ -192,13 +192,14 @@ export function CleanManuscript({ doc }: { doc: ManuscriptDocument }) {
               </table>
             );
           case 'image':
-            if (!block.imageSrc && !block.imageAlt?.trim()) return null;
+            if (!block.imageSrc && !block.imageAlt?.trim() && !block.imageCaption?.trim()) return null;
             return block.imageSrc ? (
               <figure key={block.id} className="clean-manuscript__figure">
-                <img src={block.imageSrc} alt={block.imageAlt?.trim() || ''} />
+                <img src={block.imageSrc} alt={block.imageAlt?.trim() || block.imageCaption?.trim() || ''} />
+                {block.imageCaption?.trim() ? <figcaption>{block.imageCaption.trim()}</figcaption> : null}
               </figure>
             ) : (
-              <p key={block.id}>[Image: {block.imageAlt?.trim()}]</p>
+              <p key={block.id}>[Image: {block.imageAlt?.trim() || block.imageCaption?.trim()}]</p>
             );
           default:
             return null;

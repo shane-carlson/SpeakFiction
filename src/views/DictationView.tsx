@@ -454,6 +454,18 @@ export function DictationView({
     <div className="dictate-ms-scroll" ref={scrollRef}>
       <CertifiedManuscript
         book={book}
+        canInsertDictation={canInsertDictation}
+        insertAt={place?.atIndex ?? null}
+        onInsertDictation={(target) => {
+          promoteToManuscript(
+            target.atIndex != null
+              ? { atIndex: target.atIndex }
+              : destFromPlace(book.manuscript.blocks, {
+                  blockId: target.blockId,
+                  selectionStart: target.splitOffset,
+                }),
+          );
+        }}
         onPlaceChange={(next) => {
           const scrollTop = manuscriptBodyScroller(scrollRef.current)?.scrollTop ?? next.scrollTop;
           setManuscriptPlace(book.id, { ...next, scrollTop });

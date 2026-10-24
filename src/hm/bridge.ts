@@ -56,6 +56,7 @@ function toEditorBlock(block: Block): ManuscriptBlock {
   if (block.type === 'image') {
     next.imageSrc = block.imageDataUrl ?? '';
     next.imageAlt = block.image?.alt ?? '';
+    next.imageCaption = block.image?.caption ?? block.title ?? '';
     next.mediaId = block.image?.mediaId;
     next.imageMime = block.image?.mime;
   }
@@ -85,14 +86,19 @@ function toSpeakFictionBlock(block: ManuscriptBlock, prev?: Block): Block {
           mediaId: block.mediaId,
           mime,
           alt: block.imageAlt || prev?.image?.alt,
-          caption: prev?.image?.caption,
+          caption: block.imageCaption ?? prev?.image?.caption,
           width: prev?.image?.width,
           height: prev?.image?.height,
         };
       } else if (prev?.image && !block.imageSrc) {
-        next.image = { ...prev.image, alt: block.imageAlt || prev.image.alt };
+        next.image = {
+          ...prev.image,
+          alt: block.imageAlt || prev.image.alt,
+          caption: block.imageCaption ?? prev.image.caption,
+        };
       }
     }
+    if (block.imageCaption != null) next.title = block.imageCaption;
   }
   return next;
 }
