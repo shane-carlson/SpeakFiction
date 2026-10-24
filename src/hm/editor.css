@@ -379,7 +379,7 @@ html[data-mode='dark'] .hm-root {
   background: var(--bg-elev-2);
 }.hm-root .editor-layout {
   display: grid;
-  grid-template-columns: 11.5rem minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   flex: 1;
@@ -387,36 +387,10 @@ html[data-mode='dark'] .hm-root {
   overflow: hidden;
   align-items: stretch;
 }.hm-root .editor-layout.is-focus {
-  grid-template-columns: 11.5rem minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }.hm-root .editor-layout.is-cert-collapsed {
-  grid-template-columns: 11.5rem minmax(0, 1fr) 52px;
-}.hm-root .toolbar-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px 8px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}.hm-root .toolbar-rail__group { display: flex; flex-direction: column; gap: 4px; }
-.hm-root .toolbar-rail__kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.hm-root .toolbar-rail__label {
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}.hm-root .toolbar-rail button {
-  padding: 4px 6px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 11px;
-  cursor: pointer;
+  grid-template-columns: minmax(0, 1fr) 52px;
 }.hm-root .toolbar-text-btn {
   height: 36px;
   padding: 0 10px;
@@ -426,8 +400,7 @@ html[data-mode='dark'] .hm-root {
   color: var(--text);
   font-size: 0.78rem;
   cursor: pointer;
-}.hm-root .toolbar-text-btn.is-active,
-.hm-root .toolbar-rail button.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg-elev)); }
+}.hm-root .toolbar-text-btn.is-active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg-elev)); }
 .hm-root .ms-insert-gap { position: relative; }
 .hm-root .manuscript.is-picking-insert .ms-insert-gap { height: 22px; cursor: pointer; }
 .hm-root .manuscript.is-picking-insert .ms-insert-gap:hover::before,
@@ -1242,19 +1215,11 @@ html[data-mode='dark'] .hm-root {
   .hm-root .editor-layout.is-cert-collapsed,
   .hm-root .editor-layout.is-focus {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
     overflow: hidden;
     height: 100%;
   }
-  .hm-root .toolbar-rail {
-    flex-direction: row;
-    flex-wrap: wrap;
-    max-height: none;
-  }
-  .hm-root .toolbar-rail__group { flex: 1 1 8rem; }
-  .hm-root .manuscript-surface.canvas { grid-row: 2; }
-  .hm-root .points { grid-row: 3; }
   .hm-root .manuscript-surface.canvas {
     overflow: hidden;
     min-height: 0;

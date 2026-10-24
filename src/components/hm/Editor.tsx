@@ -59,7 +59,6 @@ import { HeadingRemoveControl } from './HeadingRemoveControl';
 import { ManuscriptImage } from './ManuscriptImage';
 import { ManuscriptSelectBanner } from './ManuscriptSelectBanner';
 import { ManuscriptTable } from './ManuscriptTable';
-import { ManuscriptToolRail } from './ManuscriptToolRail';
 import { TableGridPicker } from './TableGridPicker';
 import { FieldContextMenu, type ContextMenuState, type MenuAnchor } from './FieldContextMenu';
 import {
@@ -416,9 +415,6 @@ export function Editor({
     if (!focusedBlock || !kindEnabled) return;
     commit((current) => setBlockKind(current, focusedBlock.id, kind));
   };
-  const insertStructureKind = (kind: 'chapter' | 'scene' | 'section' | 'paragraph') => {
-    commit((current) => insertStructure(current, kind, current.blocks.length, ids.current()));
-  };
   const insertAfterIndex = (index: number, kind: BlockType) => {
     commit((current) => insertStructure(current, kind, index, ids.current()));
   };
@@ -498,23 +494,6 @@ export function Editor({
     <div
       className={`editor-layout${focusMode ? ' is-focus' : ''}${certCollapsed ? ' is-cert-collapsed' : ''}`}
     >
-      <ManuscriptToolRail
-        heading={headingValue}
-        kindEnabled={kindEnabled}
-        onInsert={insertStructureKind}
-        onSetKind={applyKind}
-        onClear={onClearFormat}
-        clearEnabled={clearEnabled}
-        pickingInsert={pickingInsert}
-        onTogglePicking={() => setPickingInsert((value) => !value)}
-        selecting={selecting}
-        onToggleSelecting={() => {
-          setSelecting((value) => {
-            if (value) setSelectedIds(new Set());
-            return !value;
-          });
-        }}
-      />
       <main className={`canvas manuscript-surface${showPreview ? ' is-preview' : ''}`}>
         <div className={`canvas-head${showReplace ? ' is-replace-open' : ''}`}>
         <div className="toolbar" role="toolbar" aria-label="Manuscript tools">
