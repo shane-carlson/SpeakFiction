@@ -174,7 +174,7 @@ function readNoteAudio(id) {
     } catch {
       /* default mime */
     }
-    return { ok: true, mime, bytes: Array.from(fs.readFileSync(dest)) };
+    return { ok: true, mime, bytes: fs.readFileSync(dest) };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'Could not read that take.' };
   }

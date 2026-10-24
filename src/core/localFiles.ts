@@ -91,6 +91,10 @@ export interface OpenBytesResult {
   mime?: string;
 }
 
+function asUint8Array(bytes: Uint8Array | number[]): Uint8Array {
+  return bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+}
+
 function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
@@ -126,7 +130,7 @@ export async function openBytesFile(opts?: { filters?: FileFilter[]; accept?: st
     return {
       ok: true,
       path: res.path,
-      bytes: Uint8Array.from(res.bytes),
+      bytes: asUint8Array(res.bytes),
       mime: res.mime,
     };
   }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUDIO_IMPORT_EXTENSIONS,
+  importedAudioTooLongMessage,
   isAudioImportName,
   mimeForAudioImport,
   slicePcmChunks,
@@ -29,5 +30,10 @@ describe('audio import formats', () => {
     expect(chunks.reduce((n, c) => n + c.length, 0)).toBe(samples.length);
     expect(chunks[0][0]).toBe(0.5);
     expect(chunks[chunks.length - 1][chunks[chunks.length - 1].length - 1]).toBe(-0.25);
+  });
+
+  it('rejects decoded takes longer than 20 minutes before mix-down', () => {
+    expect(importedAudioTooLongMessage(12 * 60 * 1000)).toBeNull();
+    expect(importedAudioTooLongMessage(21 * 60 * 1000)).toMatch(/20 minutes/i);
   });
 });

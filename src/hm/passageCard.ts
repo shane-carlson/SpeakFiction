@@ -14,17 +14,33 @@ export interface PassageSpanLink {
   certificationId?: string;
 }
 
-/** Card id for a span, or null when the span has no id to hang a card on. */
+/** Card id for a span. Unspanned / seed text uses `bare` so hover can still find a pane card. */
 export function passageCardId(blockId: string, span: PassageSpanLink): string | null {
-  if (!span.id) return null;
+  if (!blockId) return null;
   if (isSealedOrigin(span.origin) && span.certificationId) return span.certificationId;
-  return `span:${blockId}:${span.id}`;
+  return `span:${blockId}:${span.id || 'bare'}`;
 }
 
 export interface OpenPassageCard {
   id: string;
   origin: ProvenanceSpan['origin'];
   text: string;
+}
+
+function uncoveredText(text: string, spans: { start: number; end: number }[]): string {
+  if (!text) return '';
+  if (spans.length === 0) return text;
+  const covered = new Uint8Array(text.length);
+  for (const span of spans) {
+    const start = Math.max(0, span.start);
+    const end = Math.min(text.length, span.end);
+    if (end > start) covered.fill(1, start, end);
+  }
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    if (!covered[i]) out += text[i];
+  }
+  return out;
 }
 
 /** Unsealed passages shown as cards in the certification highlight view. */
@@ -43,6 +59,11 @@ export function openPassageCards(doc: ManuscriptDocument): OpenPassageCard[] {
       const id = passageCardId(block.id, span);
       if (!id) continue;
       cards.push({ id, origin: span.origin, text: slice });
+    }
+    const bare = uncoveredText(text, spans);
+    if (bare.trim()) {
+      const id = passageCardId(block.id, { id: 'bare', origin: 'other' });
+      if (id) cards.push({ id, origin: 'other', text: bare });
     }
   }
   return cards;

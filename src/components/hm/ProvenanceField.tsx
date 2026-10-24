@@ -77,14 +77,12 @@ function paint(root: HTMLElement, rendered: Piece[], showProvenance: boolean, bl
       span.className = `prov prov-${piece.origin}${piece.hit ? ' find-hit' : ''}`;
       span.dataset.origin = piece.origin;
       if (piece.certificationId) span.dataset.cert = piece.certificationId;
-      if (piece.spanId) {
-        const cardId = passageCardId(blockId, {
-          id: piece.spanId,
-          origin: piece.origin,
-          certificationId: piece.certificationId,
-        });
-        if (cardId) span.dataset.card = cardId;
-      }
+      const cardId = passageCardId(blockId, {
+        id: piece.spanId || 'bare',
+        origin: piece.origin,
+        certificationId: piece.certificationId,
+      });
+      if (cardId) span.dataset.card = cardId;
       if (piece.pasteHint) span.title = piece.pasteHint;
     } else {
       span.className = piece.hit ? 'find-hit' : 'prov-plain';
@@ -440,17 +438,12 @@ export function ProvenanceField({
       }}
       onKeyUp={report}
       onMouseUp={report}
-      onMouseOver={(e) => {
+      onPointerMove={(e) => {
         if (!showProvenance || !onCertificationHover) return;
         const el = e.target instanceof Element ? e.target : null;
         const node = el?.closest('.prov');
-        onCertificationHover(node instanceof HTMLElement ? node.dataset.card || null : null);
-      }}
-      onMouseLeave={(e) => {
-        if (!showProvenance || !onCertificationHover) return;
-        const next = e.relatedTarget;
-        if (next instanceof Element && next.closest('.prov')) return;
-        onCertificationHover(null);
+        const cardId = node instanceof HTMLElement ? node.dataset.card : undefined;
+        if (cardId) onCertificationHover(cardId);
       }}
       onFocus={report}
       onContextMenu={(e) => {

@@ -1,5 +1,5 @@
 import { pipeline, env, type AutomaticSpeechRecognitionPipeline } from '@huggingface/transformers';
-import { resampleMono, rms } from './resample';
+import { pcmForNativeIpc, resampleMono, rms } from './resample';
 import { MIN_DECODE_RMS } from './speechUtterance';
 import { cleanTranscript } from './transcriptCleanup';
 import {
@@ -150,7 +150,10 @@ async function ensureWasm(profile: SttProfile, onProgress?: SttProgress): Promis
   return pipelinePromise;
 }
 
-export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfile> {
+export async function ensureLocalStt(
+  onProgress?: SttProgress,
+  opts: { wasmFallback?: boolean } = {},
+): Promise<SttProfile> {
   onProgress?.(1);
   const bridge = nativeBridge();
   if (bridge) {
@@ -162,6 +165,9 @@ export async function ensureLocalStt(onProgress?: SttProgress): Promise<SttProfi
         return cachedProfile;
       }
     } catch (err) {
+      if (opts.wasmFallback === false) {
+        throw asSpeechError(err, 'Could not load the on-device speech model.');
+      }
       cachedProfile = pickSttProfile(hardwareFromNavigator(), false);
       console.warn('Native STT ensure failed, using WASM', err);
     } finally {
@@ -201,21 +207,21 @@ async function transcribeWasm(audio: Float32Array, profile: SttProfile, prompt?:
 export async function transcribePcm(
   samples: Float32Array,
   sampleRate: number,
-  opts: { allowQuiet?: boolean; timeoutMs?: number; prompt?: string } = {},
+  opts: { allowQuiet?: boolean; timeoutMs?: number; prompt?: string; wasmFallback?: boolean } = {},
 ): Promise<string> {
   if (samples.length === 0) return '';
   if (!opts.allowQuiet) {
     if (samples.length < sampleRate * 0.12) return '';
     if (rms(samples) < MIN_DECODE_RMS) return '';
   }
-  const audio = resampleMono(samples, sampleRate, STT_SAMPLE_RATE);
+  const audio = pcmForNativeIpc(resampleMono(samples, sampleRate, STT_SAMPLE_RATE));
   const profile = await resolveProfile();
   const bridge = nativeBridge();
   const timeoutMs = opts.timeoutMs ?? (opts.allowQuiet ? IMPORT_TIMEOUT_MS : NATIVE_TIMEOUT_MS);
   if (bridge && profile.runtime !== 'wasm') {
     try {
       const text = await withTimeout(
-        bridge.transcribe(Array.from(audio), STT_SAMPLE_RATE, opts.prompt),
+        bridge.transcribe(audio, STT_SAMPLE_RATE, opts.prompt),
         timeoutMs,
         'Native Whisper',
       );
@@ -223,7 +229,9 @@ export async function transcribePcm(
       return cleanTranscript(text);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err || '');
-      if (isSpeechModelOom(message)) throw asSpeechError(err, 'Could not load the on-device speech model.');
+      if (isSpeechModelOom(message) || opts.wasmFallback === false) {
+        throw asSpeechError(err, 'Could not transcribe that audio on this computer.');
+      }
       console.warn('Native Whisper failed, falling back to WASM', err);
       const wasmProfile = pickSttProfile({ ...profile.hardware, ramGB: Math.min(profile.hardware.ramGB, 4) }, false);
       cachedProfile = wasmProfile;
@@ -241,11 +249,11 @@ export async function transcribePcm(
   );
 }
 
-/** File import: decode every chunk. Do not drop quiet or short slices. */
+/** File import: decode every chunk. Do not drop quiet or short slices. Never load WASM after a native fail. */
 export async function transcribeImportedPcm(
   samples: Float32Array,
   sampleRate: number,
   prompt?: string,
 ): Promise<string> {
-  return transcribePcm(samples, sampleRate, { allowQuiet: true, prompt });
+  return transcribePcm(samples, sampleRate, { allowQuiet: true, prompt, wasmFallback: false });
 }

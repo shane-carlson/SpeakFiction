@@ -18,13 +18,14 @@ vi.mock('../audioImport', async (importOriginal) => {
 });
 
 import { decodeImportedAudio } from '../audioImport';
-import { transcribeImportedPcm } from '../localStt';
+import { ensureLocalStt, transcribeImportedPcm } from '../localStt';
 
 describe('audio import progress', () => {
   beforeEach(() => {
     vi.mocked(decodeImportedAudio).mockReset();
     vi.mocked(transcribeImportedPcm).mockReset();
     vi.mocked(transcribeImportedPcm).mockResolvedValue('the wind howled');
+    vi.mocked(ensureLocalStt).mockClear();
   });
 
   it('names each slice of a long take with clock times', () => {
@@ -72,5 +73,15 @@ describe('audio import progress', () => {
     });
     await transcribeImportedAudioFile(new Uint8Array([1]), 'audio/mp4', undefined, 'Names: Kaeldros.');
     expect(vi.mocked(transcribeImportedPcm).mock.calls[0]?.[2]).toBe('Names: Kaeldros.');
+  });
+
+  it('does not load WASM as a fallback when importing a file', async () => {
+    vi.mocked(decodeImportedAudio).mockResolvedValue({
+      samples: new Float32Array(16_000),
+      sampleRate: 16_000,
+      durationMs: 1_000,
+    });
+    await transcribeImportedAudioFile(new Uint8Array([1]), 'audio/mp4');
+    expect(vi.mocked(ensureLocalStt).mock.calls[0]?.[1]).toEqual({ wasmFallback: false });
   });
 });

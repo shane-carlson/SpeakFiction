@@ -52,13 +52,16 @@ export async function transcribeImportedAudioFile(
       fraction: clampFraction(0.12 + (Math.min(100, Math.max(0, percent)) / 100) * 0.06),
       label: 'Loading the speech model…',
     });
-  });
+  }, { wasmFallback: false });
   const chunks = slicePcmChunks(decoded.samples, decoded.sampleRate);
   const parts: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
     onProgress?.(audioImportChunkProgress(i, chunks.length, decoded.durationMs));
     const text = (await transcribeImportedPcm(chunks[i], decoded.sampleRate, prompt)).trim();
     if (text) parts.push(text);
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
   }
   onProgress?.({ fraction: 0.94, label: 'Preparing the transcript…' });
   return { text: parts.join(' ').replace(/\s+/g, ' ').trim(), durationMs: decoded.durationMs };
