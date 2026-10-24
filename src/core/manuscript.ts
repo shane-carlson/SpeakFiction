@@ -94,7 +94,10 @@ function spliceAround(
   }
 
   const target = blocks[index];
-  if (typeof dest?.splitOffset === 'number' && target?.type === 'paragraph') {
+  if (
+    typeof dest?.splitOffset === 'number' &&
+    (target?.type === 'paragraph' || target?.type === 'blockquote')
+  ) {
     const text = target.text ?? '';
     const off = Math.max(0, Math.min(Math.floor(dest.splitOffset), text.length));
     if (off > 0 && off < text.length) {
@@ -148,6 +151,9 @@ const STRUCTURE_RANK: Record<BlockType, number> = {
   scene: 1,
   section: 1,
   paragraph: 2,
+  blockquote: 2,
+  pageBreak: 2,
+  divider: 2,
   image: 2,
   table: 2,
 };
@@ -535,8 +541,12 @@ export function manuscriptStats(m: Manuscript): ManuscriptStats {
         stats.sections++;
         break;
       case 'paragraph':
+      case 'blockquote':
         stats.paragraphs++;
         stats.words += countWords(b.text ?? '');
+        break;
+      case 'pageBreak':
+      case 'divider':
         break;
       case 'image':
         stats.images++;
@@ -573,7 +583,7 @@ export function destFromPlace(
   }
   if (place?.blockId) {
     const atIndex = blocks.findIndex((b) => b.id === place.blockId);
-    if (atIndex >= 0 && blocks[atIndex]?.type === 'paragraph') {
+    if (atIndex >= 0 && (blocks[atIndex]?.type === 'paragraph' || blocks[atIndex]?.type === 'blockquote')) {
       return {
         atBlockId: place.blockId,
         atIndex,

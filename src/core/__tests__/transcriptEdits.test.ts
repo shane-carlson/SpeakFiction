@@ -17,6 +17,12 @@ describe('wordCorrectionsFromEdit', () => {
     expect(wordCorrectionsFromEdit('the wind howled. extra sentence. rain.', 'the wind howled. rain.')).toEqual([]);
   });
 
+  it('ignores a letter added while a word is still being typed', () => {
+    expect(wordCorrectionsFromEdit('new chapter titled T', 'new chapter titled Th')).toEqual([]);
+    expect(wordCorrectionsFromEdit('new chapter titled Th', 'new chapter titled The')).toEqual([]);
+    expect(wordCorrectionsFromEdit('the wind', 'th wind')).toEqual([]);
+  });
+
   it('ignores a wholesale replace', () => {
     expect(wordCorrectionsFromEdit('alpha beta gamma delta epsilon zeta', 'one two three four five six seven eight')).toEqual(
       [],

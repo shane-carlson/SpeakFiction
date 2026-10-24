@@ -7,6 +7,7 @@ import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from './audioSettings';
 import { isManuscriptImageMime } from './manuscriptMedia';
 import { INLINE_MARK_KINDS } from './richText';
 import { parseSeriesBookNumber, normalizeSeriesBookFields } from './seriesBooks';
+import { normalizeCertification } from '../hm/state';
 
 export const BACKUP_KIND_BOOK = 'speakfiction.book' as const;
 export const BACKUP_KIND_LIBRARY = 'speakfiction.library' as const;
@@ -158,7 +159,17 @@ function normalizeImage(raw: unknown): ManuscriptImage | undefined {
   };
 }
 
-const BLOCK_TYPES = new Set(['chapter', 'scene', 'section', 'paragraph', 'image', 'table']);
+const BLOCK_TYPES = new Set([
+  'chapter',
+  'scene',
+  'section',
+  'paragraph',
+  'blockquote',
+  'pageBreak',
+  'divider',
+  'image',
+  'table',
+]);
 
 function normalizeTable(raw: unknown): ManuscriptTable | undefined {
   const rec = asRecord(raw);
@@ -184,7 +195,7 @@ function normalizeTable(raw: unknown): ManuscriptTable | undefined {
 function normalizeManuscript(raw: unknown): Manuscript {
   const rec = asRecord(raw);
   const blocks = rec && Array.isArray(rec.blocks) ? rec.blocks : [];
-  return {
+  const base: Manuscript = {
     blocks: blocks
       .map((b) => asRecord(b))
       .filter((b): b is Record<string, unknown> =>
@@ -208,9 +219,21 @@ function normalizeManuscript(raw: unknown): Manuscript {
           const table = normalizeTable(b.table);
           if (table) block.table = table;
         }
+        if (b.listStyle === 'bullet' || b.listStyle === 'number' || b.listStyle === null) {
+          block.listStyle = b.listStyle;
+        }
+        if (typeof b.indentLevel === 'number' && Number.isFinite(b.indentLevel)) {
+          block.indentLevel = Math.max(0, Math.floor(b.indentLevel));
+        }
+        if (b.dividerStyle === 'scene' || b.dividerStyle === 'line' || b.dividerStyle === 'ornament') {
+          block.dividerStyle = b.dividerStyle;
+        }
+        if (typeof b.imageDataUrl === 'string' && b.imageDataUrl) block.imageDataUrl = b.imageDataUrl;
         return block;
       }),
   };
+  const certification = normalizeCertification(rec?.certification);
+  return certification ? { ...base, certification } : base;
 }
 
 function normalizeNameVoiceClips(raw: unknown): NameVoiceClip[] | undefined {

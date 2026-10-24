@@ -73,6 +73,9 @@ import {
 import { sessionStateStorage } from './core/sessionStorage';
 import { DICTATE_SPLIT_DEFAULT, MANUSCRIPT_SPLIT_DEFAULT, normalizeDictateSplit, normalizeManuscriptSplit } from './core/splitRatio';
 import { uid } from './core/util';
+import { manuscriptFromDocument } from './hm/bridge';
+import type { ManuscriptDocument } from './hm/document';
+import { sealDictationChange } from './hm/sealDictation';
 import { mergeNameVoiceClips, purgeNameVoiceClips } from './core/nameVoiceClips';
 import type { AppliedCorrection } from './core/nameLibrary';
 import { bookIdOwningName, mergeSeriesNameLibrary } from './core/seriesNames';
@@ -164,6 +167,8 @@ interface AppState {
     dest?: ManuscriptInsertAt,
     opts?: { preserveProse?: boolean },
   ) => DictationOutcome;
+  /** Replace the open manuscript from the certified editor. */
+  replaceManuscriptDocument: (bookId: string, doc: ManuscriptDocument) => void;
   /** Record transcription-box substitutions in the on-device model and name library. */
   learnTranscriptEdits: (bookId: string, before: string, after: string) => void;
   /** Names, cues, and genre punctuation into the transcription box. Never writes the manuscript. */
@@ -345,6 +350,13 @@ function dropImageMedia(blocks: Book['manuscript']['blocks']): void {
 function dropBookMedia(book: Book): void {
   dropImageMedia(book.manuscript?.blocks ?? []);
   for (const entry of book.nameLibrary ?? []) void purgeNameVoiceClips(entry);
+}
+
+function manuscriptWith(
+  current: Book['manuscript'],
+  blocks: Book['manuscript']['blocks'],
+): Book['manuscript'] {
+  return current.certification ? { blocks, certification: current.certification } : { blocks };
 }
 
 function pushHistory(
@@ -594,10 +606,18 @@ export const useStore = create<AppState>()(
           .filter((s) => s.type === 'text')
           .reduce((acc, s) => acc + (s.type === 'text' ? s.text.trim().split(/\s+/).filter(Boolean).length : 0), 0);
 
+        const certification = sealDictationChange({
+          before: book.manuscript.blocks,
+          after: newBlocks,
+          certification: book.manuscript.certification,
+          now: new Date().toISOString(),
+          newId: () => uid('span'),
+        });
+
         set((state) => {
           let books = patchBook(state.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: newBlocks },
+            manuscript: { blocks: newBlocks, certification },
             adaptive: result.adaptive,
           }));
           books = upsertSpokenCharacters(books, bookId, result.newCharacters);
@@ -606,6 +626,16 @@ export const useStore = create<AppState>()(
         noteManuscriptVersion(bookId, newBlocks, 'dictate');
 
         return { corrections: result.corrections, structureAdded, wordsAdded };
+      },
+
+      replaceManuscriptDocument: (bookId, doc) => {
+        const book = get().books.find((b) => b.id === bookId);
+        if (!book) return;
+        const manuscript = manuscriptFromDocument(doc, book.manuscript.blocks);
+        set((s) => ({
+          books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript })),
+        }));
+        noteBookVersion(get().books, bookId, 'edit');
       },
 
       learnTranscriptEdits: (bookId, before, after) => {
@@ -635,9 +665,10 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: {
-              blocks: setParagraphContent(b.manuscript.blocks, blockId, text, marks),
-            },
+            manuscript: manuscriptWith(
+              b.manuscript,
+              setParagraphContent(b.manuscript.blocks, blockId, text, marks),
+            ),
           })),
         }));
         noteBookVersion(get().books, bookId, 'edit');
@@ -647,7 +678,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: setBlockTitle(b.manuscript.blocks, blockId, title) },
+            manuscript: manuscriptWith(b.manuscript, setBlockTitle(b.manuscript.blocks, blockId, title)),
           })),
         }));
         noteBookVersion(get().books, bookId, 'edit');
@@ -661,7 +692,7 @@ export const useStore = create<AppState>()(
           return {
             books: patchBook(s.books, bookId, (b) => ({
               ...b,
-              manuscript: { blocks: b.manuscript.blocks.filter((blk) => blk.id !== blockId) },
+              manuscript: manuscriptWith(b.manuscript, b.manuscript.blocks.filter((blk) => blk.id !== blockId)),
             })),
             manuscriptHistory: pushHistory(s, bookId),
           };
@@ -673,7 +704,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: unwrapHeading(b.manuscript.blocks, blockId) },
+            manuscript: manuscriptWith(b.manuscript, unwrapHeading(b.manuscript.blocks, blockId)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -688,7 +719,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: mergeParagraphBlocks(b.manuscript.blocks, ids) },
+            manuscript: manuscriptWith(b.manuscript, mergeParagraphBlocks(b.manuscript.blocks, ids)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -703,7 +734,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: dropParagraphBlocks(b.manuscript.blocks, ids) },
+            manuscript: manuscriptWith(b.manuscript, dropParagraphBlocks(b.manuscript.blocks, ids)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -725,7 +756,7 @@ export const useStore = create<AppState>()(
           return {
             books: patchBook(s.books, bookId, (b) => ({
               ...b,
-              manuscript: { blocks: deleteMovableRange(b.manuscript.blocks, blockId) },
+              manuscript: manuscriptWith(b.manuscript, deleteMovableRange(b.manuscript.blocks, blockId)),
             })),
             manuscriptHistory: pushHistory(s, bookId),
           };
@@ -737,7 +768,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: moveBlockRange(b.manuscript.blocks, fromIndex, dropIndex) },
+            manuscript: manuscriptWith(b.manuscript, moveBlockRange(b.manuscript.blocks, fromIndex, dropIndex)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -748,7 +779,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: insertEmptyStructure(b.manuscript.blocks, kind, dest) },
+            manuscript: manuscriptWith(b.manuscript, insertEmptyStructure(b.manuscript.blocks, kind, dest)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -759,7 +790,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: insertImageBlock(b.manuscript.blocks, image, dest) },
+            manuscript: manuscriptWith(b.manuscript, insertImageBlock(b.manuscript.blocks, image, dest)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -770,7 +801,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: insertTableBlock(b.manuscript.blocks, rows, cols, dest) },
+            manuscript: manuscriptWith(b.manuscript, insertTableBlock(b.manuscript.blocks, rows, cols, dest)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -781,7 +812,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: setTableCellText(b.manuscript.blocks, blockId, row, col, text) },
+            manuscript: manuscriptWith(b.manuscript, setTableCellText(b.manuscript.blocks, blockId, row, col, text)),
           })),
         }));
         noteBookVersion(get().books, bookId, 'edit');
@@ -791,7 +822,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: formatParagraph(b.manuscript.blocks, blockId, range, action) },
+            manuscript: manuscriptWith(b.manuscript, formatParagraph(b.manuscript.blocks, blockId, range, action)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -802,7 +833,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: setBlockKind(b.manuscript.blocks, blockId, kind) },
+            manuscript: manuscriptWith(b.manuscript, setBlockKind(b.manuscript.blocks, blockId, kind)),
           })),
           manuscriptHistory: pushHistory(s, bookId),
         }));
@@ -813,7 +844,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: setImageCaption(b.manuscript.blocks, blockId, caption) },
+            manuscript: manuscriptWith(b.manuscript, setImageCaption(b.manuscript.blocks, blockId, caption)),
           })),
         }));
         noteBookVersion(get().books, bookId, 'edit');
@@ -823,7 +854,7 @@ export const useStore = create<AppState>()(
         set((s) => ({
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: setImageAlt(b.manuscript.blocks, blockId, alt) },
+            manuscript: manuscriptWith(b.manuscript, setImageAlt(b.manuscript.blocks, blockId, alt)),
           })),
         }));
         noteBookVersion(get().books, bookId, 'edit');
@@ -836,7 +867,7 @@ export const useStore = create<AppState>()(
           if (!book || !hist?.past.length) return s;
           const prev = hist.past[hist.past.length - 1];
           return {
-            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: { blocks: prev } })),
+            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: manuscriptWith(b.manuscript, prev) })),
             manuscriptHistory: {
               ...s.manuscriptHistory,
               [bookId]: {
@@ -854,7 +885,7 @@ export const useStore = create<AppState>()(
           if (!book || !hist?.future.length) return s;
           const next = hist.future[0];
           return {
-            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: { blocks: next } })),
+            books: patchBook(s.books, bookId, (b) => ({ ...b, manuscript: manuscriptWith(b.manuscript, next) })),
             manuscriptHistory: {
               ...s.manuscriptHistory,
               [bookId]: {
@@ -892,6 +923,7 @@ export const useStore = create<AppState>()(
           const snap: VoiceCommandSnapshot = {
             draft: cloneDraft(s.dictationDrafts[bookId] ?? []),
             blocks: book.manuscript.blocks,
+            certification: book.manuscript.certification,
           };
           return {
             voiceCommandUndo: {
@@ -910,7 +942,9 @@ export const useStore = create<AppState>()(
           dictationDrafts: { ...s.dictationDrafts, [bookId]: snap.draft },
           books: patchBook(s.books, bookId, (b) => ({
             ...b,
-            manuscript: { blocks: snap.blocks },
+            manuscript: snap.certification
+              ? { blocks: snap.blocks, certification: snap.certification }
+              : manuscriptWith(b.manuscript, snap.blocks),
           })),
         });
         return true;

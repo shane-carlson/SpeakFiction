@@ -1,3 +1,5 @@
+import type { ManuscriptCertification } from '../hm/state';
+
 /**
  * Core domain types for SpeakFiction.
  *
@@ -91,7 +93,19 @@ export interface GenreProfile {
   sceneBreakGlyph: string;
 }
 
-export type BlockType = 'chapter' | 'scene' | 'section' | 'paragraph' | 'image' | 'table';
+export type BlockType =
+  | 'chapter'
+  | 'scene'
+  | 'section'
+  | 'paragraph'
+  | 'blockquote'
+  | 'pageBreak'
+  | 'divider'
+  | 'image'
+  | 'table';
+
+export type ListStyle = 'bullet' | 'number' | null;
+export type DividerStyle = 'scene' | 'line' | 'ornament';
 
 /** Inline formatting on a paragraph. Offsets are into `text` (plain string). */
 export type InlineMarkKind = 'bold' | 'italic' | 'underline' | 'strike';
@@ -139,12 +153,21 @@ export interface Block {
   marks?: InlineMark[];
   /** Present when `type` is `image`. */
   image?: ManuscriptImage;
+  /** Inline picture from the manuscript editor when it is not in the media store. */
+  imageDataUrl?: string;
   /** Present when `type` is `table`. */
   table?: ManuscriptTable;
+  /** Paragraph list style and indent. */
+  listStyle?: ListStyle;
+  indentLevel?: number;
+  /** Divider appearance when `type` is `divider`. */
+  dividerStyle?: DividerStyle;
 }
 
 export interface Manuscript {
   blocks: Block[];
+  /** Keyboard and dictation seals. Absent on manuscripts that have not been certified yet. */
+  certification?: ManuscriptCertification;
 }
 
 /** Serializable state for the adaptive on-device model. */
