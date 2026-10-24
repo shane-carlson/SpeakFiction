@@ -140,6 +140,13 @@ export function ProvenanceField({
   onInsertPageBreak,
   onInsertDivider,
   onInsertBlockquote,
+  canInsertDictation = false,
+  onInsertDictation,
+  canUnselectInsert = false,
+  onUnselectInsert,
+  headingKind = null,
+  onUnwrapHeading,
+  onDeleteHeading,
 }: {
   text: string;
   spans: ProvenanceSpan[];
@@ -165,11 +172,18 @@ export function ProvenanceField({
   onCertificationHover?: (cardId: string | null) => void;
   listStyle?: ListStyle;
   indentLevel?: number;
-  onInsertTable?: () => void;
+  onInsertTable?: (x: number, y: number) => void;
   onInsertImage?: () => void;
   onInsertPageBreak?: () => void;
   onInsertDivider?: () => void;
   onInsertBlockquote?: () => void;
+  canInsertDictation?: boolean;
+  onInsertDictation?: () => void;
+  canUnselectInsert?: boolean;
+  onUnselectInsert?: () => void;
+  headingKind?: 'chapter' | 'scene' | 'section' | null;
+  onUnwrapHeading?: () => void;
+  onDeleteHeading?: () => void;
 }) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const anchorRef = useRef<MenuAnchor | null>(null);
@@ -525,11 +539,18 @@ export function ProvenanceField({
         sel?.removeAllRanges();
         sel?.addRange(range);
       }}
-      onInsertTable={() => onInsertTable?.()}
+      onInsertTable={(x, y) => onInsertTable?.(x, y)}
       onInsertImage={() => onInsertImage?.()}
       onInsertPageBreak={() => onInsertPageBreak?.()}
       onInsertDivider={() => onInsertDivider?.()}
       onInsertBlockquote={() => onInsertBlockquote?.()}
+      canInsertDictation={canInsertDictation}
+      onInsertDictation={onInsertDictation}
+      canUnselectInsert={canUnselectInsert}
+      onUnselectInsert={onUnselectInsert}
+      headingKind={headingKind}
+      onUnwrapHeading={onUnwrapHeading}
+      onDeleteHeading={onDeleteHeading}
       onReplaceWord={(replacement) => {
         const range = replaceRef.current;
         if (!range) return;

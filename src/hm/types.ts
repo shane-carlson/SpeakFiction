@@ -42,6 +42,8 @@ export interface ManuscriptBlock {
   /** Data URL or object URL when type is `image`. */
   imageSrc?: string;
   imageAlt?: string;
+  /** Visible caption, separate from alt text. */
+  imageCaption?: string;
   /** SpeakFiction media-store id when the picture is not an inline data URL. */
   mediaId?: string;
   imageMime?: string;

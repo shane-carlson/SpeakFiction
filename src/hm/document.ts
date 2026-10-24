@@ -25,12 +25,19 @@ import {
   manuscriptStats,
   moveBlockBy,
   moveBlockRange,
+  combineParagraphs as combineParagraphBlocks,
+  deleteMovableRange,
+  deleteParagraphs as deleteParagraphBlocks,
+  emptyTableRows,
+  isHeadingType,
   movableRange,
+  setBlockKind as setBlockKindBlocks,
   unwrapHeading,
   type BlockRange,
   type ManuscriptMatch,
+  type StructureHeadingKind,
 } from './manuscript';
-import { expandCollapsedRange, toggleMark } from './richText';
+import { clearFormatting, expandCollapsedRange, normalizeMarks, toggleMark } from './richText';
 import type { ManuscriptFontId } from './typography';
 import { isProseBlock, type BlockType, type DividerStyle, type InlineMarkKind, type ManuscriptBlock } from './types';
 
@@ -425,8 +432,10 @@ export function insertStructure(
   kind: BlockType,
   index: number,
   id: string,
+  table?: { rows: number; cols: number },
 ): ManuscriptDocument {
   const block = emptyBlock(kind, id);
+  if (kind === 'table' && table) block.tableRows = emptyTableRows(table.rows, table.cols);
   const at = Math.max(0, Math.min(index, doc.blocks.length));
   const blocks = [...doc.blocks.slice(0, at), block, ...doc.blocks.slice(at)];
   return { ...doc, blocks, provenance: { ...doc.provenance, [id]: { title: [], text: [] } } };
@@ -668,7 +677,7 @@ export function updateTableRows(doc: ManuscriptDocument, blockId: string, tableR
 export function updateImageBlock(
   doc: ManuscriptDocument,
   blockId: string,
-  patch: { imageSrc?: string; imageAlt?: string },
+  patch: { imageSrc?: string; imageAlt?: string; imageCaption?: string },
 ): ManuscriptDocument {
   return {
     ...doc,
@@ -685,6 +694,117 @@ export function updateDividerBlock(
     ...doc,
     blocks: doc.blocks.map((b) => (b.id === blockId && b.type === 'divider' ? { ...b, ...patch } : b)),
   };
+}
+
+/** Strip inline marks on the selection, or on the whole paragraph when the caret is collapsed. */
+export function clearBlockFormatting(
+  doc: ManuscriptDocument,
+  blockId: string,
+  range: { start: number; end: number },
+): ManuscriptDocument {
+  return {
+    ...doc,
+    blocks: doc.blocks.map((block) => {
+      if (block.id !== blockId || !isProseBlock(block.type)) return block;
+      const whole = range.end <= range.start;
+      const start = whole ? 0 : range.start;
+      const end = whole ? block.text.length : range.end;
+      return { ...block, marks: clearFormatting(block.marks, start, end, block.text.length) };
+    }),
+  };
+}
+
+export function setBlockKind(
+  doc: ManuscriptDocument,
+  blockId: string,
+  kind: StructureHeadingKind,
+): ManuscriptDocument {
+  const block = doc.blocks.find((item) => item.id === blockId);
+  if (!block || block.type === 'image' || block.type === 'table' || block.type === kind) return doc;
+  const prov = doc.provenance[blockId] ?? { title: [], text: [] };
+  const fromHeading = isHeadingType(block.type);
+  const toHeading = kind !== 'paragraph';
+  const spans = fromHeading ? prov.title : prov.text;
+  const blocks = setBlockKindBlocks(doc.blocks, blockId, kind);
+  return {
+    ...doc,
+    blocks,
+    provenance: {
+      ...doc.provenance,
+      [blockId]: toHeading ? { title: spans, text: [] } : { title: [], text: fromHeading ? spans : prov.text },
+    },
+  };
+}
+
+/** Delete a chapter, scene, or section and every block under it. */
+export function deleteHeadingRange(doc: ManuscriptDocument, blockId: string): ManuscriptDocument {
+  const nextBlocks = deleteMovableRange(doc.blocks, blockId);
+  if (nextBlocks === doc.blocks) return doc;
+  const kept = new Set(nextBlocks.map((block) => block.id));
+  const provenance = { ...doc.provenance };
+  for (const id of Object.keys(provenance)) {
+    if (!kept.has(id)) delete provenance[id];
+  }
+  return prunePoints({ ...doc, blocks: nextBlocks, provenance });
+}
+
+export function deleteParagraphs(doc: ManuscriptDocument, ids: Iterable<string>): ManuscriptDocument {
+  const nextBlocks = deleteParagraphBlocks(doc.blocks, ids);
+  if (nextBlocks === doc.blocks) return doc;
+  const kept = new Set(nextBlocks.map((block) => block.id));
+  const provenance = { ...doc.provenance };
+  for (const id of Object.keys(provenance)) {
+    if (!kept.has(id)) delete provenance[id];
+  }
+  return prunePoints({ ...doc, blocks: nextBlocks, provenance });
+}
+
+export async function combineParagraphs(args: {
+  doc: ManuscriptDocument;
+  ids: Iterable<string>;
+  now: string;
+  newId: () => string;
+}): Promise<ManuscriptDocument> {
+  const wanted = new Set(args.ids);
+  const selected = args.doc.blocks.filter((block) => block.type === 'paragraph' && wanted.has(block.id));
+  if (selected.length < 2) return args.doc;
+  const keep = selected[0]!;
+  let text = '';
+  const spans: ProvenanceSpan[] = [];
+  for (const part of selected) {
+    const piece = part.text ?? '';
+    const joiner = text && piece ? ' ' : '';
+    const offset = text.length + joiner.length;
+    if (joiner) text += joiner;
+    for (const span of args.doc.provenance[part.id]?.text ?? []) {
+      spans.push({ ...span, start: span.start + offset, end: span.end + offset });
+    }
+    text += piece;
+  }
+  const mergedBlocks = combineParagraphBlocks(args.doc.blocks, args.ids);
+  const sealed = await syncBlockPoints({
+    blockId: keep.id,
+    text,
+    spans,
+    points: args.doc.points,
+    evidence: null,
+    now: args.now,
+    newId: args.newId,
+  });
+  const marks = normalizeMarks(mergedBlocks.find((block) => block.id === keep.id)?.marks, text.length);
+  const blocks = mergedBlocks.map((block) => (block.id === keep.id ? { ...block, text, marks } : block));
+  const kept = new Set(blocks.map((block) => block.id));
+  const provenance = { ...args.doc.provenance };
+  for (const id of Object.keys(provenance)) {
+    if (!kept.has(id)) delete provenance[id];
+  }
+  provenance[keep.id] = { title: [], text: sealed.spans };
+  return prunePoints({
+    ...args.doc,
+    blocks,
+    provenance,
+    points: sealed.points,
+  });
 }
 
 export function toggleFormat(
@@ -834,6 +954,7 @@ export function manuscriptExport(doc: ManuscriptDocument, exportedAt: string) {
       tableRows: block.type === 'table' ? block.tableRows : undefined,
       imageSrc: block.type === 'image' ? block.imageSrc : undefined,
       imageAlt: block.type === 'image' ? block.imageAlt : undefined,
+      imageCaption: block.type === 'image' ? block.imageCaption : undefined,
     })),
   };
 }

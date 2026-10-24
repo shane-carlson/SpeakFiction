@@ -135,6 +135,7 @@ function bodyMarkdown(doc: ManuscriptDocument): string {
         if (block.imageSrc) {
           lines.push(`![${block.imageAlt?.trim() || 'image'}](${block.imageSrc})`, '');
         }
+        if (block.imageCaption?.trim()) lines.push(block.imageCaption.trim(), '');
         break;
     }
   }
@@ -186,6 +187,7 @@ function bodyPlain(doc: ManuscriptDocument): string {
       case 'image':
         if (block.imageAlt?.trim()) lines.push(`[Image: ${block.imageAlt.trim()}]`, '');
         else if (block.imageSrc) lines.push('[Image]', '');
+        if (block.imageCaption?.trim()) lines.push(block.imageCaption.trim(), '');
         break;
     }
   }
@@ -240,6 +242,7 @@ function bodyRtfInner(doc: ManuscriptDocument, chapterSplit: boolean): string {
       }
       case 'image':
         if (block.imageAlt?.trim()) parts.push(`\\pard\\i ${rtfEscape(`[Image: ${block.imageAlt.trim()}]`)}\\i0\\par\\pard\\par`);
+        if (block.imageCaption?.trim()) parts.push(`\\pard ${rtfEscape(block.imageCaption.trim())}\\par\\pard\\par`);
         break;
     }
   }
@@ -386,6 +389,9 @@ function bodyDocxParagraphsFixed(doc: ManuscriptDocument, type: ManuscriptTypogr
         if (block.imageAlt?.trim()) {
           children.push(new Paragraph({ children: [docxRun(type, `[Image: ${block.imageAlt.trim()}]`, { italics: true })] }));
         }
+        if (block.imageCaption?.trim()) {
+          children.push(new Paragraph({ children: [docxRun(type, block.imageCaption.trim())] }));
+        }
         break;
     }
   }
@@ -455,6 +461,9 @@ function bodyOdt(doc: ManuscriptDocument): string {
       case 'image':
         if (block.imageAlt?.trim()) {
           parts.push(`<text:p text:style-name="TextBody">${xmlEscape(`[Image: ${block.imageAlt.trim()}]`)}</text:p>`);
+        }
+        if (block.imageCaption?.trim()) {
+          parts.push(`<text:p text:style-name="TextBody">${xmlEscape(block.imageCaption.trim())}</text:p>`);
         }
         break;
     }

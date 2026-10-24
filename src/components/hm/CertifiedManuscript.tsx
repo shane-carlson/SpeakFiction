@@ -11,9 +11,15 @@ import { Editor } from './Editor';
 export function CertifiedManuscript({
   book,
   onPlaceChange,
+  canInsertDictation = false,
+  onInsertDictation,
+  insertAt = null,
 }: {
   book: Book;
   onPlaceChange?: (place: ManuscriptPlace) => void;
+  canInsertDictation?: boolean;
+  onInsertDictation?: (target: { atIndex?: number; blockId?: string; splitOffset?: number }) => void;
+  insertAt?: number | null;
 }) {
   const replaceManuscriptDocument = useStore((s) => s.replaceManuscriptDocument);
   const series = useStore((s) => s.series);
@@ -40,6 +46,9 @@ export function CertifiedManuscript({
         focusMode={editorOpen}
         onFocusModeChange={setEditorOpen}
         onChange={(next) => replaceManuscriptDocument(book.id, next)}
+        canInsertDictation={canInsertDictation}
+        onInsertDictation={onInsertDictation}
+        insertAt={insertAt}
         onDictationTarget={(target) => {
           if (target.blockId) {
             onPlaceChange?.({

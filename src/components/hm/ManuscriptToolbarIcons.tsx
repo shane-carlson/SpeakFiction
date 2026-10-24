@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 
 export function ToolbarIconButton({
   label,
@@ -8,7 +8,7 @@ export function ToolbarIconButton({
   children,
 }: {
   label: string;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   active?: boolean;
   children: ReactNode;
@@ -136,6 +136,16 @@ export function IconItalic() {
   return (
     <svg {...iconProps} aria-hidden="true">
       <path d="M14 5h-4M10 19h4M14 5l-4 14" />
+    </svg>
+  );
+}
+
+export function IconStrikethrough() {
+  return (
+    <svg {...iconProps} aria-hidden="true">
+      <path d="M4 12h16" />
+      <path d="M7 7.5c.4-1.6 2-3 5-3 3.2 0 5 1.6 5 3.6 0 1.2-.6 2.1-1.6 2.8" />
+      <path d="M8.2 16.2c.8 1.4 2.2 2.3 3.8 2.3 3.1 0 4.8-1.7 4.8-3.7 0-.7-.2-1.4-.5-2" />
     </svg>
   );
 }
