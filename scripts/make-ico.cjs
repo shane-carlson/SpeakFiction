@@ -286,6 +286,13 @@ function renderPng(px) {
     encoding: 'utf8',
   });
   if (sips.status === 0 && fs.existsSync(out)) return fs.readFileSync(out);
+  // Linux packs have no sips. ffmpeg scales the same logo into each ICO size.
+  const ffmpeg = spawnSync(
+    'ffmpeg',
+    ['-y', '-loglevel', 'error', '-i', src, '-vf', `scale=${px}:${px}`, out],
+    { encoding: 'utf8' },
+  );
+  if (ffmpeg.status === 0 && fs.existsSync(out)) return fs.readFileSync(out);
   if (px === 256 && fs.existsSync(src)) return fs.readFileSync(src);
   return null;
 }
