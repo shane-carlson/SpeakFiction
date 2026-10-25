@@ -181,6 +181,25 @@ describe('release notes sources', () => {
     ]);
   });
 
+  it('uses curated 0.2.52 bullets even when pending GitHub notes are pack/ops copy', async () => {
+    expect(hasCuratedWhatsNew('0.2.52')).toBe(true);
+    const resolved = await resolveWhatsNewNotes({
+      version: '0.2.52',
+      build: 69,
+      pending: {
+        version: '0.2.52',
+        notes: '## Pack\n- NSIS installer\n- latest.yml\n\n## Features\n- Ignore this GitHub wall',
+      },
+    });
+    expect(resolved.source).toBe('bundled');
+    expect(resolved.text).toBe(bundledWhatsNew('0.2.52'));
+    expect(featureBullets(resolved.text)).toEqual([
+      'Importing an audio file that is too large or longer than 20 minutes shows a warning instead of closing the book',
+      'The book and manuscript stay as they were when that file cannot be imported',
+      'A file that can be imported still lands in the transcription box',
+    ]);
+  });
+
   it('uses curated 0.2.48 bullets even when pending GitHub notes are pack/ops copy', async () => {
     expect(hasCuratedWhatsNew('0.2.48')).toBe(true);
     const resolved = await resolveWhatsNewNotes({

@@ -155,6 +155,11 @@ export function normalizeReleaseNotes(raw: unknown): string {
 }
 
 const BUNDLED_BY_VERSION: Record<string, string> = {
+  '0.2.52': bullets(
+    'Importing an audio file that is too large or longer than 20 minutes shows a warning instead of closing the book',
+    'The book and manuscript stay as they were when that file cannot be imported',
+    'A file that can be imported still lands in the transcription box',
+  ),
   '0.2.48': bullets(
     'With certification highlights on, hovering a passage scrolls to its card in the certification pane',
     'Importing an audio file stays on Voice notes if it cannot be transcribed, instead of going blank and sending you back to Dictate',
