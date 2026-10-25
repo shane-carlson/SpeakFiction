@@ -1,5 +1,7 @@
 /** Desktop import of voice memos and common audio files. Decode here, transcribe on-device. */
 
+import { peekImportedAudioDurationMs } from './audioImportDuration';
+
 export const AUDIO_IMPORT_EXTENSIONS = [
   'wav',
   'wave',
@@ -46,10 +48,25 @@ export const MAX_AUDIO_IMPORT_BYTES = 40 * 1024 * 1024;
 export const MAX_AUDIO_IMPORT_DURATION_MS = 20 * 60 * 1000;
 /** Decode in ~45s slices so a long memo still finishes on-device. */
 export const IMPORT_CHUNK_SECONDS = 45;
+export const AUDIO_IMPORT_TOO_LARGE_MESSAGE = 'That audio file is too large to import (40 MB limit).';
+export const AUDIO_IMPORT_TOO_LONG_MESSAGE =
+  'That audio file is longer than 20 minutes. Split it into a shorter take and import that.';
+
+export function importedAudioTooLargeMessage(byteLength: number): string | null {
+  if (!Number.isFinite(byteLength) || byteLength <= MAX_AUDIO_IMPORT_BYTES) return null;
+  return AUDIO_IMPORT_TOO_LARGE_MESSAGE;
+}
 
 export function importedAudioTooLongMessage(durationMs: number): string | null {
-  if (durationMs <= MAX_AUDIO_IMPORT_DURATION_MS) return null;
-  return 'That audio file is longer than 20 minutes. Split it into a shorter take and import that.';
+  if (!Number.isFinite(durationMs) || durationMs <= MAX_AUDIO_IMPORT_DURATION_MS) return null;
+  return AUDIO_IMPORT_TOO_LONG_MESSAGE;
+}
+
+/** Keep the size and length warnings; rewrite only unexpected decoder failures. */
+export function preservedAudioImportError(err: unknown): Error | null {
+  if (!(err instanceof Error)) return null;
+  if (/too large|empty|cannot decode|longer than/i.test(err.message)) return err;
+  return null;
 }
 
 export function audioExtension(name: string | undefined): string {
@@ -102,15 +119,67 @@ function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return copy;
 }
 
+async function durationBeforeDecode(bytes: Uint8Array, mime?: string): Promise<number | null> {
+  const peeked = peekImportedAudioDurationMs(bytes);
+  if (peeked != null) return peeked;
+  return probeAudioElementDurationMs(bytes, mime);
+}
+
+/** Metadata duration. Does not decode the whole take into PCM. */
+export function probeAudioElementDurationMs(bytes: Uint8Array, mime?: string): Promise<number | null> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined' || typeof Blob === 'undefined') {
+    return Promise.resolve(null);
+  }
+  if (typeof URL.createObjectURL !== 'function') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const audio = document.createElement('audio');
+    if (typeof audio.canPlayType !== 'function') {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    let url = '';
+    const finish = (ms: number | null) => {
+      if (settled) return;
+      settled = true;
+      if (url) URL.revokeObjectURL(url);
+      audio.removeAttribute('src');
+      resolve(ms);
+    };
+    try {
+      url = URL.createObjectURL(new Blob([copyToArrayBuffer(bytes)], { type: mime || 'application/octet-stream' }));
+    } catch {
+      finish(null);
+      return;
+    }
+    const timer = window.setTimeout(() => finish(null), 800);
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      window.clearTimeout(timer);
+      const duration = audio.duration;
+      finish(Number.isFinite(duration) && duration > 0 ? Math.round(duration * 1000) : null);
+    };
+    audio.onerror = () => {
+      window.clearTimeout(timer);
+      finish(null);
+    };
+    audio.src = url;
+  });
+}
+
 export async function decodeImportedAudio(
   bytes: Uint8Array,
-  _mime?: string,
+  mime?: string,
 ): Promise<{ samples: Float32Array; sampleRate: number; durationMs: number }> {
   if (bytes.byteLength < 16) {
     throw new Error('That audio file is empty.');
   }
-  if (bytes.byteLength > MAX_AUDIO_IMPORT_BYTES) {
-    throw new Error('That audio file is too large to import (40 MB limit).');
+  const tooLarge = importedAudioTooLargeMessage(bytes.byteLength);
+  if (tooLarge) throw new Error(tooLarge);
+  const hinted = await durationBeforeDecode(bytes, mime);
+  if (hinted != null) {
+    const tooLong = importedAudioTooLongMessage(hinted);
+    if (tooLong) throw new Error(tooLong);
   }
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) {
@@ -119,15 +188,23 @@ export async function decodeImportedAudio(
   const ctx = new Ctx();
   try {
     const buffer = await ctx.decodeAudioData(copyToArrayBuffer(bytes));
-    const durationMs = Math.round(buffer.duration * 1000);
+    const fromHeader = Number.isFinite(buffer.duration) ? Math.round(buffer.duration * 1000) : 0;
+    const fromSamples =
+      buffer.sampleRate > 0 ? Math.round((buffer.length / buffer.sampleRate) * 1000) : 0;
+    const durationMs = Math.max(fromHeader, fromSamples);
     const tooLong = importedAudioTooLongMessage(durationMs);
     if (tooLong) throw new Error(tooLong);
     const samples = mixToMono(buffer);
     return { samples, sampleRate: buffer.sampleRate, durationMs };
   } catch (err) {
-    if (err instanceof Error && /too large|empty|cannot decode/i.test(err.message)) throw err;
+    const preserved = preservedAudioImportError(err);
+    if (preserved) throw preserved;
     throw new Error('Could not decode that audio file. Try WAV, M4A, MP3, AAC, OGG, FLAC, or CAF.');
   } finally {
-    void ctx.close();
+    try {
+      void Promise.resolve(ctx.close()).catch(() => undefined);
+    } catch {
+      /* Closing a failed context must not become an unhandled rejection. */
+    }
   }
 }

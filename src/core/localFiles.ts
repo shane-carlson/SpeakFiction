@@ -89,13 +89,18 @@ export interface OpenBytesResult {
   path?: string;
   bytes?: Uint8Array;
   mime?: string;
+  message?: string;
 }
 
 function asUint8Array(bytes: Uint8Array | number[]): Uint8Array {
   return bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
 }
 
-function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
+function pickBytesInBrowser(
+  accept: string,
+  maxBytes?: number,
+  tooLargeMessage?: string,
+): Promise<OpenBytesResult> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -106,6 +111,14 @@ function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
         resolve({ ok: false });
         return;
       }
+      if (typeof maxBytes === 'number' && maxBytes > 0 && file.size > maxBytes) {
+        resolve({
+          ok: false,
+          path: file.name,
+          message: tooLargeMessage || 'That file is too large to open.',
+        });
+        return;
+      }
       void file.arrayBuffer().then(
         (buf) =>
           resolve({
@@ -114,7 +127,7 @@ function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
             bytes: new Uint8Array(buf),
             mime: file.type,
           }),
-        () => resolve({ ok: false }),
+        () => resolve({ ok: false, message: 'Could not read that file.' }),
       );
     });
     input.click();
@@ -122,11 +135,16 @@ function pickBytesInBrowser(accept: string): Promise<OpenBytesResult> {
 }
 
 /** Open a binary file (images) via Electron dialog, or a hidden file input. */
-export async function openBytesFile(opts?: { filters?: FileFilter[]; accept?: string }): Promise<OpenBytesResult> {
+export async function openBytesFile(opts?: {
+  filters?: FileFilter[];
+  accept?: string;
+  maxBytes?: number;
+  tooLargeMessage?: string;
+}): Promise<OpenBytesResult> {
   const files = window.speakfiction?.files;
   if (files?.openBytes) {
     const res = await files.openBytes(opts);
-    if (!res.ok || !res.bytes) return { ok: false };
+    if (!res.ok || !res.bytes) return { ok: false, path: res.path, message: res.message };
     return {
       ok: true,
       path: res.path,
@@ -138,5 +156,5 @@ export async function openBytesFile(opts?: { filters?: FileFilter[]; accept?: st
     opts?.accept ||
     (opts?.filters ?? []).flatMap((f) => f.extensions.map((ext) => `.${ext}`)).join(',') ||
     'image/*';
-  return pickBytesInBrowser(accept);
+  return pickBytesInBrowser(accept, opts?.maxBytes, opts?.tooLargeMessage);
 }

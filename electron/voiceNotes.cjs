@@ -3,6 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { webcrypto } = require('node:crypto');
 const license = require('./license.cjs');
+const audioLimits = require('./audioImportLimits.cjs');
 
 const DEFAULT_NOTES_URL = 'https://www.readywriter.one';
 const CRYPTO_SALT = 'speakfiction-notes-v1:';
@@ -168,6 +169,8 @@ function readNoteAudio(id) {
     const found = fs.readdirSync(audioDir()).find((name) => name.startsWith(`${id}.`) && !name.endsWith('.json'));
     if (!found) return { ok: false, message: 'That take has no audio on this computer. Send it again from the phone.' };
     const dest = path.join(audioDir(), found);
+    const tooLarge = audioLimits.messageIfAudioTooLarge(fs.statSync(dest).size);
+    if (tooLarge) return { ok: false, message: tooLarge };
     let mime = 'audio/mp4';
     try {
       mime = JSON.parse(fs.readFileSync(`${dest}.meta.json`, 'utf8')).mime || mime;

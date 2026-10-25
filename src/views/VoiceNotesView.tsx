@@ -6,9 +6,13 @@ import { getPerspective } from '../core/perspective';
 import {
   AUDIO_IMPORT_ACCEPT,
   AUDIO_IMPORT_FILTERS,
+  AUDIO_IMPORT_TOO_LARGE_MESSAGE,
+  MAX_AUDIO_IMPORT_BYTES,
+  importedAudioTooLargeMessage,
   isAudioImportName,
   mimeForAudioImport,
 } from '../core/audioImport';
+import { flushSessionPersist } from '../core/sessionStorage';
 import { mergeSeriesNameLibrary } from '../core/seriesNames';
 import { whisperInboxPrompt, whisperPrompt } from '../core/whisperPrompt';
 import {
@@ -189,20 +193,37 @@ export function VoiceNotesView({
   };
 
   const importAudio = async () => {
-    if (!license.mayDictate) return;
+    if (!license.mayDictate || importing) return;
     setError(null);
-    const res = await openBytesFile({
-      filters: AUDIO_IMPORT_FILTERS,
-      accept: AUDIO_IMPORT_ACCEPT,
-    });
-    if (!res.ok || !res.bytes) return;
-    if (res.path && !isAudioImportName(res.path)) {
-      fail('Choose a WAV, M4A, MP3, AAC, OGG, FLAC, CAF, or similar audio file.');
-      return;
-    }
-    setImporting(true);
-    setImportProgress({ fraction: 0.03, label: 'Reading the audio file…' });
+    let started = false;
     try {
+      const res = await openBytesFile({
+        filters: AUDIO_IMPORT_FILTERS,
+        accept: AUDIO_IMPORT_ACCEPT,
+        maxBytes: MAX_AUDIO_IMPORT_BYTES,
+        tooLargeMessage: AUDIO_IMPORT_TOO_LARGE_MESSAGE,
+      });
+      if (!res.ok || !res.bytes) {
+        if (res.message) fail(res.message);
+        return;
+      }
+      if (res.path && !isAudioImportName(res.path)) {
+        fail('Choose a WAV, M4A, MP3, AAC, OGG, FLAC, CAF, or similar audio file.');
+        return;
+      }
+      const tooLarge = importedAudioTooLargeMessage(res.bytes.byteLength);
+      if (tooLarge) {
+        fail(tooLarge);
+        return;
+      }
+      try {
+        flushSessionPersist();
+      } catch {
+        /* The in-memory book stays. Import must not wipe it. */
+      }
+      started = true;
+      setImporting(true);
+      setImportProgress({ fraction: 0.03, label: 'Reading the audio file…' });
       const names = mergeSeriesNameLibrary(books, book).map((entry) => entry.canonical);
       const { text, durationMs } = await transcribeImportedAudioFile(
         res.bytes,
@@ -226,8 +247,10 @@ export function VoiceNotesView({
     } catch (err) {
       fail(err instanceof Error ? err.message : 'Could not import that audio file.');
     } finally {
-      setImporting(false);
-      setImportProgress(null);
+      if (started) {
+        setImporting(false);
+        setImportProgress(null);
+      }
     }
   };
 
@@ -343,7 +366,11 @@ export function VoiceNotesView({
       </div>
 
       {(status || error || inbox.error) && (
-        <div className={`note-banner ${error || inbox.error ? 'warn' : ''}`} style={{ marginBottom: 18 }}>
+        <div
+          className={`note-banner ${error || inbox.error ? 'warn' : ''}`}
+          style={{ marginBottom: 18 }}
+          role={error || inbox.error ? 'alert' : 'status'}
+        >
           <span className="ico">{error || inbox.error ? '⚠️' : '✅'}</span>
           <div>{error ?? inbox.error ?? status}</div>
         </div>
