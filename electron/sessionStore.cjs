@@ -59,7 +59,9 @@ function applyDictateTab(text) {
       parsed.state && typeof parsed.state === 'object' && !Array.isArray(parsed.state)
         ? parsed.state
         : parsed;
-    if (!state || typeof state !== 'object' || state.activeTab === 'dictate') return null;
+    // Library is the only tab that can trap the next launch. Voice notes, Dictate,
+    // and the manuscript stay as they were when some other page crashes.
+    if (!state || typeof state !== 'object' || state.activeTab !== 'library') return null;
     state.activeTab = 'dictate';
     return JSON.stringify(parsed);
   } catch {
@@ -67,7 +69,7 @@ function applyDictateTab(text) {
   }
 }
 
-/** After a GPU/renderer crash, reopen on Dictate so Library cannot trap the next launch. */
+/** After a Library renderer crash, reopen on Dictate so Library cannot trap the next launch. */
 function forceDictateTab() {
   const text = load();
   const next = applyDictateTab(text);

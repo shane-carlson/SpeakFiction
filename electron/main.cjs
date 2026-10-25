@@ -258,7 +258,9 @@ ipcMain.handle('files:open-bytes', async (_event, payload) => {
     ],
   });
   if (canceled || !filePaths[0]) return { ok: false };
-  const buf = await fs.readFile(filePaths[0]);
+  const opened = await require('./openBytes.cjs').readBytesIfAllowed(filePaths[0], payload);
+  if (!opened.ok) return opened;
+  const buf = opened.bytes;
   const ext = path.extname(filePaths[0]).slice(1).toLowerCase();
   const mime =
     ext === 'png'

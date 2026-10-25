@@ -82,11 +82,16 @@ export interface SpeakFictionFilesBridge {
     filters?: FileFilter[];
   }) => Promise<{ ok: boolean; path?: string }>;
   openText: (opts?: { filters?: FileFilter[] }) => Promise<{ ok: boolean; path?: string; content?: string }>;
-  openBytes: (opts?: { filters?: FileFilter[] }) => Promise<{
+  openBytes: (opts?: {
+    filters?: FileFilter[];
+    maxBytes?: number;
+    tooLargeMessage?: string;
+  }) => Promise<{
     ok: boolean;
     path?: string;
     bytes?: Uint8Array | number[];
     mime?: string;
+    message?: string;
   }>;
 }
 
